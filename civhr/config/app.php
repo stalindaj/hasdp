@@ -16,6 +16,13 @@ return [
     'name' => env('APP_NAME', 'Laravel'),
 
     /*
+    | One-time deploy token. When set (SETUP_TOKEN in .env), visiting
+    | /setup/{that-token} runs migrations + seeders — used to build the
+    | database on shell-less hosting. Blank it in .env after first launch.
+    */
+    'setup_token' => env('SETUP_TOKEN'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

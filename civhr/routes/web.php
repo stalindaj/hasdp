@@ -6,8 +6,30 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+/*
+ | One-time database setup for shell-less hosting. Set SETUP_TOKEN in .env,
+ | visit /setup/<token> once to build tables + seed, then blank SETUP_TOKEN.
+ | Idempotent (safe to re-run); returns plain-text output.
+ */
+Route::get('/setup/{token}', function (string $token) {
+    $expected = (string) config('app.setup_token');
+    abort_unless($expected !== '' && hash_equals($expected, $token), 404);
+
+    Artisan::call('migrate', ['--force' => true]);
+    $migrate = Artisan::output();
+    Artisan::call('db:seed', ['--force' => true]);
+    $seed = Artisan::output();
+
+    return response(
+        "== migrate ==\n{$migrate}\n== db:seed ==\n{$seed}\n".
+        "DONE. Now remove SETUP_TOKEN from .env (set it blank) to disable this page.",
+        200
+    )->header('Content-Type', 'text/plain');
+});
 
 Route::get('/', function () {
     // Signed-in users go straight to the app; guests see the landing page.

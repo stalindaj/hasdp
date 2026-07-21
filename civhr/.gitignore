@@ -23,7 +23,10 @@
 /public/storage
 /storage/*.key
 /storage/pail
-/vendor
+# NOTE: /vendor is committed on purpose. The cPanel host is shell-less (no
+# Composer), so the app ships with its dependencies. If you move to a host with
+# SSH/Composer, re-ignore /vendor and run `composer install` on deploy instead.
+# /vendor
 _ide_helper.php
 Homestead.json
 Homestead.yaml
