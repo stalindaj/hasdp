@@ -14,7 +14,10 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# NOTE: /public/build is deliberately NOT ignored. The cPanel host has no Node,
+# so assets are built locally (`npm run build`) and committed, then pulled on
+# the server. If you ever move to a host with Node, re-add /public/build here
+# and build during deploy instead.
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage

@@ -1,7 +1,71 @@
 <?php
 
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\EmployeeProfileController;
+use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\EmployeeController;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
-    return view('welcome');
+    // Signed-in users go straight to the app; guests see the landing page.
+    if (auth()->check()) {
+        return redirect()->route('my-profile.edit');
+    }
+
+    $asset = fn (?string $p) => $p && file_exists(public_path($p)) ? asset($p) : null;
+
+    return Inertia::render('Welcome', [
+        'canLogin' => Route::has('login'),
+        'agency' => [
+            'name'      => config('agency.name'),
+            'address'   => config('agency.address'),
+            'address2'  => config('agency.address2'),
+            'logoLeft'  => $asset(config('agency.logo_left')),
+            'logoRight' => $asset(config('agency.logo_right')),
+        ],
+    ]);
 });
+
+Route::get('/dashboard', function () {
+    return Inertia::render('Dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    // Breeze account settings (email / password)
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Employee self-service profile (HR record)
+    Route::get('/my-profile', [EmployeeProfileController::class, 'edit'])->name('my-profile.edit');
+    Route::patch('/my-profile', [EmployeeProfileController::class, 'update'])->name('my-profile.update');
+
+    // Leave — CS Form No. 6
+    Route::get('/leave', [LeaveController::class, 'index'])->name('leave.index');
+    Route::get('/leave/requests', [LeaveController::class, 'requests'])->name('leave.requests');
+    Route::get('/leave/create', [LeaveController::class, 'create'])->name('leave.create');
+    Route::post('/leave', [LeaveController::class, 'store'])->name('leave.store');
+    Route::get('/leave/{application}', [LeaveController::class, 'show'])->name('leave.show');
+    Route::get('/leave/{application}/print', [LeaveController::class, 'print'])->name('leave.print');
+    Route::patch('/leave/{application}/save', [LeaveController::class, 'saveDraft'])->name('leave.save');
+    Route::post('/leave/{application}/decide', [LeaveController::class, 'decide'])->name('leave.decide');
+    Route::patch('/leave/{application}/recommender', [LeaveController::class, 'setRecommender'])->name('leave.recommender');
+    Route::post('/leave/{application}/cancel', [LeaveController::class, 'cancel'])->name('leave.cancel');
+});
+
+// Admin area (superadmin + admin only)
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::post('users', [UserController::class, 'store'])->name('users.store');
+    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::patch('users/{user}/password', [UserController::class, 'resetPassword'])->name('users.password');
+    Route::patch('users/{user}/toggle', [UserController::class, 'toggleActive'])->name('users.toggle');
+
+    Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::patch('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+});
+
+require __DIR__.'/auth.php';
