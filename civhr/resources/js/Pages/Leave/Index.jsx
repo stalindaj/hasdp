@@ -90,14 +90,32 @@ export default function Index({ applications, isAdmin, pendingCount }) {
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                                                 {a.status === 'approved' ? (
-                                                    <a
-                                                        href={route('leave.print', a.id)}
-                                                        target="_blank"
-                                                        rel="noopener"
-                                                        className="font-medium text-indigo-600 hover:text-indigo-500"
-                                                    >
-                                                        Print form
-                                                    </a>
+                                                    <span className="space-x-3">
+                                                        <a
+                                                            href={route('leave.print', a.id)}
+                                                            target="_blank"
+                                                            rel="noopener"
+                                                            className="font-medium text-indigo-600 hover:text-indigo-500"
+                                                        >
+                                                            Print form
+                                                        </a>
+                                                        <Link
+                                                            href={route('leave.show', a.id)}
+                                                            className="font-medium text-indigo-600 hover:text-indigo-500"
+                                                        >
+                                                            {a.signed_form
+                                                                ? 'View'
+                                                                : 'Upload signed copy'}
+                                                        </Link>
+                                                        {a.signed_form && (
+                                                            <span
+                                                                className="text-emerald-600"
+                                                                title="Signed form on file"
+                                                            >
+                                                                ✓
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                 ) : (
                                                     <Link
                                                         href={route('leave.show', a.id)}

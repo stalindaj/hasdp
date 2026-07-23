@@ -27,7 +27,9 @@ class LeaveController extends Controller
                 ->where('user_id', $user->id)
                 ->latest()
                 ->get()
-                ->map(fn ($a) => $this->summary($a)),
+                ->map(fn ($a) => $this->summary($a) + [
+                    'signed_form' => (bool) $a->signed_form_path,
+                ]),
             'isAdmin'      => LeaveWorkflow::isAdmin($user),
             'pendingCount' => LeaveWorkflow::isAdmin($user)
                 ? LeaveApplication::where('status', LeaveWorkflow::PENDING)->count()
