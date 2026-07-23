@@ -18,4 +18,8 @@ return [
     // Appended after a signatory's name on the printed form, e.g. "… PAF".
     // Blank it out for a civilian agency.
     'branch_suffix' => env('AGENCY_BRANCH_SUFFIX', 'PAF'),
+
+    // Annual Learning & Development target per employee, in hours. The
+    // dashboard shows how many hours each person still has pending.
+    'ld_target_hours' => (float) env('LD_TARGET_HOURS', 8),
 ];

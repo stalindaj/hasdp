@@ -35,14 +35,21 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $roles = $user ? $user->roles()->pluck('name') : collect();
+        $hasAdminRole = $roles->contains('admin') || $roles->contains('superadmin');
+        // Admins can preview the app as a plain employee; while they do, their
+        // admin access is off (EnsureAdmin also enforces this server-side).
+        $asEmployee = $hasAdminRole && $request->session()->get('view_mode') === 'employee';
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
-                // added: expose the logged-in user's role names to the frontend
-                'roles' => $request->user()
-                    ? $request->user()->roles()->pluck('name')
-                    : [],
+                'user' => $user,
+                'roles' => $roles,
+                'isAdmin' => $hasAdminRole && ! $asEmployee,
+                'canSwitchView' => $hasAdminRole,
+                'viewMode' => $asEmployee ? 'employee' : 'admin',
             ],
             // added: one-off flash messages (used by the create-user form)
             'flash' => [

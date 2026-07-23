@@ -3,12 +3,12 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 
 export default function AuthenticatedLayout({ header, children }) {
-    const user = usePage().props.auth.user;
-    const roles = usePage().props.auth.roles ?? [];
-    const isAdmin = roles.includes('admin') || roles.includes('superadmin');
+    const { user, isAdmin, canSwitchView, viewMode } = usePage().props.auth;
+
+    const switchView = () => router.post(route('view-mode.toggle'));
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
@@ -26,6 +26,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             </div>
 
                             <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                                <NavLink
+                                    href={route('dashboard')}
+                                    active={route().current('dashboard')}
+                                >
+                                    Dashboard
+                                </NavLink>
                                 <NavLink
                                     href={route('my-profile.edit')}
                                     active={route().current('my-profile.*')}
@@ -61,6 +67,22 @@ export default function AuthenticatedLayout({ header, children }) {
                         </div>
 
                         <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                            {canSwitchView && (
+                                <button
+                                    onClick={switchView}
+                                    className={
+                                        'mr-2 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition ' +
+                                        (viewMode === 'employee'
+                                            ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100'
+                                            : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100')
+                                    }
+                                    title="Admins can preview the app exactly as an employee sees it"
+                                >
+                                    {viewMode === 'employee'
+                                        ? '← Back to admin'
+                                        : 'View as employee'}
+                                </button>
+                            )}
                             <div className="relative ms-3">
                                 <Dropdown>
                                     <Dropdown.Trigger>
@@ -155,6 +177,22 @@ export default function AuthenticatedLayout({ header, children }) {
                     }
                 >
                     <div className="space-y-1 pb-3 pt-2">
+                        <ResponsiveNavLink
+                            href={route('dashboard')}
+                            active={route().current('dashboard')}
+                        >
+                            Dashboard
+                        </ResponsiveNavLink>
+                        {canSwitchView && (
+                            <button
+                                onClick={switchView}
+                                className="block w-full px-4 py-2 text-start text-base font-medium text-amber-700"
+                            >
+                                {viewMode === 'employee'
+                                    ? '← Back to admin'
+                                    : 'View as employee'}
+                            </button>
+                        )}
                         <ResponsiveNavLink
                             href={route('my-profile.edit')}
                             active={route().current('my-profile.*')}

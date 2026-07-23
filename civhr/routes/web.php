@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
@@ -34,7 +35,7 @@ Route::get('/setup/{token}', function (string $token) {
 Route::get('/', function () {
     // Signed-in users go straight to the app; guests see the landing page.
     if (auth()->check()) {
-        return redirect()->route('my-profile.edit');
+        return redirect()->route('dashboard');
     }
 
     $asset = fn (?string $p) => $p && file_exists(public_path($p)) ? asset($p) : null;
@@ -51,11 +52,24 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    // Admins may preview the app as a plain employee and switch back.
+    Route::post('/view-mode', function () {
+        $mode = session('view_mode') === 'employee' ? 'admin' : 'employee';
+        session(['view_mode' => $mode]);
+
+        return redirect()->route('dashboard');
+    })->name('view-mode.toggle');
+
+    // Dashboard status trackers (admin-only writes).
+    Route::patch('/dashboard/ipcr/{employee}', [DashboardController::class, 'toggleIpcr'])
+        ->middleware('admin')->name('dashboard.ipcr');
+    Route::post('/dashboard/ld/{employee}', [DashboardController::class, 'storeLd'])
+        ->middleware('admin')->name('dashboard.ld');
+
     // Breeze account settings (email / password)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

@@ -70,8 +70,8 @@ class UserManagementTest extends TestCase
         // The 'hashed' cast hashes this on save.
         $target = User::factory()->create(['is_active' => false, 'password' => 'secret123']);
 
-        $this->post(route('login'), ['email' => $target->email, 'password' => 'secret123'])
-            ->assertSessionHasErrors('email');
+        $this->post(route('login'), ['login' => $target->email, 'password' => 'secret123'])
+            ->assertSessionHasErrors('login');
         $this->assertGuest();
     }
 

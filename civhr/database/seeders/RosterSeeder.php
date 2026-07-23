@@ -9,55 +9,49 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * The office roster. Idempotent — matches on email, so re-running updates
- * rather than duplicating.
+ * The 15SW civilian roster, from the HR monitoring sheet + PSIPOP item list.
+ * Idempotent — matches on the employee number, so re-running updates rather
+ * than duplicating, and never resets an existing account's password.
  *
- * Signatories on CS Form No. 6 are driven by roles:
- *   hr_officer  → 7.A "Authorized Officer"  (Marie Cris A Uri)
- *   approver    → 7.C/7.D "Authorized Official" (LTC Adrian Lee G Mission)
- *   recommender → 7.B options (assign as needed)
+ * Logins: username = employee number (e.g. 5807), temp password below —
+ * everyone should change theirs on first login.
  *
- * TEMP passwords are set here for testing only — have each person change
- * theirs, and do not treat these as secret.
+ * Signatories on CS Form No. 6 are role-driven:
+ *   hr_officer → 7.A (Marie Cris Uri) · approver → 7.C/7.D (LTC Mission)
  */
 class RosterSeeder extends Seeder
 {
-    private const TEMP_PASSWORD = 'password';
+    private const TEMP_PASSWORD = 'password123';
 
     public function run(): void
     {
-        // [last, first, middle, suffix, email, [roles], [extra employee fields]]
+        // [emp_no, item_no, last, first, middle, suffix, email, dob, contact,
+        //  last_ape, ape_started, ape_completed, [roles], [extra employee fields]]
         $roster = [
-            ['Bercades', 'Justin Gerrick Elmon', 'L', null, 'justinbercades241999@gmail.com', ['employee'], []],
-            ['Bulanan', 'Cyric Richard', 'N', null, 'cyricbulanan@gmail.com', ['employee'], []],
-            ['Calagos', 'Raynold Anthony', 'D', null, 'calagosraynold@gmail.com', ['employee'], []],
-            ['De La Peña', 'Meldith', null, null, 'meldithdelapena@gmail.com', ['employee'], []],
-            ['Estrella', 'Marferia', 'T', null, 'estrella.marferia@civhr.test', ['employee'], []],
-            ['Figura', 'Eliaqium', 'C', null, 'eliaquimfigura@gmail.com', ['employee'], []],
-            ['Junquera', 'Ray Anthony', 'S', null, 'anthonyjunqueraae@gmail.com', ['employee'], []],
-            ['Murthi', 'Debenpillai', 'C', null, 'murthideben@gmail.com', ['employee'], []],
-            ['Relato', 'Dianne', 'R', null, 'diannerelato1@gmail.com', ['employee'], []],
-            ['Soriano', 'Dolgelio Paulo', 'M', null, 'gio.soriano2121@gmail.com', ['employee'], []],
-            ['Urquiola', 'Arrius Jamiel', 'J', null, 'arriusurquiola@gmail.com', ['employee'], []],
-            ['Montejo', 'Philip RJ', 'A', null, 'montejo.philip@civhr.test', ['employee'], []],
-            ['Baguio', 'Stalin Joseph', 'G', null, 'stalindaj7@gmail.com', ['superadmin', 'admin', 'employee'], []],
-            ['Rosalejos', 'Joseph Samuel', 'B', 'III', 'josephsamuel.rosalejos@gmail.com', ['employee'], []],
-            ['Candido', 'Jhona Jean', 'C', null, 'candido.jhonajean@civhr.test', ['employee'], []],
-            ['Garcia', 'Christine Rae', 'G', null, 'garcia.christine@civhr.test', ['employee'], []],
-
-            // Admins (supervisor + assistant) who process leaves.
-            ['Montemayor', 'Jean Marie', 'B', null, 'jheanmarie3194@gmail.com', ['admin', 'employee'], []],
-
-            // Marie Cris A Uri — admin AND the fixed 7.A Authorized Officer.
-            ['Uri', 'Marie Cris', 'A', null, 'mariecris.uri1024@gmail.com', ['admin', 'hr_officer', 'employee'], [
+            ['5807', 'AM2-6-1998',    'Bercades',   'Justin Gerrick Elmon', 'L', null, 'justinbercades241999@gmail.com', '1999-02-04', null, null, null, '2026-02-13', ['employee'], []],
+            ['5797', 'AM1-34-1998',   'Bulanan',    'Cyric Richard', 'N', null, 'cyricbulanan@gmail.com', '2001-04-29', '09498021856', null, null, null, ['employee'], []],
+            ['5803', 'AM1-22-1998',   'Calagos',    'Raynold Anthony', 'D', null, 'calagosraynold@gmail.com', '1998-08-17', '09064912048', null, '2026-07-01', null, ['employee'], []],
+            ['5764', 'ADA6-7-2005',   'De La Peña', 'Meldith', null, null, 'meldithdelapena@gmail.com', '1996-02-17', null, null, null, null, ['employee'], []],
+            ['5606', 'AM7-37-1998',   'Figura',     'Eliaqium', 'Corporal', null, 'eliaquimfigura@gmail.com', null, null, null, null, null, ['employee'], []],
+            ['4487', 'ADA3-6-1998',   'Junquera',   'Ray Anthony', 'Saballa', null, 'anthonyjunqueraae@gmail.com', '1978-10-12', '09166483812', null, null, null, ['employee'], []],
+            ['5038', 'ADA6-15-2013',  'Montemayor', 'Jean Marie', 'Tubat', null, 'jheanmarie3194@gmail.com', '1994-01-31', '09498021856', null, null, null, ['admin', 'employee'], []],
+            ['5808', 'AM1-32-1998',   'Murthi',     'Debenpillai', 'C', null, 'murthideben@gmail.com', '1999-03-08', null, null, null, '2026-02-13', ['employee'], []],
+            ['4774', 'ADOF5-18-2005', 'Relato',     'Dianne', 'Rodriguez', null, 'diannerelato1@gmail.com', '1984-10-18', '09392557438', null, null, null, ['employee'], []],
+            ['5349', 'AM3-2-1998',    'Soriano',    'Dolgelio Paulo', 'Miranda', null, 'gio.soriano2121@gmail.com', null, null, null, null, null, ['employee'], []],
+            ['5112', 'ADOF4-23-2005', 'Uri',        'Marie Cris', 'Agbayani', null, 'mariecris.uri1024@gmail.com', '1990-11-15', '09279217322', '2025-11-15', null, null, ['admin', 'hr_officer', 'employee'], [
                 'position' => 'Admin Officer IV (HRMO II)',
                 'designation' => 'Wing Civilian Supervisor',
             ]],
+            ['5666', 'AM1-15-1998',   'Urquiola',   'Arrius Jamiel', 'Jalandoon', null, 'arriusurquiola@gmail.com', '1998-12-17', '09763225558', '2025-10-08', null, null, ['employee'], []],
+            ['5868', 'ADA4-123-2005', 'Montejo',    'Philip RJ', 'A', null, 'montejo.philip@civhr.test', '1994-12-02', null, null, null, null, ['employee'], []],
+            ['5867', 'ADAS1-30-2013', 'Baguio',     'Stalin Joseph', 'G', null, 'stalindaj7@gmail.com', '2002-02-01', null, null, null, null, ['superadmin', 'admin', 'employee'], []],
+            ['5877', 'ADA3-143-2005', 'Rosalejos',  'Joseph Samuel', 'B', 'III', 'josephsamuel.rosalejos@gmail.com', '1998-09-06', null, null, null, null, ['employee'], []],
+            ['5893', null,            'Candido',    'Jhona Jean', 'C', null, 'candido.jhonajean@civhr.test', '1998-10-28', null, null, null, null, ['employee'], []],
+            ['5894', null,            'Garcia',     'Christine Rae', 'G', null, 'garcia.christine@civhr.test', '2000-08-31', null, null, null, null, ['employee'], []],
 
-            // LTC Adrian Lee G Mission — the fixed 7.C/7.D Authorized Official.
-            // Not part of the plantilla roster above; present so the form has a
-            // signing official. Give a login only if he needs one.
-            ['Mission', 'Adrian Lee', 'G', null, 'adrian.mission@civhr.test', ['approver'], [
+            // LTC Adrian Lee G Mission — fixed 7.C/7.D Authorized Official.
+            // Not on the plantilla list; login optional.
+            ['mission', null, 'Mission', 'Adrian Lee', 'G', null, 'adrian.mission@civhr.test', null, null, null, null, null, ['approver'], [
                 'rank' => 'LTC',
                 'designation' => 'Director for Personnel',
             ]],
@@ -65,23 +59,35 @@ class RosterSeeder extends Seeder
 
         $roleIds = Role::pluck('id', 'name');
 
-        foreach ($roster as [$last, $first, $middle, $suffix, $email, $roles, $extra]) {
-            $employee = Employee::updateOrCreate(
-                ['email' => $email],
-                array_merge([
-                    'last_name'   => $last,
-                    'first_name'  => $first,
-                    'middle_name' => $middle,
-                    'suffix'      => $suffix,
-                ], $extra)
-            );
+        foreach ($roster as [$empNo, $itemNo, $last, $first, $middle, $suffix, $email, $dob, $contact, $ape, $apeStart, $apeDone, $roles, $extra]) {
+            // Match on employee number OR email so re-seeding updates records
+            // that predate employee numbers instead of colliding with them.
+            $employee = Employee::where('emp_no', $empNo)
+                ->orWhere('email', $email)
+                ->first() ?? new Employee();
 
-            // Only set the temp password when first creating the account, so
-            // re-running the seeder never clobbers a password someone changed.
+            $employee->fill(array_merge([
+                'emp_no'             => $empNo,
+                'item_no'            => $itemNo,
+                'last_name'          => $last,
+                'first_name'         => $first,
+                'middle_name'        => $middle,
+                'suffix'             => $suffix,
+                'email'              => $email,
+                'date_of_birth'      => $dob,
+                'contact_no'         => $contact,
+                'last_ape_date'      => $ape,
+                'ape_date_started'   => $apeStart,
+                'ape_date_completed' => $apeDone,
+            ], $extra))->save();
+
+            // Only set the temp password when first creating the account.
             $user = User::firstOrNew(['email' => $email]);
-            $user->name        = trim("$first $last");
-            $user->employee_id = $employee->id;
-            $user->is_active   = true;
+            $user->name              = trim("$first $last");
+            $user->username          = $empNo;
+            $user->employee_id       = $employee->id;
+            $user->is_active         = true;
+            $user->email_verified_at = $user->email_verified_at ?? now();
             if (! $user->exists) {
                 $user->password = Hash::make(self::TEMP_PASSWORD);
             }

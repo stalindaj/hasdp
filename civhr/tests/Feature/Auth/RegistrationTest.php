@@ -27,6 +27,6 @@ class RegistrationTest extends TestCase
 
         $this->assertAuthenticated();
         // Signing in lands the employee on their own HR record, not a dashboard.
-        $response->assertRedirect(route('my-profile.edit', absolute: false));
+        $response->assertRedirect(route('dashboard', absolute: false));
     }
 }
