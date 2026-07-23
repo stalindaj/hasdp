@@ -15,7 +15,7 @@ export default function Requests({ applications }) {
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
-                        {['Filed', 'Applicant', 'Type', 'Inclusive dates', 'Days', 'Status', ''].map(
+                        {['Filed', 'Applicant', 'Type', 'Inclusive dates', 'Days', 'Status', 'Form', ''].map(
                             (h) => (
                                 <th
                                     key={h}
@@ -50,6 +50,24 @@ export default function Requests({ applications }) {
                                     status={a.status}
                                     label={a.status_label}
                                 />
+                            </td>
+                            <td
+                                className="whitespace-nowrap px-6 py-4 text-center text-sm"
+                                title={
+                                    a.signed_form
+                                        ? 'Signed form on file'
+                                        : 'Signed form not uploaded yet'
+                                }
+                            >
+                                {a.status === 'approved' ? (
+                                    a.signed_form ? (
+                                        <span className="text-emerald-600">✓</span>
+                                    ) : (
+                                        <span className="text-gray-300">—</span>
+                                    )
+                                ) : (
+                                    ''
+                                )}
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                                 <Link

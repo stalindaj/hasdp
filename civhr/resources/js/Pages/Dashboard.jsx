@@ -51,9 +51,66 @@ function SemBadge({ done, onClick, clickable }) {
     );
 }
 
+/** pending / approved / rejected chip for L&D rows. */
+function LdStatus({ status }) {
+    const styles = {
+        pending: 'bg-amber-50 text-amber-700 ring-amber-200',
+        approved: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+        rejected: 'bg-red-50 text-red-700 ring-red-200',
+    };
+    return (
+        <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${styles[status] ?? styles.pending}`}
+        >
+            {status}
+        </span>
+    );
+}
+
+/** "Certificate · Photo" proof links for an L&D entry. */
+function LdProofLinks({ entry }) {
+    if (!entry.certificate && !entry.photo) return null;
+    return (
+        <span className="space-x-2 text-xs">
+            {entry.certificate && (
+                <a
+                    href={entry.certificate}
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium text-blue-600 underline-offset-2 hover:underline"
+                >
+                    Certificate
+                </a>
+            )}
+            {entry.photo && (
+                <a
+                    href={entry.photo}
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium text-blue-600 underline-offset-2 hover:underline"
+                >
+                    Photo
+                </a>
+            )}
+        </span>
+    );
+}
+
 /* ── Admin view ───────────────────────────────────────────────────────── */
 
-function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
+function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd }) {
+    const decideLd = (entry, decision) => {
+        let remarks = null;
+        if (decision === 'rejected') {
+            remarks = prompt(`Reason for rejecting "${entry.title}"?`);
+            if (!remarks) return; // cancelled
+        }
+        router.patch(
+            route('ld.decide', entry.id),
+            { decision, remarks },
+            { preserveScroll: true },
+        );
+    };
     const [ldFor, setLdFor] = useState(null); // employee row for the L&D modal
     const ld = useForm({
         title: '',
@@ -108,11 +165,15 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
                     <div className="flex items-end gap-6">
                         <Stat
                             value={`${boxes.ld.total_hours}h`}
-                            label={`hours logged · ${year}`}
+                            label={`hours approved · ${year}`}
                         />
                         <Stat
                             value={boxes.ld.behind}
                             label={`below ${ldTarget}h target`}
+                        />
+                        <Stat
+                            value={boxes.ld.pending}
+                            label="awaiting approval"
                         />
                     </div>
                 </BigBox>
@@ -208,6 +269,51 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
 
                 {/* Pending sidebar */}
                 <aside className="space-y-4">
+                    {/* L&D submissions waiting for approval */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                            Pending L&amp;D
+                        </h3>
+                        {pendingLd.length === 0 ? (
+                            <p className="text-sm text-slate-400">
+                                Nothing waiting.
+                            </p>
+                        ) : (
+                            <ul className="space-y-2">
+                                {pendingLd.map((l) => (
+                                    <li
+                                        key={l.id}
+                                        className="rounded-md border border-slate-100 p-2.5"
+                                    >
+                                        <p className="text-sm font-medium text-slate-800">
+                                            {l.employee}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {l.title} · {l.hours}h · {l.date}
+                                        </p>
+                                        <div className="mt-1.5 flex items-center justify-between">
+                                            <LdProofLinks entry={l} />
+                                            <span className="space-x-2 text-xs font-medium">
+                                                <button
+                                                    onClick={() => decideLd(l, 'approved')}
+                                                    className="text-emerald-600 hover:text-emerald-500"
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    onClick={() => decideLd(l, 'rejected')}
+                                                    className="text-red-600 hover:text-red-500"
+                                                >
+                                                    Reject
+                                                </button>
+                                            </span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
                     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-slate-800">
@@ -310,6 +416,27 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
 /* ── Employee view ────────────────────────────────────────────────────── */
 
 function EmployeeDashboard({ year, ldTarget, me }) {
+    const [showLdForm, setShowLdForm] = useState(false);
+    const ld = useForm({
+        title: '',
+        hours: '',
+        date: '',
+        certificate: null,
+        photo: null,
+    });
+
+    const submitLd = (e) => {
+        e.preventDefault();
+        ld.post(route('ld.store'), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                ld.reset();
+                setShowLdForm(false);
+            },
+        });
+    };
+
     return (
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
             <div className="grid gap-5 sm:grid-cols-3">
@@ -361,7 +488,7 @@ function EmployeeDashboard({ year, ldTarget, me }) {
                     </Link>
                 </BigBox>
                 <BigBox title="My L&D" accent="border-emerald-100">
-                    <Stat value={`${me.ld_hours}h`} label={`of ${ldTarget}h · ${year}`} />
+                    <Stat value={`${me.ld_hours}h`} label={`approved, of ${ldTarget}h · ${year}`} />
                     {me.ld_pending > 0 ? (
                         <p className="mt-1 text-xs text-slate-400">
                             {me.ld_pending}h still pending
@@ -371,6 +498,13 @@ function EmployeeDashboard({ year, ldTarget, me }) {
                             target met
                         </p>
                     )}
+                    <button
+                        type="button"
+                        onClick={() => setShowLdForm(true)}
+                        className="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
+                    >
+                        Submit a training →
+                    </button>
                 </BigBox>
             </div>
 
@@ -381,16 +515,112 @@ function EmployeeDashboard({ year, ldTarget, me }) {
                     </p>
                     <ul className="divide-y divide-slate-100 text-sm">
                         {me.ld_entries.map((l, i) => (
-                            <li key={i} className="flex items-center justify-between px-4 py-2.5">
-                                <span className="text-slate-700">{l.title}</span>
-                                <span className="text-slate-500">
-                                    {l.hours}h · {l.date}
-                                </span>
+                            <li key={i} className="px-4 py-2.5">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-700">{l.title}</span>
+                                    <span className="flex shrink-0 items-center gap-2 text-slate-500">
+                                        {l.hours}h · {l.date}
+                                        <LdStatus status={l.status} />
+                                    </span>
+                                </div>
+                                <div className="mt-0.5 flex items-center justify-between">
+                                    <LdProofLinks entry={l} />
+                                    {l.status === 'rejected' && l.remarks && (
+                                        <p className="text-xs text-red-600">
+                                            {l.remarks}
+                                        </p>
+                                    )}
+                                </div>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
+
+            {/* Submit-a-training modal */}
+            <Modal show={showLdForm} onClose={() => setShowLdForm(false)} maxWidth="md">
+                <form onSubmit={submitLd} className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                        Submit a training
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Attach the certificate, a photo taken during the
+                        training, or both. The hours count once an admin
+                        approves.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                        <div>
+                            <InputLabel htmlFor="my_ld_title" value="Training title" />
+                            <TextInput
+                                id="my_ld_title"
+                                className="mt-1 block w-full"
+                                value={ld.data.title}
+                                onChange={(e) => ld.setData('title', e.target.value)}
+                            />
+                            <InputError message={ld.errors.title} className="mt-1" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <InputLabel htmlFor="my_ld_hours" value="Hours" />
+                                <TextInput
+                                    id="my_ld_hours"
+                                    type="number"
+                                    step="0.5"
+                                    min="0.5"
+                                    className="mt-1 block w-full"
+                                    value={ld.data.hours}
+                                    onChange={(e) => ld.setData('hours', e.target.value)}
+                                />
+                                <InputError message={ld.errors.hours} className="mt-1" />
+                            </div>
+                            <div>
+                                <InputLabel htmlFor="my_ld_date" value="Date" />
+                                <TextInput
+                                    id="my_ld_date"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={ld.data.date}
+                                    onChange={(e) => ld.setData('date', e.target.value)}
+                                />
+                                <InputError message={ld.errors.date} className="mt-1" />
+                            </div>
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="my_ld_cert" value="Certificate (photo/scan)" />
+                            <input
+                                id="my_ld_cert"
+                                type="file"
+                                accept="image/*"
+                                className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+                                onChange={(e) => ld.setData('certificate', e.target.files[0] ?? null)}
+                            />
+                            <InputError message={ld.errors.certificate} className="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="my_ld_photo" value="Photo during the training" />
+                            <input
+                                id="my_ld_photo"
+                                type="file"
+                                accept="image/*"
+                                className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+                                onChange={(e) => ld.setData('photo', e.target.files[0] ?? null)}
+                            />
+                            <InputError message={ld.errors.photo} className="mt-1" />
+                        </div>
+                        <p className="text-xs text-slate-400">
+                            At least one image is required · JPG/PNG · max 5 MB each.
+                        </p>
+                    </div>
+                    <div className="mt-6 flex justify-end gap-3">
+                        <SecondaryButton type="button" onClick={() => setShowLdForm(false)}>
+                            Cancel
+                        </SecondaryButton>
+                        <PrimaryButton disabled={ld.processing}>
+                            {ld.processing ? 'Submitting…' : 'Submit for approval'}
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

@@ -35,7 +35,8 @@ class DashboardController extends Controller
         $employees = $this->plantilla()
             ->with([
                 'ipcrRecords' => fn ($q) => $q->where('year', $year),
-                'ldEntries' => fn ($q) => $q->whereYear('date', $year),
+                // Only approved trainings count toward the target.
+                'ldEntries' => fn ($q) => $q->approved()->whereYear('date', $year),
             ])
             ->orderBy('last_name')
             ->get();
@@ -65,6 +66,21 @@ class DashboardController extends Controller
                 'ld_pending' => max(0, $target - $ldHours),
             ];
         });
+
+        // L&D submissions waiting for a decision, with their proof images.
+        $pendingLd = \App\Models\LdEntry::with('employee:id,first_name,last_name')
+            ->where('status', \App\Models\LdEntry::PENDING)
+            ->oldest()
+            ->get()
+            ->map(fn ($l) => [
+                'id'       => $l->id,
+                'employee' => trim($l->employee->first_name.' '.$l->employee->last_name),
+                'title'    => $l->title,
+                'hours'    => (float) $l->hours,
+                'date'     => $l->date->format('M j, Y'),
+                'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
+            ]);
 
         $pendingLeaves = LeaveApplication::with(['user:id,name', 'leaveType:id,name,code'])
             ->where('status', LeaveWorkflow::PENDING)
@@ -96,9 +112,11 @@ class DashboardController extends Controller
                 'ld' => [
                     'total_hours' => round($rows->sum('ld_hours'), 1),
                     'behind'      => $rows->where('ld_pending', '>', 0)->count(),
+                    'pending'     => $pendingLd->count(),
                 ],
             ],
             'pendingLeaves' => $pendingLeaves,
+            'pendingLd'     => $pendingLd,
         ]);
     }
 
@@ -109,10 +127,12 @@ class DashboardController extends Controller
         $e = $user->employee;
 
         $ipcr = $e?->ipcrRecords()->where('year', $year)->first();
+        // The employee sees everything they submitted (with its status);
+        // only approved hours count toward the target.
         $ldEntries = $e
             ? $e->ldEntries()->whereYear('date', $year)->orderByDesc('date')->get()
             : collect();
-        $ldHours = (float) $ldEntries->sum('hours');
+        $ldHours = (float) $ldEntries->where('status', \App\Models\LdEntry::APPROVED)->sum('hours');
 
         $balances = $e ? CreditLedger::balances($e) : null;
         $pending = $e
@@ -133,9 +153,13 @@ class DashboardController extends Controller
                 'ld_hours'      => $ldHours,
                 'ld_pending'    => max(0, $target - $ldHours),
                 'ld_entries'    => $ldEntries->map(fn ($l) => [
-                    'title' => $l->title,
-                    'hours' => (float) $l->hours,
-                    'date'  => $l->date->format('M j, Y'),
+                    'title'   => $l->title,
+                    'hours'   => (float) $l->hours,
+                    'date'    => $l->date->format('M j, Y'),
+                    'status'  => $l->status,
+                    'remarks' => $l->remarks,
+                    'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                    'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
                 ]),
             ],
         ]);
@@ -154,6 +178,7 @@ class DashboardController extends Controller
         $target = (float) config('agency.ld_target_hours');
 
         $ldEntries = $employee->ldEntries()->whereYear('date', $year)->orderByDesc('date')->get();
+        $ldApproved = $ldEntries->where('status', \App\Models\LdEntry::APPROVED);
 
         return Inertia::render('Dashboard/Employee', [
             'year' => $year,
@@ -178,13 +203,17 @@ class DashboardController extends Controller
             'forced'   => CreditLedger::forcedLeaveStatus($employee),
             'ledger'   => CreditLedger::history($employee),
             'ld' => [
-                'hours'   => (float) $ldEntries->sum('hours'),
-                'pending' => max(0, $target - (float) $ldEntries->sum('hours')),
+                'hours'   => (float) $ldApproved->sum('hours'),
+                'pending' => max(0, $target - (float) $ldApproved->sum('hours')),
                 'entries' => $ldEntries->map(fn ($l) => [
-                    'id'    => $l->id,
-                    'title' => $l->title,
-                    'hours' => (float) $l->hours,
-                    'date'  => $l->date->format('M j, Y'),
+                    'id'      => $l->id,
+                    'title'   => $l->title,
+                    'hours'   => (float) $l->hours,
+                    'date'    => $l->date->format('M j, Y'),
+                    'status'  => $l->status,
+                    'remarks' => $l->remarks,
+                    'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                    'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
                 ]),
             ],
             'leaves' => LeaveApplication::with('leaveType:id,name')

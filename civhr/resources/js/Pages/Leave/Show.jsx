@@ -44,6 +44,72 @@ function Field({ label, children }) {
     );
 }
 
+/* ── The wet-signed CS Form 6, filed digitally after approval ─────────── */
+function SignedFormCard({ application, canUpload }) {
+    const { data, setData, post, processing, errors, recentlySuccessful } =
+        useForm({ signed_form: null });
+
+    const submit = (e) => {
+        e.preventDefault();
+        post(route('leave.signed-form.store', application.id), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => setData('signed_form', null),
+        });
+    };
+
+    const uploaded = application.signed_form?.uploaded;
+
+    return (
+        <Card title="Signed form on file">
+            {uploaded ? (
+                <p className="text-sm text-gray-700">
+                    ✅ Uploaded {application.signed_form.at} —{' '}
+                    <a
+                        href={route('leave.signed-form', application.id)}
+                        target="_blank"
+                        rel="noopener"
+                        className="font-medium text-indigo-600 underline-offset-2 hover:underline"
+                    >
+                        view the signed form
+                    </a>
+                </p>
+            ) : (
+                <p className="text-sm text-gray-600">
+                    {canUpload
+                        ? 'Print the form, gather all the signatures, then upload a photo or scan of the completed form here so it stays on file.'
+                        : 'The signed copy has not been uploaded yet.'}
+                </p>
+            )}
+
+            {canUpload && (
+                <form onSubmit={submit} className="mt-3 flex flex-wrap items-center gap-3">
+                    <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="block text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+                        onChange={(e) => setData('signed_form', e.target.files[0] ?? null)}
+                    />
+                    <PrimaryButton disabled={processing || !data.signed_form}>
+                        {processing
+                            ? 'Uploading…'
+                            : uploaded
+                              ? 'Replace upload'
+                              : 'Upload signed form'}
+                    </PrimaryButton>
+                    {recentlySuccessful && (
+                        <span className="text-xs text-green-600">Saved.</span>
+                    )}
+                    <InputError message={errors.signed_form} />
+                    <p className="w-full text-xs text-gray-400">
+                        Photo or PDF · max 8 MB.
+                    </p>
+                </form>
+            )}
+        </Card>
+    );
+}
+
 /* ── Admin: type the 7.B recommending officer, saved on its own ───────── */
 function RecommenderCard({ application, signatories }) {
     const { data, setData, patch, processing, errors, recentlySuccessful } =
@@ -564,7 +630,8 @@ export default function Show({ application: a, can, signatories, creditPrefill, 
                         <div className="rounded-md bg-green-50 p-4 text-sm text-green-800 ring-1 ring-green-200">
                             Your leave is <span className="font-semibold">approved</span>.
                             Use <span className="font-medium">View / print CS Form No. 6</span> above,
-                            print it, and sign by pen.
+                            print it, sign by pen — then upload the completed
+                            form below so it stays on file.
                         </div>
                     )}
                     {a.status === 'disapproved' && !can.process && (
@@ -626,6 +693,14 @@ export default function Show({ application: a, can, signatories, creditPrefill, 
                             </dl>
                         )}
                     </Card>
+
+                    {(can.upload_form ||
+                        (a.status === 'approved' && can.process)) && (
+                        <SignedFormCard
+                            application={a}
+                            canUpload={can.upload_form}
+                        />
+                    )}
 
                     {can.process && signatories && (
                         <RecommenderCard

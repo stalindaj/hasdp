@@ -6,7 +6,9 @@ use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\BalanceController;
 use App\Http\Controllers\Admin\HolidayController;
+use App\Http\Controllers\LdController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -95,6 +97,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/leave/{application}/decide', [LeaveController::class, 'decide'])->name('leave.decide');
     Route::patch('/leave/{application}/recommender', [LeaveController::class, 'setRecommender'])->name('leave.recommender');
     Route::post('/leave/{application}/cancel', [LeaveController::class, 'cancel'])->name('leave.cancel');
+
+    // The wet-signed CS Form 6, uploaded by the applicant after approval.
+    Route::post('/leave/{application}/signed-form', [LeaveController::class, 'storeSignedForm'])->name('leave.signed-form.store');
+    Route::get('/leave/{application}/signed-form', [LeaveController::class, 'signedForm'])->name('leave.signed-form');
+
+    // L&D — employee submits with photo proof; admin approves; files are
+    // private and served only to the owner and admins.
+    Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
+    Route::patch('/ld/{entry}/decide', [LdController::class, 'decide'])->name('ld.decide');
+    Route::get('/ld/{entry}/file/{kind}', [LdController::class, 'file'])
+        ->whereIn('kind', ['certificate', 'photo'])->name('ld.file');
 });
 
 // Admin area (superadmin + admin only)
@@ -112,6 +125,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('holidays', [HolidayController::class, 'index'])->name('holidays.index');
     Route::post('holidays', [HolidayController::class, 'store'])->name('holidays.store');
     Route::delete('holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
+
+    // The all-employee leave balance grid, editable in place.
+    Route::get('balances', [BalanceController::class, 'index'])->name('balances.index');
+    Route::patch('balances/{employee}', [BalanceController::class, 'update'])->name('balances.update');
 });
 
 require __DIR__.'/auth.php';

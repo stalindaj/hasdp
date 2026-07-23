@@ -15,13 +15,15 @@ export default function AuthenticatedLayout({ header, children }) {
 
     return (
         <div className="min-h-screen bg-gray-100">
-            <nav className="border-b border-gray-100 bg-white">
+            {/* PAF-blue brand stripe */}
+            <div className="h-1 bg-gradient-to-r from-blue-950 via-blue-800 to-sky-600" />
+            <nav className="border-b border-gray-200 bg-white shadow-sm">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 justify-between">
                         <div className="flex">
                             <div className="flex shrink-0 items-center">
                                 <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
+                                    <ApplicationLogo />
                                 </Link>
                             </div>
 
@@ -61,6 +63,16 @@ export default function AuthenticatedLayout({ header, children }) {
                                         )}
                                     >
                                         Employees
+                                    </NavLink>
+                                )}
+                                {isAdmin && (
+                                    <NavLink
+                                        href={route('admin.balances.index')}
+                                        active={route().current(
+                                            'admin.balances.*',
+                                        )}
+                                    >
+                                        Balances
                                     </NavLink>
                                 )}
                                 {isAdmin && (
@@ -230,6 +242,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                 active={route().current('admin.employees.*')}
                             >
                                 Employees
+                            </ResponsiveNavLink>
+                        )}
+                        {isAdmin && (
+                            <ResponsiveNavLink
+                                href={route('admin.balances.index')}
+                                active={route().current('admin.balances.*')}
+                            >
+                                Balances
                             </ResponsiveNavLink>
                         )}
                         {isAdmin && (

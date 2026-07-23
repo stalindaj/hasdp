@@ -47,7 +47,8 @@ class LeaveController extends Controller
                 ->latest()
                 ->get()
                 ->map(fn ($a) => $this->summary($a) + [
-                    'applicant' => $a->applicant_name ?: $a->user->name,
+                    'applicant'   => $a->applicant_name ?: $a->user->name,
+                    'signed_form' => (bool) $a->signed_form_path,
                 ]),
         ]);
     }
@@ -174,6 +175,9 @@ class LeaveController extends Controller
                 'process' => $canProcess,
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
                 'print'   => LeaveWorkflow::canPrint($application, $user),
+                // The applicant files the wet-signed copy once approved.
+                'upload_form' => (int) $application->user_id === (int) $user->id
+                    && $application->status === LeaveWorkflow::APPROVED,
             ],
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
@@ -338,6 +342,48 @@ class LeaveController extends Controller
         return back()->with('success', $sig
             ? "7.B recommending officer set to {$name}."
             : '7.B recommending officer cleared.');
+    }
+
+    /**
+     * After approval the employee prints the form, gathers the wet
+     * signatures, and uploads a scan/photo here so the office keeps a
+     * digital copy. Owner-only, approved leaves only; re-upload replaces.
+     */
+    public function storeSignedForm(Request $request, LeaveApplication $application)
+    {
+        $user = $request->user();
+
+        abort_unless((int) $application->user_id === (int) $user->id, 403);
+        abort_unless($application->status === LeaveWorkflow::APPROVED, 403, 'The leave must be approved first.');
+
+        $request->validate([
+            'signed_form' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+        ]);
+
+        // Replace, never accumulate — one signed copy per leave.
+        if ($application->signed_form_path) {
+            \Illuminate\Support\Facades\Storage::delete($application->signed_form_path);
+        }
+
+        $application->update([
+            'signed_form_path'        => $request->file('signed_form')->store("leave-forms/{$application->id}"),
+            'signed_form_uploaded_at' => now(),
+        ]);
+
+        LeaveWorkflow::log($application, $user, 'uploaded signed form', null, null);
+
+        return back()->with('success', 'Signed form uploaded — it is now on file.');
+    }
+
+    /** The uploaded signed form, visible to the owner and admins. */
+    public function signedForm(Request $request, LeaveApplication $application)
+    {
+        $this->authorizeView($application, $request->user());
+
+        $path = $application->signed_form_path;
+        abort_unless($path && \Illuminate\Support\Facades\Storage::exists($path), 404);
+
+        return response()->file(\Illuminate\Support\Facades\Storage::path($path));
     }
 
     public function cancel(Request $request, LeaveApplication $application)
@@ -537,6 +583,10 @@ class LeaveController extends Controller
     private function detail(LeaveApplication $a): array
     {
         return $this->summary($a) + [
+            'signed_form' => [
+                'uploaded' => (bool) $a->signed_form_path,
+                'at'       => optional($a->signed_form_uploaded_at)->format('M j, Y g:i A'),
+            ],
             'applicant'         => $a->applicant_name,
             'office_department' => $a->office_department,
             'position'          => $a->position,

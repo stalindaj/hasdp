@@ -6,7 +6,7 @@ import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import StatusBadge from '@/Components/StatusBadge';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 const KINDS = [
@@ -270,11 +270,63 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                     ) : (
                         <ul className="divide-y divide-slate-100 text-sm">
                             {ld.entries.map((l) => (
-                                <li key={l.id} className="flex items-center justify-between py-2">
-                                    <span className="text-slate-700">{l.title}</span>
-                                    <span className="text-slate-500">
-                                        {l.hours}h · {l.date}
-                                    </span>
+                                <li key={l.id} className="py-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="text-slate-700">{l.title}</span>
+                                        <span className="flex shrink-0 items-center gap-2 text-slate-500">
+                                            {l.hours}h · {l.date}
+                                            <span
+                                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${
+                                                    {
+                                                        pending: 'bg-amber-50 text-amber-700 ring-amber-200',
+                                                        approved: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                                                        rejected: 'bg-red-50 text-red-700 ring-red-200',
+                                                    }[l.status] ?? ''
+                                                }`}
+                                            >
+                                                {l.status}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <div className="mt-0.5 flex items-center justify-between">
+                                        <span className="space-x-2 text-xs">
+                                            {l.certificate && (
+                                                <a href={l.certificate} target="_blank" rel="noopener" className="font-medium text-blue-600 underline-offset-2 hover:underline">
+                                                    Certificate
+                                                </a>
+                                            )}
+                                            {l.photo && (
+                                                <a href={l.photo} target="_blank" rel="noopener" className="font-medium text-blue-600 underline-offset-2 hover:underline">
+                                                    Photo
+                                                </a>
+                                            )}
+                                        </span>
+                                        {l.status === 'pending' && (
+                                            <span className="space-x-2 text-xs font-medium">
+                                                <button
+                                                    onClick={() =>
+                                                        router.patch(route('ld.decide', l.id), { decision: 'approved' }, { preserveScroll: true })
+                                                    }
+                                                    className="text-emerald-600 hover:text-emerald-500"
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const remarks = prompt(`Reason for rejecting "${l.title}"?`);
+                                                        if (remarks)
+                                                            router.patch(route('ld.decide', l.id), { decision: 'rejected', remarks }, { preserveScroll: true });
+                                                    }}
+                                                    className="text-red-600 hover:text-red-500"
+                                                >
+                                                    Reject
+                                                </button>
+                                            </span>
+                                        )}
+                                        {l.status === 'rejected' && l.remarks && (
+                                            <p className="text-xs text-red-600">{l.remarks}</p>
+                                        )}
+                                    </div>
                                 </li>
                             ))}
                         </ul>

@@ -72,7 +72,9 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // The server clock is UTC; the office runs on Philippine time. Dates on
+    // forms, accrual month boundaries, and "today" must follow PH time.
+    'timezone' => 'Asia/Manila',
 
     /*
     |--------------------------------------------------------------------------
