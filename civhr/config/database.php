@@ -58,7 +58,10 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // The office host's MySQL defaults new tables to MyISAM, whose
+            // 1000-byte index cap breaks the utf8mb4 migrations (and which
+            // ignores foreign keys entirely). Force InnoDB.
+            'engine' => env('DB_ENGINE', 'InnoDB'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -78,7 +81,10 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // The office host's MySQL defaults new tables to MyISAM, whose
+            // 1000-byte index cap breaks the utf8mb4 migrations (and which
+            // ignores foreign keys entirely). Force InnoDB.
+            'engine' => env('DB_ENGINE', 'InnoDB'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
