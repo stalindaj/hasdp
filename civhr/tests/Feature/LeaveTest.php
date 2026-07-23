@@ -55,17 +55,10 @@ class LeaveTest extends TestCase
         ]);
     }
 
-    /** Julie: an eligible 7.B recommender the admin can pick. */
-    private function julie(): User
-    {
-        return $this->userWithRoles(['recommender'], [
-            'first_name' => 'Julie Ann', 'middle_name' => 'T', 'last_name' => 'Pedrosa',
-            'rank' => '1LT', 'designation' => 'MPMBR',
-        ]);
-    }
-
     private function payload(array $overrides = []): array
     {
+        // Mon Jul 20 – Wed Jul 22, 2026: 3 working days, no holidays — 6.C is
+        // computed from the dates, never posted.
         return array_merge([
             'leave_type_id'         => LeaveType::where('code', 'vacation')->value('id'),
             'office_department'     => 'Directorate for Personnel',
@@ -77,7 +70,6 @@ class LeaveTest extends TestCase
             'salary'                => '04',
             'detail_vacation'       => 'within_philippines',
             'detail_vacation_location' => 'Baguio City',
-            'working_days'          => 3,
             'date_from'             => '2026-07-20',
             'date_to'               => '2026-07-22',
             'commutation'           => 'not_requested',
@@ -167,23 +159,96 @@ class LeaveTest extends TestCase
         $this->assertNull($leave->detail_vacation);
     }
 
+    // ── 6.C is computed, weekends + holidays excluded ─────────────────
+
+    public function test_6c_is_computed_from_the_inclusive_dates_and_ignores_the_client(): void
+    {
+        $applicant = $this->userWithRoles(['employee']);
+
+        // Mon Jul 20 – Fri Jul 24, 2026 → 5 working days. A tampered
+        // working_days in the request must not matter.
+        $this->actingAs($applicant)->post(route('leave.store'), $this->payload([
+            'date_from' => '2026-07-20', 'date_to' => '2026-07-24', 'working_days' => 99,
+        ]))->assertRedirect();
+
+        $this->assertEquals(5.0, (float) LeaveApplication::firstOrFail()->working_days);
+    }
+
+    public function test_6c_spanning_a_weekend_counts_only_the_weekdays(): void
+    {
+        $applicant = $this->userWithRoles(['employee']);
+
+        // Fri Jul 17 – Mon Jul 20, 2026: Sat 18 + Sun 19 don't count.
+        $this->actingAs($applicant)->post(route('leave.store'), $this->payload([
+            'date_from' => '2026-07-17', 'date_to' => '2026-07-20',
+        ]))->assertRedirect();
+
+        $this->assertEquals(2.0, (float) LeaveApplication::firstOrFail()->working_days);
+    }
+
+    public function test_6c_skips_holidays(): void
+    {
+        $this->seed(\Database\Seeders\HolidaySeeder::class);
+        $applicant = $this->userWithRoles(['employee']);
+
+        // Thu Aug 20 – Mon Aug 24, 2026: Fri 21 is Ninoy Aquino Day and
+        // 22–23 is the weekend, so only Thu + Mon count.
+        $this->actingAs($applicant)->post(route('leave.store'), $this->payload([
+            'date_from' => '2026-08-20', 'date_to' => '2026-08-24',
+        ]))->assertRedirect();
+
+        $this->assertEquals(2.0, (float) LeaveApplication::firstOrFail()->working_days);
+    }
+
+    public function test_a_range_with_no_working_days_is_rejected(): void
+    {
+        $applicant = $this->userWithRoles(['employee']);
+
+        // Sat Jul 25 – Sun Jul 26, 2026 — nothing to apply for.
+        $this->actingAs($applicant)->post(route('leave.store'), $this->payload([
+            'date_from' => '2026-07-25', 'date_to' => '2026-07-26',
+        ]))->assertSessionHasErrors('date_from');
+
+        $this->assertSame(0, LeaveApplication::count());
+    }
+
+    public function test_maternity_counts_calendar_days(): void
+    {
+        $this->seed(\Database\Seeders\HolidaySeeder::class);
+        $applicant = $this->userWithRoles(['employee']);
+
+        // R.A. 11210: 105 CALENDAR days — weekends and holidays included.
+        $this->actingAs($applicant)->post(route('leave.store'), $this->payload([
+            'leave_type_id' => LeaveType::where('code', 'maternity')->value('id'),
+            'date_from'     => '2026-08-01',
+            'date_to'       => '2026-11-13',
+        ]))->assertRedirect();
+
+        $this->assertEquals(105.0, (float) LeaveApplication::firstOrFail()->working_days);
+    }
+
     // ── Approval ──────────────────────────────────────────────────────
 
-    public function test_approval_puts_marie_on_7a_mission_on_7c_and_the_chosen_recommender_on_7b(): void
+    public function test_approval_puts_marie_on_7a_mission_on_7c_and_keeps_the_typed_7b(): void
     {
         config(['agency.branch_suffix' => 'PAF']);
 
-        // The three officers exist before processing.
         $this->marie();
         $this->mission();
-        $julie = $this->julie();
 
         [$applicant, $leave] = $this->fileAsEmployee();
         $admin = $this->marie();   // Marie (admin) processes
 
-        $this->actingAs($admin)->post(route('leave.decide', $leave), [
+        // The admin types the 7.B recommending officer…
+        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
+            'recommender_name'   => 'Julie Ann T Pedrosa',
+            'recommender_rank'   => '1LT',
+            'recommender_office' => 'MPMBR',
+        ])->assertRedirect();
+
+        // …then approves; deciding must not wipe what was typed.
+        $this->actingAs($admin)->post(route('leave.decide', $leave->fresh()), [
             'decision'       => 'approved',
-            'recommender_id' => $julie->id,
             'cert_as_of'     => '2026-06-30',
             'vl_earned'      => 3.13,
             'vl_less'        => 3,
@@ -195,39 +260,44 @@ class LeaveTest extends TestCase
         $this->assertSame(LeaveWorkflow::APPROVED, $leave->status);
         $this->assertEquals(3.0, (float) $leave->days_with_pay);
 
-        // 7.A = Marie, 7.C/7.D = Mission, 7.B = Julie (the chosen recommender).
+        // 7.A = Marie, 7.C/7.D = Mission, 7.B = as typed (rank left, PAF
+        // right, office on the title line — the "rank office" layout).
         $this->assertSame('MARIE CRIS A URI', $leave->hr_officer_sig['name']);
         $this->assertSame('ADRIAN LEE MISSION', $leave->approver_sig['name']);
         $this->assertSame('Director for Personnel', $leave->approver_sig['designation']);
-        $this->assertSame('JULIE ANN T PEDROSA', $leave->recommender_sig['name']);
+        $this->assertSame([
+            'rank'        => '1LT',
+            'name'        => 'JULIE ANN T PEDROSA',
+            'branch'      => 'PAF',
+            'position'    => '',
+            'designation' => 'MPMBR',
+        ], $leave->recommender_sig);
     }
 
     public function test_an_admin_can_change_the_recommender_after_approval(): void
     {
         $this->marie();
         $this->mission();
-        $julie = $this->julie();
-        $carlo = $this->userWithRoles(['recommender'], [
-            'first_name' => 'Carlo', 'last_name' => 'Reyes', 'rank' => 'CPT',
-        ]);
 
         [, $leave] = $this->fileAsEmployee();
         $admin = $this->marie();
 
-        // Approve with Julie on 7.B.
-        $this->actingAs($admin)->post(route('leave.decide', $leave), [
-            'decision' => 'approved', 'recommender_id' => $julie->id, 'days_with_pay' => 3,
+        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
+            'recommender_name' => 'Julie Ann T Pedrosa', 'recommender_rank' => '1LT',
+        ]);
+        $this->actingAs($admin)->post(route('leave.decide', $leave->fresh()), [
+            'decision' => 'approved', 'days_with_pay' => 3,
         ]);
         $this->assertSame('JULIE ANN T PEDROSA', $leave->fresh()->recommender_sig['name']);
 
-        // Re-process the already-approved leave and switch 7.B to Carlo.
-        $this->actingAs($admin)->post(route('leave.decide', $leave->fresh()), [
-            'decision' => 'approved', 'recommender_id' => $carlo->id, 'days_with_pay' => 3,
+        // Switch 7.B on the already-approved leave.
+        $this->actingAs($admin)->patch(route('leave.recommender', $leave->fresh()), [
+            'recommender_name' => 'Carlo Reyes', 'recommender_rank' => 'CPT',
         ])->assertRedirect();
 
         $leave->refresh();
         $this->assertSame(LeaveWorkflow::APPROVED, $leave->status);
-        $this->assertStringContainsString('CARLO', $leave->recommender_sig['name']);
+        $this->assertSame('CARLO REYES', $leave->recommender_sig['name']);
     }
 
     public function test_an_admin_can_save_credits_as_a_draft_without_deciding(): void
@@ -254,20 +324,31 @@ class LeaveTest extends TestCase
     {
         $this->marie();
         $this->mission();
-        $julie = $this->julie();
 
         [, $leave] = $this->fileAsEmployee();
         $admin = $this->marie();
 
+        config(['agency.branch_suffix' => 'PAF']);
         $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_id' => $julie->id,
+            'recommender_name'   => 'Julie Ann T Pedrosa',
+            'recommender_rank'   => '1LT',
+            'recommender_office' => 'MPMBR',
         ])->assertRedirect();
 
         $this->assertSame('JULIE ANN T PEDROSA', $leave->fresh()->recommender_sig['name']);
+        $this->assertSame('PAF', $leave->fresh()->recommender_sig['branch']);
 
-        // …and can clear it again.
+        // A civilian recommender: no rank, so no branch either.
         $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_id' => null,
+            'recommender_name'   => 'Maria Cruz',
+            'recommender_office' => 'Wing Civilian Supervisor',
+        ])->assertRedirect();
+        $this->assertSame('', $leave->fresh()->recommender_sig['branch']);
+        $this->assertSame('Wing Civilian Supervisor', $leave->fresh()->recommender_sig['designation']);
+
+        // …and a blank name clears 7.B again.
+        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
+            'recommender_name' => '',
         ])->assertRedirect();
         $this->assertNull($leave->fresh()->recommender_sig);
     }
@@ -275,10 +356,9 @@ class LeaveTest extends TestCase
     public function test_a_non_admin_cannot_set_the_recommender(): void
     {
         [, $leave] = $this->fileAsEmployee();
-        $julie = $this->julie();
 
         $this->actingAs($this->userWithRoles(['employee']))
-            ->patch(route('leave.recommender', $leave), ['recommender_id' => $julie->id])
+            ->patch(route('leave.recommender', $leave), ['recommender_name' => 'Julie Pedrosa'])
             ->assertForbidden();
     }
 
@@ -303,7 +383,7 @@ class LeaveTest extends TestCase
         [, $leave] = $this->fileAsEmployee();
 
         $this->actingAs($this->marie())->post(route('leave.decide', $leave), [
-            'decision' => 'approved', 'days_with_pay' => 3,   // no recommender_id
+            'decision' => 'approved', 'days_with_pay' => 3,   // 7.B never typed in
         ])->assertRedirect();
 
         $this->assertNull($leave->fresh()->recommender_sig);
@@ -463,6 +543,6 @@ class LeaveTest extends TestCase
         $this->seed(LeaveTypeSeeder::class);
 
         $this->assertSame(15, LeaveType::count());   // 14 CSC types + Wellness
-        $this->assertSame(6, Role::count());
+        $this->assertSame(5, Role::count());
     }
 }

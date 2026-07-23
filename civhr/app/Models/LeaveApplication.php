@@ -47,11 +47,6 @@ class LeaveApplication extends Model
         return $this->belongsTo(User::class, 'hr_officer_id');
     }
 
-    public function recommender()
-    {
-        return $this->belongsTo(User::class, 'recommender_id');
-    }
-
     public function approver()
     {
         return $this->belongsTo(User::class, 'approver_id');

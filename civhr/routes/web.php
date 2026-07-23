@@ -6,6 +6,7 @@ use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\HolidayController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -106,6 +107,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index');
     Route::patch('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+
+    // Non-working days that 6.C skips; updated yearly from the proclamation.
+    Route::get('holidays', [HolidayController::class, 'index'])->name('holidays.index');
+    Route::post('holidays', [HolidayController::class, 'store'])->name('holidays.store');
+    Route::delete('holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
 });
 
 require __DIR__.'/auth.php';

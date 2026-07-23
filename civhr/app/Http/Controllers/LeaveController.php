@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Holiday;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
 use App\Models\User;
 use App\Support\LeaveCredits;
 use App\Support\LeaveWorkflow;
+use App\Support\WorkingDays;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class LeaveController extends Controller
@@ -57,7 +61,11 @@ class LeaveController extends Controller
         // form. They are kept up to date under My Profile / (for official
         // fields) Admin → Employees, not retyped here.
         return Inertia::render('Leave/Create', [
-            'leaveTypes' => LeaveType::active()->get(['id', 'code', 'name', 'legal_basis', 'detail_group']),
+            'leaveTypes' => LeaveType::active()->get(['id', 'code', 'name', 'legal_basis', 'detail_group', 'day_basis']),
+            // 6.C is computed, not typed: the client mirrors the server's
+            // working-day count live, so it needs the holiday calendar.
+            'holidays' => Holiday::orderBy('date')->get()
+                ->mapWithKeys(fn ($h) => [$h->date->toDateString() => $h->name]),
             'prefill' => [
                 'office_department'    => $employee?->office_department ?? '',
                 'applicant_last_name'  => $employee?->last_name ?? '',
@@ -100,11 +108,24 @@ class LeaveController extends Controller
             'detail_study_other'       => ['nullable', 'string', 'max:255'],
             'detail_other_purpose'     => ['nullable', Rule::in(['monetization', 'terminal'])],
 
-            'working_days' => ['required', 'numeric', 'min:0.5', 'max:999'],
             'date_from'    => ['required', 'date'],
             'date_to'      => ['required', 'date', 'after_or_equal:date_from'],
             'commutation'  => ['required', Rule::in(['not_requested', 'requested'])],
         ]);
+
+        // 6.C is computed here, never taken from the client: weekends and
+        // holidays don't count (calendar-day types like maternity count all).
+        $data['working_days'] = WorkingDays::count(
+            Carbon::parse($data['date_from']),
+            Carbon::parse($data['date_to']),
+            $type?->day_basis ?? 'working'
+        );
+
+        if ($data['working_days'] < 1) {
+            throw ValidationException::withMessages([
+                'date_from' => 'The inclusive dates fall entirely on weekends or holidays — there are no working days to apply for.',
+            ]);
+        }
 
         // Detail fields that belong to a different leave type would otherwise
         // linger and print on the wrong block of 6.B.
@@ -126,11 +147,8 @@ class LeaveController extends Controller
         $data['approver_id']    = $approver?->id;
         $data['approver_sig']   = $approver?->signatoryBlock();
 
-        // 7.B recommender defaults to the first eligible officer; the admin can
-        // change it when approving.
-        $recommender = $this->defaultRecommender();
-        $data['recommender_id']  = $recommender?->id;
-        $data['recommender_sig'] = $recommender?->signatoryBlock();
+        // 7.B starts blank — the admin types the recommending officer
+        // (name/rank/office) while processing.
 
         $application = LeaveApplication::create($data);
 
@@ -160,12 +178,15 @@ class LeaveController extends Controller
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
             'balanceCheck' => $canProcess ? $this->balanceCheck($application) : null,
-            // 7.A / 7.C-D are fixed; only the 7.B recommender is chosen here.
+            // 7.A / 7.C-D are fixed; the 7.B recommender is typed in here.
             'signatories' => $canProcess ? [
                 'certifier'   => $this->defaultCertifier()?->signatoryLabel(),
                 'approver'    => $this->defaultApprover()?->signatoryLabel(),
-                'recommender_id' => $application->recommender_id,
-                'recommenders'   => $this->recommenderOptions(),
+                'recommender' => [
+                    'name'   => $application->recommender_sig['name'] ?? '',
+                    'rank'   => $application->recommender_sig['rank'] ?? '',
+                    'office' => $application->recommender_sig['designation'] ?? '',
+                ],
             ] : null,
             'creditPrefill' => $canProcess ? $this->creditPrefill($application) : null,
         ]);
@@ -185,9 +206,6 @@ class LeaveController extends Controller
         $data = $request->validate([
             'decision' => ['required', Rule::in(['approved', 'disapproved'])],
 
-            // 7.B recommending officer — the only signatory the admin may change.
-            'recommender_id' => ['nullable', 'exists:users,id'],
-
             // 7.A certification of leave credits
             'cert_as_of' => ['nullable', 'date'],
             'vl_earned'  => ['nullable', 'numeric', 'min:0'],
@@ -206,12 +224,10 @@ class LeaveController extends Controller
         ]);
 
         // 7.A / 7.C-D are fixed defaults (e.g. HR officer + Director for
-        // Personnel); the admin only chooses the 7.B recommender.
-        $certifier   = $this->defaultCertifier();
-        $approver    = $this->defaultApprover();
-        $recommender = ! empty($data['recommender_id'])
-            ? User::with('employee')->find($data['recommender_id'])
-            : null;
+        // Personnel). 7.B is typed in on its own card (setRecommender) and is
+        // deliberately untouched here so deciding never wipes it.
+        $certifier = $this->defaultCertifier();
+        $approver  = $this->defaultApprover();
 
         // Keep 7.C and 7.D mutually exclusive on the printout.
         if ($approved) {
@@ -231,8 +247,6 @@ class LeaveController extends Controller
             'hr_officer_sig'  => $certifier?->signatoryBlock(),
             'approver_id'     => $approver?->id,
             'approver_sig'    => $approver?->signatoryBlock(),
-            'recommender_id'  => $recommender?->id,
-            'recommender_sig' => $recommender?->signatoryBlock(),
             'certified_at'    => now(),
             'decided_at'      => now(),
             'decision'        => $approved ? 'approved' : 'disapproved',
@@ -289,27 +303,40 @@ class LeaveController extends Controller
         return back()->with('success', 'Draft saved. The leave is still pending — approve or disapprove when ready.');
     }
 
-    /** Change the 7.B recommending officer on its own, any time. */
+    /**
+     * Set the 7.B recommending officer, any time. The admin types the name,
+     * rank and office; they print on the signature block exactly like the
+     * other signatories (name centred, rank left / branch right, office
+     * on the title line). A blank name clears 7.B.
+     */
     public function setRecommender(Request $request, LeaveApplication $application)
     {
         $user = $request->user();
         abort_unless(LeaveWorkflow::isAdmin($user), 403);
 
         $data = $request->validate([
-            'recommender_id' => ['nullable', 'exists:users,id'],
+            'recommender_name'   => ['nullable', 'string', 'max:255'],
+            'recommender_rank'   => ['nullable', 'string', 'max:50'],
+            'recommender_office' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $recommender = ! empty($data['recommender_id'])
-            ? User::with('employee')->find($data['recommender_id'])
-            : null;
+        $name = strtoupper(trim((string) ($data['recommender_name'] ?? '')));
+        $rank = trim((string) ($data['recommender_rank'] ?? ''));
 
-        $application->update([
-            'recommender_id'  => $recommender?->id,
-            'recommender_sig' => $recommender?->signatoryBlock(),
-        ]);
+        $sig = $name === '' ? null : [
+            'rank'        => $rank,
+            'name'        => $name,
+            // Ranked officers print the service branch opposite the rank,
+            // same as 7.A / 7.C-D; civilians print neither.
+            'branch'      => $rank !== '' ? (string) config('agency.branch_suffix') : '',
+            'position'    => '',
+            'designation' => trim((string) ($data['recommender_office'] ?? '')),
+        ];
 
-        return back()->with('success', $recommender
-            ? "7.B recommending officer set to {$recommender->signatoryLabel()}."
+        $application->update(['recommender_sig' => $sig]);
+
+        return back()->with('success', $sig
+            ? "7.B recommending officer set to {$name}."
             : '7.B recommending officer cleared.');
     }
 
@@ -392,12 +419,6 @@ class LeaveController extends Controller
         return $this->firstWithRole('approver');
     }
 
-    /** The 7.B recommender that pre-selects; the admin can change it. */
-    private function defaultRecommender(): ?User
-    {
-        return $this->firstWithRole('recommender');
-    }
-
     private function firstWithRole(string $role): ?User
     {
         return User::whereHas('roles', fn ($q) => $q->where('name', $role))
@@ -405,18 +426,6 @@ class LeaveController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->first();
-    }
-
-    /** Officers the admin may pick for 7.B (the recommendation). */
-    private function recommenderOptions()
-    {
-        return User::whereHas('roles', fn ($q) => $q->where('name', 'recommender'))
-            ->with('employee')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->signatoryLabel()])
-            ->values();
     }
 
     /**

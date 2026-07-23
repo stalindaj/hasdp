@@ -14,7 +14,6 @@ class RoleSeeder extends Seeder
             ['name' => 'admin',       'label' => 'Administrator'],
             ['name' => 'employee',    'label' => 'Employee'],
             ['name' => 'hr_officer',  'label' => 'HR Officer'],
-            ['name' => 'recommender', 'label' => 'Recommending Officer'],
             ['name' => 'approver',    'label' => 'Approving Official'],
         ];
 

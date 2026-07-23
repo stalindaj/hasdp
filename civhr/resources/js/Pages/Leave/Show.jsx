@@ -44,11 +44,14 @@ function Field({ label, children }) {
     );
 }
 
-/* ── Admin: choose the 7.B recommending officer, saved on its own ─────── */
+/* ── Admin: type the 7.B recommending officer, saved on its own ───────── */
 function RecommenderCard({ application, signatories }) {
-    const { data, setData, patch, processing, recentlySuccessful } = useForm({
-        recommender_id: signatories.recommender_id ?? '',
-    });
+    const { data, setData, patch, processing, errors, recentlySuccessful } =
+        useForm({
+            recommender_name: signatories.recommender?.name ?? '',
+            recommender_rank: signatories.recommender?.rank ?? '',
+            recommender_office: signatories.recommender?.office ?? '',
+        });
 
     const save = (e) => {
         e.preventDefault();
@@ -57,42 +60,94 @@ function RecommenderCard({ application, signatories }) {
 
     return (
         <Card title="Signatories on the printed form">
-            <dl className="grid gap-4 sm:grid-cols-3">
+            <dl className="grid gap-4 sm:grid-cols-2">
                 <Field label="7.A — Authorized officer">
                     {signatories.certifier}
                 </Field>
-                <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500">
-                        7.B — Recommending officer
-                    </dt>
-                    <dd className="mt-1">
-                        <form onSubmit={save} className="flex items-center gap-2">
-                            <select
-                                className="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                value={data.recommender_id}
-                                onChange={(e) => setData('recommender_id', e.target.value)}
-                            >
-                                <option value="">— blank —</option>
-                                {signatories.recommenders.map((o) => (
-                                    <option key={o.id} value={o.id}>
-                                        {o.name}
-                                    </option>
-                                ))}
-                            </select>
-                            <PrimaryButton disabled={processing}>Save</PrimaryButton>
-                        </form>
-                        {recentlySuccessful && (
-                            <p className="mt-1 text-xs text-green-600">Saved.</p>
-                        )}
-                    </dd>
-                </div>
                 <Field label="7.C / 7.D — Authorized official">
                     {signatories.approver}
                 </Field>
             </dl>
+
+            <form
+                onSubmit={save}
+                className="mt-5 border-t border-gray-100 pt-4"
+            >
+                <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+                    7.B — Recommending officer
+                </p>
+                <div className="grid gap-4 sm:grid-cols-7">
+                    <div className="sm:col-span-3">
+                        <InputLabel
+                            htmlFor="recommender_name"
+                            value="Name"
+                        />
+                        <TextInput
+                            id="recommender_name"
+                            className="mt-1 block w-full uppercase"
+                            placeholder="e.g. JUAN P DELA CRUZ"
+                            value={data.recommender_name}
+                            onChange={(e) =>
+                                setData('recommender_name', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={errors.recommender_name}
+                            className="mt-1"
+                        />
+                    </div>
+                    <div className="sm:col-span-1">
+                        <InputLabel htmlFor="recommender_rank" value="Rank" />
+                        <TextInput
+                            id="recommender_rank"
+                            className="mt-1 block w-full"
+                            placeholder="MAJ"
+                            value={data.recommender_rank}
+                            onChange={(e) =>
+                                setData('recommender_rank', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={errors.recommender_rank}
+                            className="mt-1"
+                        />
+                    </div>
+                    <div className="sm:col-span-3">
+                        <InputLabel
+                            htmlFor="recommender_office"
+                            value="Office / designation"
+                        />
+                        <TextInput
+                            id="recommender_office"
+                            className="mt-1 block w-full"
+                            placeholder="e.g. Chief, MPMBR"
+                            value={data.recommender_office}
+                            onChange={(e) =>
+                                setData('recommender_office', e.target.value)
+                            }
+                        />
+                        <InputError
+                            message={errors.recommender_office}
+                            className="mt-1"
+                        />
+                    </div>
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                    <PrimaryButton disabled={processing}>
+                        {processing ? 'Saving…' : 'Save 7.B'}
+                    </PrimaryButton>
+                    {recentlySuccessful && (
+                        <p className="text-xs text-green-600">Saved.</p>
+                    )}
+                </div>
+            </form>
+
             <p className="mt-3 text-xs text-gray-500">
                 7.A and 7.C/7.D are fixed (set via the “HR Officer” / “Approving
-                Official” roles under Admin → Users). Only 7.B is chosen here.
+                Official” roles under Admin → Users). 7.B prints exactly as
+                typed: name centred, rank at the left with the branch opposite,
+                office on the line below. Leave the name blank (and save) to
+                clear 7.B.
             </p>
         </Card>
     );

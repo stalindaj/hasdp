@@ -92,8 +92,9 @@ class CreditLedgerTest extends TestCase
             'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
             'applicant_first_name' => 'Justin', 'date_filing' => now()->toDateString(),
             'position' => 'Clerk', 'detail_vacation' => 'within_philippines',
-            'working_days' => 2, 'date_from' => now()->addDay()->toDateString(),
-            'date_to' => now()->addDays(2)->toDateString(), 'commutation' => 'not_requested',
+            // Tue–Wed Jul 21–22, 2026 → 6.C computes 2 working days.
+            'date_from' => '2026-07-21',
+            'date_to' => '2026-07-22', 'commutation' => 'not_requested',
         ])->assertRedirect();
 
         $leave = LeaveApplication::firstOrFail();
@@ -129,8 +130,9 @@ class CreditLedgerTest extends TestCase
             'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
             'applicant_first_name' => 'Justin', 'date_filing' => now()->toDateString(),
             'position' => 'Clerk',
-            'working_days' => 2, 'date_from' => now()->addDay()->toDateString(),
-            'date_to' => now()->addDays(2)->toDateString(), 'commutation' => 'not_requested',
+            // Tue–Wed Jul 21–22, 2026 → 6.C computes 2 working days.
+            'date_from' => '2026-07-21',
+            'date_to' => '2026-07-22', 'commutation' => 'not_requested',
         ])->assertRedirect();
 
         $this->actingAs($admin)->post(route('leave.decide', LeaveApplication::firstOrFail()), [
@@ -157,8 +159,9 @@ class CreditLedgerTest extends TestCase
             'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
             'applicant_first_name' => 'Justin', 'date_filing' => now()->toDateString(),
             'position' => 'Clerk', 'detail_vacation' => 'within_philippines',
-            'working_days' => 2, 'date_from' => now()->addDay()->toDateString(),
-            'date_to' => now()->addDays(2)->toDateString(), 'commutation' => 'not_requested',
+            // Tue–Wed Jul 21–22, 2026 → 6.C computes 2 working days.
+            'date_from' => '2026-07-21',
+            'date_to' => '2026-07-22', 'commutation' => 'not_requested',
         ]);
         $this->actingAs($admin)->post(route('leave.decide', LeaveApplication::firstOrFail()), [
             'decision' => 'approved', 'days_with_pay' => 2,
@@ -189,8 +192,9 @@ class CreditLedgerTest extends TestCase
             'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
             'applicant_first_name' => 'Justin', 'date_filing' => now()->toDateString(),
             'position' => 'Clerk', 'detail_vacation' => 'within_philippines',
-            'working_days' => 5, 'date_from' => now()->addDay()->toDateString(),
-            'date_to' => now()->addDays(5)->toDateString(), 'commutation' => 'not_requested',
+            // Mon–Fri Jul 20–24, 2026 → 6.C computes 5 working days.
+            'date_from' => '2026-07-20',
+            'date_to' => '2026-07-24', 'commutation' => 'not_requested',
         ]);
 
         $leave = LeaveApplication::firstOrFail();
@@ -241,8 +245,9 @@ class CreditLedgerTest extends TestCase
             'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
             'applicant_first_name' => 'Justin', 'date_filing' => now()->toDateString(),
             'position' => 'Clerk',
-            'working_days' => 1, 'date_from' => now()->addDay()->toDateString(),
-            'date_to' => now()->addDay()->toDateString(), 'commutation' => 'not_requested',
+            // Tue Jul 21, 2026 → a single working day.
+            'date_from' => '2026-07-21',
+            'date_to' => '2026-07-21', 'commutation' => 'not_requested',
         ]);
 
         $leave = LeaveApplication::firstOrFail();

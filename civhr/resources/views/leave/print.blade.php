@@ -428,7 +428,7 @@
     @endfor
 
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->recommender_sig, $app->recommender),
+        'sig'     => $sigOf($app->recommender_sig, null),   {{-- typed in by the admin, never linked to an account --}}
         'left'    => $MID + 5,
         'width'   => 190,
         'top'     => 594,

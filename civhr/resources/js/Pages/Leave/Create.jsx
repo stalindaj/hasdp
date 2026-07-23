@@ -54,9 +54,48 @@ function Radio({ name, value, checked, onChange, children }) {
     );
 }
 
+/** 'YYYY-MM-DD' in local time — never via toISOString (UTC would shift PH dates). */
+function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Mirror of App\Support\WorkingDays::count() — the server recomputes on
+ * submit; this is only the live preview. Returns null while the range is
+ * incomplete or invalid.
+ */
+function countDays(fromStr, toStr, basis, holidays) {
+    if (!fromStr || !toStr) return null;
+    const from = new Date(`${fromStr}T00:00:00`);
+    const to = new Date(`${toStr}T00:00:00`);
+    if (isNaN(from) || isNaN(to) || to < from) return null;
+
+    let days = 0;
+    const skipped = []; // holidays actually inside the range, for the note
+    for (
+        let d = new Date(from), guard = 0;
+        d <= to && guard < 1000;
+        d.setDate(d.getDate() + 1), guard++
+    ) {
+        const iso = isoDate(d);
+        const holiday = holidays[iso];
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+
+        if (basis === 'calendar') {
+            days++;
+            continue;
+        }
+        if (holiday && !weekend) skipped.push({ date: iso, name: holiday });
+        if (!weekend && !holiday) days++;
+    }
+
+    return { days, skipped };
+}
+
 export default function Create({
     leaveTypes,
     prefill,
+    holidays,
     hasEmployeeRecord,
 }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -80,7 +119,6 @@ export default function Create({
         detail_study_other: '',
         detail_other_purpose: '',
 
-        working_days: '',
         date_from: '',
         date_to: '',
         commutation: 'not_requested',
@@ -92,6 +130,13 @@ export default function Create({
     );
 
     const group = selectedType?.detail_group ?? null;
+    const dayBasis = selectedType?.day_basis ?? 'working';
+
+    // 6.C — computed from the inclusive dates; the server recomputes on file.
+    const computed = useMemo(
+        () => countDays(data.date_from, data.date_to, dayBasis, holidays),
+        [data.date_from, data.date_to, dayBasis, holidays],
+    );
 
     const submit = (e) => {
         e.preventDefault();
@@ -444,30 +489,11 @@ export default function Create({
                         </Section>
 
                         {/* 6.C / 6.D */}
-                        <Section title="6.C / 6.D — Working days and commutation">
+                        <Section
+                            title="6.C / 6.D — Working days and commutation"
+                            description="Pick the inclusive dates — the number of working days is counted for you."
+                        >
                             <div className="grid gap-4 sm:grid-cols-3">
-                                <div>
-                                    <InputLabel
-                                        htmlFor="working_days"
-                                        value="Number of working days"
-                                    />
-                                    <TextInput
-                                        id="working_days"
-                                        type="number"
-                                        step="0.5"
-                                        min="0.5"
-                                        className="mt-1 block w-full"
-                                        value={data.working_days}
-                                        onChange={(e) =>
-                                            setData('working_days', e.target.value)
-                                        }
-                                    />
-                                    <InputError
-                                        message={errors.working_days}
-                                        className="mt-1"
-                                    />
-                                </div>
-
                                 <div>
                                     <InputLabel
                                         htmlFor="date_from"
@@ -504,7 +530,58 @@ export default function Create({
                                         className="mt-1"
                                     />
                                 </div>
+
+                                <div>
+                                    <dt className="text-xs uppercase tracking-wide text-gray-500">
+                                        Number of {dayBasis === 'calendar' ? 'calendar' : 'working'} days
+                                    </dt>
+                                    <dd className="mt-1 rounded-md bg-gray-50 px-3 py-2 ring-1 ring-gray-200">
+                                        <span className="text-lg font-semibold text-gray-900">
+                                            {computed ? computed.days : '—'}
+                                        </span>
+                                    </dd>
+                                </div>
                             </div>
+
+                            {computed && dayBasis !== 'calendar' && (
+                                <div className="mt-3 text-xs text-gray-500">
+                                    <p>
+                                        Weekends
+                                        {computed.skipped.length > 0
+                                            ? ' and the holidays below are'
+                                            : ' and holidays are'}{' '}
+                                        excluded automatically.
+                                    </p>
+                                    {computed.skipped.length > 0 && (
+                                        <ul className="mt-1 list-inside list-disc text-amber-700">
+                                            {computed.skipped.map((h) => (
+                                                <li key={h.date}>
+                                                    {new Date(
+                                                        `${h.date}T00:00:00`,
+                                                    ).toLocaleDateString('en-US', {
+                                                        month: 'long',
+                                                        day: 'numeric',
+                                                    })}{' '}
+                                                    — {h.name}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                            {computed && dayBasis === 'calendar' && (
+                                <p className="mt-3 text-xs text-gray-500">
+                                    {selectedType?.name} is counted in calendar
+                                    days — weekends and holidays are included.
+                                </p>
+                            )}
+                            {computed && dayBasis !== 'calendar' && computed.days === 0 && (
+                                <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
+                                    These dates fall entirely on weekends or
+                                    holidays — there are no working days to
+                                    apply for.
+                                </p>
+                            )}
 
                             <div className="mt-5">
                                 <p className="mb-1 text-sm font-medium text-gray-700">

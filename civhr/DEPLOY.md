@@ -1,132 +1,66 @@
-# Deploying CivHR to cPanel
+# Deploying CivDir to cPanel (shell-less)
 
-The host has **no Node**, so compiled assets are built locally and committed
-(`public/build` is intentionally tracked in git). Never run `npm` on the server.
+The host has **no Node, no Composer, no SSH** — so the repo carries everything:
 
----
+- `public/build` — compiled assets, built locally, committed
+- `vendor/` — PHP dependencies, committed
+- `/setup/<token>` — one-time web route that replaces `php artisan migrate`
+  and `db:seed` (guarded by `SETUP_TOKEN` in `.env`)
 
-## 1. Create the live database (cPanel — you must do this yourself)
-
-In cPanel → **MySQL® Databases**:
-
-1. **Create database** — name it `civhr`. cPanel prefixes it, so the real name
-   becomes `strikew_civhr`.
-2. **Create user** — name it `civhr`, i.e. `strikew_civhr`. Use cPanel's
-   password generator and save the password in your password manager.
-3. **Add user to database** → tick **ALL PRIVILEGES**.
-
-Write the password straight into the server's `.env` (step 3). Do not paste it
-into chat, a commit, or a ticket.
+Never run `npm` or `composer` on the server. There is nothing to run.
 
 ---
 
-## 2. Get the code onto the server
+## First launch (~30 min, all in cPanel)
 
-cPanel → **Git™ Version Control** → clone the repo, or pull into an existing
-checkout. Point the domain/subdomain's **document root** at the repo's
-`public/` directory.
+### 1. Database — ✅ done
 
-Then, from cPanel → **Terminal** (or SSH) in the project root:
+`strikew_civdir`, user `strikew_app`, ALL PRIVILEGES. The password lives only
+in the server's `.env` — never in chat, a commit, or a ticket.
 
-```bash
-composer install --no-dev --optimize-autoloader
-```
+### 2. GitHub token
 
-If Composer is unavailable on the host, tell me and we will commit `vendor/`
-instead — same trade-off we already made for `public/build`.
+GitHub → Settings → Developer settings → **Fine-grained tokens** → new token,
+**Read-only** access to the `hasdp` repository only. Copy it once.
 
----
+### 3. Clone the repo
 
-## 3. Configure `.env` on the server
+cPanel → **Git™ Version Control** → Create:
 
-Copy `.env.example` to `.env`, then set:
+- Clone URL: `https://<TOKEN>@github.com/stalindaj/hasdp.git`
+- Repository path: `civdir`
 
-```dotenv
-APP_NAME="CivHR"
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://your-domain-here
+### 4. Point the subdomain
 
-# Printed in the header of CS Form No. 6
-AGENCY_NAME="PHILIPPINE AIR FORCE"
-AGENCY_ADDRESS="Col Jesus Villamor Air Base"
-AGENCY_ADDRESS_2="Pasay City, Metro Manila"
-AGENCY_LOGO_LEFT="images/paf-logo.png"     # service seal, header left
-AGENCY_LOGO_RIGHT="images/agency-logo.png" # unit seal, header right
-AGENCY_BRANCH_SUFFIX="PAF"                  # printed after ranked signatories
+cPanel → **Domains** → the subdomain's **document root** →
+`civdir/civhr/public`.
 
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=strikew_civhr
-DB_USERNAME=strikew_civhr
-DB_PASSWORD=the-password-from-step-1
+### 5. PHP version
 
-# cPanel mailbox — sends the routing notifications
-MAIL_MAILER=smtp
-MAIL_HOST=mail.your-domain-here
-MAIL_PORT=465
-MAIL_USERNAME=no-reply@your-domain-here
-MAIL_PASSWORD=the-mailbox-password
-MAIL_ENCRYPTION=ssl
-MAIL_FROM_ADDRESS="no-reply@your-domain-here"
-MAIL_FROM_NAME="${APP_NAME}"
-```
+cPanel → **MultiPHP Manager** → set the subdomain to **PHP 8.3 or 8.4**
+(`composer.json` requires `^8.3`; anything older white-screens).
+
+### 6. Create `.env`
+
+cPanel → **File Manager** → `civdir/civhr/` → new file `.env`. Paste the
+prepared text (it already contains `APP_KEY` and `SETUP_TOKEN`), then fill in
+`DB_PASSWORD` with the password from step 1.
 
 `APP_DEBUG=false` matters: with it on, a stack trace on any error would leak
-your database credentials to whoever hit the page.
+the database credentials to whoever hit the page.
 
-Generate the app key (once, on the server):
+### 7. Run setup
 
-```bash
-php artisan key:generate
-```
+Visit `https://<subdomain>/setup/<SETUP_TOKEN>` once. It runs the migrations
+and seeders (roles, the 14 CSC leave types, the full 15SW roster) and prints
+what it did. Then edit `.env` and **blank the token**
+(`SETUP_TOKEN=`) to disable the page.
 
----
+### 8. Sign in
 
-## 4. Build the schema and reference data
-
-```bash
-php artisan migrate --force          # --force: non-interactive, required in production
-php artisan db:seed --force          # roles + the 14 CSC leave types; idempotent
-php artisan storage:link
-```
-
-`db:seed` is safe to re-run on every deploy — both seeders use
-`updateOrCreate`, covered by `test_the_seeders_are_idempotent`.
-
----
-
-## 5. Cache for production
-
-```bash
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-```
-
-Re-run these after **any** `.env` change — once config is cached, edits to
-`.env` are ignored until you re-cache.
-
----
-
-## 6. Create the first superadmin
-
-```bash
-php artisan tinker
-```
-
-```php
-$u = App\Models\User::create([
-    'name' => 'Your Name',
-    'email' => 'you@your-domain',
-    'password' => Hash::make('set-a-strong-password-here'),
-    'is_active' => true,
-]);
-$u->roles()->sync(App\Models\Role::where('name', 'superadmin')->pluck('id'));
-```
-
-Then sign in and use **Users** to create everyone else.
+Login = **employee number** + `password123`. Superadmin: `5867`. Day one:
+admins key in the true opening balances from the 201 files, everyone changes
+their password.
 
 ---
 
@@ -136,19 +70,17 @@ Locally:
 
 ```bash
 npm run build
-git add public/build && git commit -m "build assets"
+git add -A && git commit -m "…"
 git push
 ```
 
-On the server:
+On the server: cPanel → **Git™ Version Control** → **Pull or Deploy** →
+Update from Remote.
 
-```bash
-git pull
-composer install --no-dev --optimize-autoloader
-php artisan migrate --force
-php artisan db:seed --force
-php artisan config:cache && php artisan route:cache && php artisan view:cache
-```
+If the push included **new migrations or seeder changes**: set `SETUP_TOKEN`
+in `.env` again, visit `/setup/<token>`, blank it again. The route is
+idempotent — re-running migrate + seed is always safe
+(`test_the_seeders_are_idempotent`).
 
 **Forgetting `npm run build` before pushing is the easiest way to break the
 site** — the server cannot build assets itself, so it would keep serving the
@@ -158,12 +90,12 @@ previous bundle while the PHP side moves on.
 
 ## Notes
 
-- **Leave credits are typed in, not computed.** The HR officer keys the
-  balances into 7.A at certification time. There is no leave-credit ledger yet;
-  if you want the balances tracked and carried forward automatically, that is a
-  separate build.
-- **Emails are not wired yet.** The workflow records every step, but nothing is
-  sent on transition. `MAIL_MAILER=log` locally writes to
-  `storage/logs/laravel.log`. Say the word and I will add the notifications.
-- **The agency logo** on the printed form is a dashed placeholder. Send me the
-  logo file and I will drop it in.
+- **Config is not cached** on the server (no shell to run `config:cache`).
+  `.env` edits therefore take effect immediately — that's intentional; do not
+  cache config through some workaround, or `/setup` re-runs and `.env` edits
+  will silently stop working.
+- **Emails are not wired yet.** The workflow records every step, but nothing
+  is sent on transition. When notifications are added they'll use the cPanel
+  mailbox over SMTP (`mail.<domain>`, port 465).
+- **The PAF seal** on the printed form needs a clean PNG; placeholder until
+  then.

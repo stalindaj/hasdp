@@ -63,6 +63,16 @@ export default function AuthenticatedLayout({ header, children }) {
                                         Employees
                                     </NavLink>
                                 )}
+                                {isAdmin && (
+                                    <NavLink
+                                        href={route('admin.holidays.index')}
+                                        active={route().current(
+                                            'admin.holidays.*',
+                                        )}
+                                    >
+                                        Holidays
+                                    </NavLink>
+                                )}
                             </div>
                         </div>
 
@@ -220,6 +230,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                 active={route().current('admin.employees.*')}
                             >
                                 Employees
+                            </ResponsiveNavLink>
+                        )}
+                        {isAdmin && (
+                            <ResponsiveNavLink
+                                href={route('admin.holidays.index')}
+                                active={route().current('admin.holidays.*')}
+                            >
+                                Holidays
                             </ResponsiveNavLink>
                         )}
                     </div>
