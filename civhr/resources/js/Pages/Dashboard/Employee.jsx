@@ -30,7 +30,7 @@ function Card({ title, children, actions }) {
     );
 }
 
-export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances, ledger, ld, leaves }) {
+export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances, forced, ledger, ld, leaves }) {
     const flash = usePage().props.flash;
     const [adjusting, setAdjusting] = useState(null); // kind being adjusted
     const [ldOpen, setLdOpen] = useState(false);
@@ -45,6 +45,16 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
     const openAdjust = (kind) => {
         adjust.setData({ kind, amount: '', note: '' });
         setAdjusting(kind);
+    };
+
+    // One click pre-fills the CSC year-end forfeiture of unused forced leave.
+    const openForfeiture = () => {
+        adjust.setData({
+            kind: 'vl',
+            amount: String(-forced.remaining),
+            note: `Forfeiture of unused mandatory/forced leave ${year} (CSC Sec. 25, Rule XVI)`,
+        });
+        setAdjusting('vl');
     };
 
     const submitAdjust = (e) => {
@@ -97,30 +107,73 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                     </div>
                 )}
 
-                {/* Balances — click a tile to adjust it */}
+                {/* Balances table — click a number to adjust it */}
                 <Card
-                    title="Leave balances"
+                    title={`Total leave balances as of ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}`}
                     actions={
                         <span className="text-xs text-slate-400">
-                            VL/SL accrue +1.25 monthly · click a balance to adjust
+                            VL/SL accrue +1.25 monthly · click a number to adjust
                         </span>
                     }
                 >
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                        {KINDS.map(([kind, label]) => (
+                    <div className="overflow-x-auto">
+                        <table className="w-full max-w-xl text-center">
+                            <thead>
+                                <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    {KINDS.map(([kind, label]) => (
+                                        <th key={kind} className="px-4 py-2">
+                                            {label}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    {KINDS.map(([kind]) => (
+                                        <td key={kind} className="px-4 py-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => openAdjust(kind)}
+                                                title="Adjust this balance"
+                                                className="rounded-md px-3 py-1 text-2xl font-bold text-slate-900 transition hover:bg-blue-50 hover:text-blue-700"
+                                            >
+                                                {balances[kind]}
+                                            </button>
+                                        </td>
+                                    ))}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* CSC Sec. 25, Rule XVI — 5 VL days must be used yearly */}
+                    <div
+                        className={
+                            'mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-sm ring-1 ' +
+                            (forced.remaining > 0
+                                ? 'bg-amber-50 text-amber-800 ring-amber-200'
+                                : 'bg-emerald-50 text-emerald-800 ring-emerald-200')
+                        }
+                    >
+                        <span>
+                            Mandatory/forced leave {year}:{' '}
+                            <span className="font-semibold">
+                                {forced.used} of {forced.required} days used
+                            </span>
+                            {forced.remaining > 0
+                                ? ` — ${forced.remaining} day(s) still to take; unused days are forfeited at year-end.`
+                                : ' — requirement met.'}
+                        </span>
+                        {forced.remaining > 0 && (
                             <button
-                                key={kind}
                                 type="button"
-                                onClick={() => openAdjust(kind)}
-                                className="rounded-xl border border-slate-200 p-4 text-left transition hover:border-blue-300 hover:shadow"
-                                title="Adjust this balance"
+                                onClick={openForfeiture}
+                                className="rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                                title="Pre-fills a VL adjustment of the unused forced days — use at year-end"
                             >
-                                <p className="text-2xl font-bold text-slate-900">
-                                    {balances[kind]}
-                                </p>
-                                <p className="text-xs text-slate-500">{label}</p>
+                                Apply year-end forfeiture…
                             </button>
-                        ))}
+                        )}
                     </div>
                 </Card>
 

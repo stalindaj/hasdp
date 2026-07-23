@@ -157,6 +157,9 @@ class LeaveController extends Controller
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
                 'print'   => LeaveWorkflow::canPrint($application, $user),
             ],
+            // CSC rules: credits are certified and checked BEFORE approval; if
+            // the balance is short, the excess may be granted without pay.
+            'balanceCheck' => $canProcess ? $this->balanceCheck($application) : null,
             // 7.A / 7.C-D are fixed; only the 7.B recommender is chosen here.
             'signatories' => $canProcess ? [
                 'certifier'   => $this->defaultCertifier()?->signatoryLabel(),
@@ -414,6 +417,45 @@ class LeaveController extends Controller
             ->get()
             ->map(fn ($u) => ['id' => $u->id, 'name' => $u->signatoryLabel()])
             ->values();
+    }
+
+    /**
+     * The pre-approval credit check. Splits the applied days into with-pay /
+     * without-pay based on the actual balance, the way 7.C expects.
+     */
+    private function balanceCheck(LeaveApplication $a): ?array
+    {
+        if (! $a->employee) {
+            return null;
+        }
+
+        $balances = \App\Support\CreditLedger::balances($a->employee);
+        $kind = $a->leaveType->credit_kind;
+        $days = (float) $a->working_days;
+
+        if (! $kind) {
+            return [
+                'kind'     => null,
+                'type'     => $a->leaveType->name,
+                'days'     => $days,
+                'balances' => $balances,
+            ];
+        }
+
+        $available = (float) $balances[$kind];
+        $withPay = round(max(0, min($available, $days)), 2);
+
+        return [
+            'kind'        => strtoupper($kind),
+            'type'        => $a->leaveType->name,
+            'days'        => $days,
+            'balance'     => $available,
+            'sufficient'  => $available >= $days,
+            'with_pay'    => $withPay,
+            'without_pay' => round(max(0, $days - $withPay), 2),
+            'after'       => round($available - $withPay, 2),
+            'balances'    => $balances,
+        ];
     }
 
     private function creditPrefill(LeaveApplication $a): array

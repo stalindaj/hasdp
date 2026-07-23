@@ -157,6 +157,24 @@ class CreditLedger
         ]);
     }
 
+    /**
+     * Mandatory/Forced Leave compliance (CSC Sec. 25, Rule XVI): 5 VL days
+     * must be used within the year; any VL availment counts toward them.
+     * Unused days are forfeited at year-end — the admin applies that as an
+     * adjustment (kept manual because exigency cancellations are exempt).
+     */
+    public static function forcedLeaveStatus(Employee $employee): array
+    {
+        $required = (float) config('agency.forced_days');
+        $used = self::approvedDaysThisYear($employee, 'vl', now()->year);
+
+        return [
+            'required'  => $required,
+            'used'      => round(min($used, $required), 2),
+            'remaining' => round(max(0, $required - $used), 2),
+        ];
+    }
+
     /** Ledger history, newest first, for the employee page. */
     public static function history(Employee $employee, int $limit = 50)
     {

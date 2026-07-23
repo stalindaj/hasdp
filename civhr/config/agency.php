@@ -26,4 +26,8 @@ return [
     // Annual leave entitlements that reset each January (days per year).
     'wellness_days' => (float) env('WELLNESS_DAYS', 5),
     'spl_days'      => (float) env('SPL_DAYS', 3),
+
+    // CSC Sec. 25, Rule XVI: five VL days a year are mandatory/forced —
+    // unused days are forfeited at year-end (any VL availment counts).
+    'forced_days'   => (float) env('FORCED_LEAVE_DAYS', 5),
 ];

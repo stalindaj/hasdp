@@ -175,6 +175,7 @@ class DashboardController extends Controller
                     'sem2' => (bool) $r->sem2_done,
                 ]),
             'balances' => CreditLedger::balances($employee),
+            'forced'   => CreditLedger::forcedLeaveStatus($employee),
             'ledger'   => CreditLedger::history($employee),
             'ld' => [
                 'hours'   => (float) $ldEntries->sum('hours'),

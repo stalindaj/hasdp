@@ -99,10 +99,19 @@ function RecommenderCard({ application, signatories }) {
 }
 
 /* ── Admin: fill 7.A credits + decide (7.C / 7.D) ─────────────────────── */
-function ProcessForm({ application, prefill }) {
+function ProcessForm({ application, prefill, balanceCheck }) {
     const c = application.certification ?? {};
     const d = application.decision ?? {};
     const decided = !!d.at;   // already approved/disapproved once
+
+    // CSC rules: days beyond the available balance are granted without pay —
+    // prefill the 7.C split straight from the credit check.
+    const suggestedWithPay =
+        balanceCheck?.kind != null
+            ? balanceCheck.with_pay
+            : (application.working_days ?? '');
+    const suggestedWithoutPay =
+        balanceCheck?.kind != null ? balanceCheck.without_pay || '' : '';
 
     const { data, setData, post, patch, processing, errors } = useForm({
         decision: d.value || 'approved',
@@ -113,8 +122,8 @@ function ProcessForm({ application, prefill }) {
         sl_earned: c.sl_earned ?? prefill?.sl_earned ?? '',
         sl_less: c.sl_less ?? prefill?.sl_less ?? '',
         sl_balance: c.sl_balance ?? prefill?.sl_balance ?? '',
-        days_with_pay: String(d.days_with_pay ?? application.working_days ?? ''),
-        days_without_pay: String(d.days_without_pay ?? ''),
+        days_with_pay: String(d.days_with_pay ?? suggestedWithPay ?? ''),
+        days_without_pay: String(d.days_without_pay ?? suggestedWithoutPay ?? ''),
         days_others: String(d.days_others ?? ''),
         days_others_specify: d.others_specify ?? '',
         disapproval_reason: d.reason ?? '',
@@ -147,6 +156,77 @@ function ProcessForm({ application, prefill }) {
                 </p>
             )}
             <form onSubmit={submit} className="space-y-6">
+                {/* Credit check — CSC: certify credits before approval */}
+                {balanceCheck && (
+                    <div className="rounded-md border border-slate-200 p-4">
+                        <p className="mb-2 text-sm font-medium text-slate-700">
+                            Applicant's balances as of{' '}
+                            {new Date().toLocaleString('en-US', {
+                                month: 'long',
+                                year: 'numeric',
+                            })}
+                        </p>
+                        <table className="w-full max-w-md text-center text-sm">
+                            <thead>
+                                <tr className="text-xs uppercase tracking-wide text-slate-400">
+                                    <th className="pb-1">VL</th>
+                                    <th className="pb-1">SL</th>
+                                    <th className="pb-1">Wellness</th>
+                                    <th className="pb-1">SPL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr className="text-base font-semibold text-slate-900">
+                                    <td>{balanceCheck.balances.vl}</td>
+                                    <td>{balanceCheck.balances.sl}</td>
+                                    <td>{balanceCheck.balances.wellness}</td>
+                                    <td>{balanceCheck.balances.spl}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {balanceCheck.kind ? (
+                            balanceCheck.sufficient ? (
+                                <p className="mt-3 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-800 ring-1 ring-emerald-200">
+                                    This {balanceCheck.type} draws{' '}
+                                    <span className="font-semibold">
+                                        {balanceCheck.days} day(s) from{' '}
+                                        {balanceCheck.kind}
+                                    </span>{' '}
+                                    — sufficient. Balance after approval:{' '}
+                                    <span className="font-semibold">
+                                        {balanceCheck.after}
+                                    </span>
+                                    .
+                                </p>
+                            ) : (
+                                <p className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+                                    Insufficient {balanceCheck.kind}: only{' '}
+                                    <span className="font-semibold">
+                                        {balanceCheck.balance}
+                                    </span>{' '}
+                                    available for{' '}
+                                    <span className="font-semibold">
+                                        {balanceCheck.days} day(s)
+                                    </span>
+                                    . Per CSC rules the excess may be granted{' '}
+                                    <span className="font-semibold">
+                                        without pay
+                                    </span>{' '}
+                                    — 7.C below is pre-split:{' '}
+                                    {balanceCheck.with_pay} with pay /{' '}
+                                    {balanceCheck.without_pay} without pay.
+                                </p>
+                            )
+                        ) : (
+                            <p className="mt-3 text-xs text-slate-500">
+                                {balanceCheck.type} does not deduct from these
+                                credit balances.
+                            </p>
+                        )}
+                    </div>
+                )}
+
                 {/* 7.A credits */}
                 <div>
                     <p className="mb-2 text-sm font-medium text-gray-700">
@@ -363,7 +443,7 @@ function ProcessForm({ application, prefill }) {
     );
 }
 
-export default function Show({ application: a, can, signatories, creditPrefill }) {
+export default function Show({ application: a, can, signatories, creditPrefill, balanceCheck }) {
     const flash = usePage().props.flash;
 
     const cancel = () => {
@@ -500,7 +580,11 @@ export default function Show({ application: a, can, signatories, creditPrefill }
                     )}
 
                     {can.process && (
-                        <ProcessForm application={a} prefill={creditPrefill} />
+                        <ProcessForm
+                            application={a}
+                            prefill={creditPrefill}
+                            balanceCheck={balanceCheck}
+                        />
                     )}
 
                     {a.decision.at && !can.process && (
