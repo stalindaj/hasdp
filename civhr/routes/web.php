@@ -64,11 +64,15 @@ Route::middleware('auth')->group(function () {
         return redirect()->route('dashboard');
     })->name('view-mode.toggle');
 
-    // Dashboard status trackers (admin-only writes).
+    // Dashboard status trackers (admin-only).
+    Route::get('/dashboard/employee/{employee}', [DashboardController::class, 'showEmployee'])
+        ->name('dashboard.employee');
     Route::patch('/dashboard/ipcr/{employee}', [DashboardController::class, 'toggleIpcr'])
         ->middleware('admin')->name('dashboard.ipcr');
     Route::post('/dashboard/ld/{employee}', [DashboardController::class, 'storeLd'])
         ->middleware('admin')->name('dashboard.ld');
+    Route::post('/dashboard/credit/{employee}', [DashboardController::class, 'adjustCredit'])
+        ->middleware('admin')->name('dashboard.credit');
 
     // Breeze account settings (email / password)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

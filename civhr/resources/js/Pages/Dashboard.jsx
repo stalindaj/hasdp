@@ -100,7 +100,7 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
                         <Stat value={boxes.leave.pending} label="pending approval" />
                         <Stat
                             value={`${boxes.leave.used_days}d`}
-                            label={`approved days used · ${year}`}
+                            label={`days used · ${year}`}
                         />
                     </div>
                 </BigBox>
@@ -140,9 +140,12 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
                             {rows.map((r) => (
                                 <tr key={r.id} className="hover:bg-slate-50">
                                     <td className="px-4 py-3">
-                                        <p className="font-medium text-slate-800">
+                                        <Link
+                                            href={route('dashboard.employee', r.id)}
+                                            className="font-medium text-slate-800 hover:text-blue-600"
+                                        >
                                             {r.name}
-                                        </p>
+                                        </Link>
                                         <p className="text-xs text-slate-400">
                                             #{r.emp_no}
                                         </p>
@@ -162,11 +165,13 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves }) {
                                         />
                                     </td>
                                     <td className="px-4 py-3">
-                                        <p className="text-slate-700">
-                                            {r.leave_balance !== null
-                                                ? `${r.leave_balance} bal`
-                                                : `${r.leave_used}d used`}
-                                        </p>
+                                        <Link
+                                            href={route('dashboard.employee', r.id)}
+                                            className="text-slate-700 underline-offset-2 hover:text-blue-600 hover:underline"
+                                            title="View balances & ledger"
+                                        >
+                                            {r.leave_used}d used
+                                        </Link>
                                         {r.leave_pending > 0 && (
                                             <p className="text-xs font-medium text-amber-600">
                                                 {r.leave_pending} pending
@@ -320,21 +325,31 @@ function EmployeeDashboard({ year, ldTarget, me }) {
                         </p>
                     </div>
                 </BigBox>
-                <BigBox title="My leave" accent="border-amber-100">
-                    <Stat
-                        value={
-                            me.leave_balance !== null
-                                ? me.leave_balance
-                                : `${me.leave_used}d`
-                        }
-                        label={
-                            me.leave_balance !== null
-                                ? 'estimated balance'
-                                : `days used · ${year}`
-                        }
-                    />
+                <BigBox title="My leave balances" accent="border-amber-100">
+                    {me.balances ? (
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <p className="flex justify-between">
+                                <span className="text-slate-500">VL</span>
+                                <span className="font-semibold text-slate-900">{me.balances.vl}</span>
+                            </p>
+                            <p className="flex justify-between">
+                                <span className="text-slate-500">SL</span>
+                                <span className="font-semibold text-slate-900">{me.balances.sl}</span>
+                            </p>
+                            <p className="flex justify-between">
+                                <span className="text-slate-500">Wellness</span>
+                                <span className="font-semibold text-slate-900">{me.balances.wellness}</span>
+                            </p>
+                            <p className="flex justify-between">
+                                <span className="text-slate-500">SPL</span>
+                                <span className="font-semibold text-slate-900">{me.balances.spl}</span>
+                            </p>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-slate-400">No employee record linked.</p>
+                    )}
                     {me.leave_pending > 0 && (
-                        <p className="mt-1 text-xs font-medium text-amber-600">
+                        <p className="mt-2 text-xs font-medium text-amber-600">
                             {me.leave_pending} application(s) pending
                         </p>
                     )}

@@ -462,7 +462,7 @@ class LeaveTest extends TestCase
         $this->seed(RoleSeeder::class);
         $this->seed(LeaveTypeSeeder::class);
 
-        $this->assertSame(14, LeaveType::count());
+        $this->assertSame(15, LeaveType::count());   // 14 CSC types + Wellness
         $this->assertSame(6, Role::count());
     }
 }

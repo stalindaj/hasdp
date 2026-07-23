@@ -22,4 +22,8 @@ return [
     // Annual Learning & Development target per employee, in hours. The
     // dashboard shows how many hours each person still has pending.
     'ld_target_hours' => (float) env('LD_TARGET_HOURS', 8),
+
+    // Annual leave entitlements that reset each January (days per year).
+    'wellness_days' => (float) env('WELLNESS_DAYS', 5),
+    'spl_days'      => (float) env('SPL_DAYS', 3),
 ];

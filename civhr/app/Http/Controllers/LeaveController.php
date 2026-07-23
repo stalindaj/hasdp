@@ -245,6 +245,12 @@ class LeaveController extends Controller
             $data['disapproval_reason'] ?? null
         );
 
+        // Keep the credit ledger in sync (deduct on approve, and correctly
+        // replace the deduction when a decision is revised).
+        \App\Support\CreditLedger::applyForApplication(
+            $application->fresh(['leaveType', 'employee'])
+        );
+
         return back()->with('success', $approved
             ? 'Leave approved. The employee can now print the form for signature.'
             : 'Leave disapproved.');
@@ -332,7 +338,12 @@ class LeaveController extends Controller
 
         return view('leave.print', [
             'app'            => $application,
-            'types'          => LeaveType::active()->get(),
+            // Only the official CSC checkboxes render in 6.A; unofficial types
+            // (e.g. Wellness Leave) print on the "Others:" blank instead.
+            'types'          => LeaveType::active()->where('is_official', true)->get(),
+            'othersText'     => ! $application->leaveType->is_official
+                ? trim($application->leaveType->name.' '.$application->leaveType->legal_basis)
+                : ($application->leaveType->code === 'others' ? $application->other_leave_type : ''),
             'agencyName'     => config('agency.name'),
             'agencyAddress'  => config('agency.address'),
             'agencyAddress2' => config('agency.address2'),
@@ -407,6 +418,27 @@ class LeaveController extends Controller
 
     private function creditPrefill(LeaveApplication $a): array
     {
+        // The ledger is the source of truth for VL/SL balances; the days
+        // applied for come off whichever balance this leave type draws on.
+        if ($a->employee) {
+            $balances = \App\Support\CreditLedger::balances($a->employee);
+            $kind = $a->leaveType->credit_kind;
+            $days = (float) $a->working_days;
+
+            $vlLess = $kind === 'vl' ? $days : 0.0;
+            $slLess = $kind === 'sl' ? $days : 0.0;
+
+            return [
+                'cert_as_of' => now()->toDateString(),
+                'vl_earned'  => $balances['vl'],
+                'vl_less'    => $vlLess,
+                'vl_balance' => round($balances['vl'] - $vlLess, 2),
+                'sl_earned'  => $balances['sl'],
+                'sl_less'    => $slLess,
+                'sl_balance' => round($balances['sl'] - $slLess, 2),
+            ];
+        }
+
         return LeaveCredits::certificationFor(
             $a->employee,
             $a->leaveType->code ?? '',

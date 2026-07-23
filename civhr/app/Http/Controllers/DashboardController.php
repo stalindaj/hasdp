@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\IpcrRecord;
 use App\Models\LeaveApplication;
-use App\Support\LeaveCredits;
+use App\Support\CreditLedger;
 use App\Support\LeaveWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,13 +32,11 @@ class DashboardController extends Controller
     {
         $target = (float) config('agency.ld_target_hours');
 
-        $employees = Employee::with([
-            'user:id,name,employee_id',
-            'ipcrRecords' => fn ($q) => $q->where('year', $year),
-            'ldEntries' => fn ($q) => $q->whereYear('date', $year),
-        ])
-            ->whereNotNull('emp_no')
-            ->where('emp_no', '!=', 'mission')   // signatory, not plantilla staff
+        $employees = $this->plantilla()
+            ->with([
+                'ipcrRecords' => fn ($q) => $q->where('year', $year),
+                'ldEntries' => fn ($q) => $q->whereYear('date', $year),
+            ])
             ->orderBy('last_name')
             ->get();
 
@@ -46,7 +44,14 @@ class DashboardController extends Controller
             $ipcr = $e->ipcrRecords->first();
             $ldHours = (float) $e->ldEntries->sum('hours');
 
-            [$leaveUsed, $leavePending, $leaveBalance] = $this->leaveNumbers($e, $year);
+            // Ledger stays up to date even before anyone opens the card.
+            CreditLedger::ensureUpToDate($e);
+
+            $apps = LeaveApplication::where('employee_id', $e->id)->get();
+            $used = (float) $apps
+                ->where('status', LeaveWorkflow::APPROVED)
+                ->filter(fn ($a) => optional($a->date_from)->year === $year)
+                ->sum(fn ($a) => (float) ($a->days_with_pay ?? $a->working_days));
 
             return [
                 'id'         => $e->id,
@@ -54,11 +59,10 @@ class DashboardController extends Controller
                 'name'       => trim($e->last_name.', '.$e->first_name),
                 'sem1'       => (bool) ($ipcr?->sem1_done),
                 'sem2'       => (bool) ($ipcr?->sem2_done),
-                'leave_used'    => $leaveUsed,
-                'leave_pending' => $leavePending,
-                'leave_balance' => $leaveBalance,
-                'ld_hours'      => $ldHours,
-                'ld_pending'    => max(0, $target - $ldHours),
+                'leave_used'    => $used,
+                'leave_pending' => $apps->where('status', LeaveWorkflow::PENDING)->count(),
+                'ld_hours'   => $ldHours,
+                'ld_pending' => max(0, $target - $ldHours),
             ];
         });
 
@@ -110,9 +114,10 @@ class DashboardController extends Controller
             : collect();
         $ldHours = (float) $ldEntries->sum('hours');
 
-        [$leaveUsed, $leavePending, $leaveBalance] = $e
-            ? $this->leaveNumbers($e, $year)
-            : [0.0, 0, null];
+        $balances = $e ? CreditLedger::balances($e) : null;
+        $pending = $e
+            ? LeaveApplication::where('employee_id', $e->id)->where('status', LeaveWorkflow::PENDING)->count()
+            : 0;
 
         return Inertia::render('Dashboard', [
             'mode' => 'employee',
@@ -123,9 +128,8 @@ class DashboardController extends Controller
                 'emp_no' => $e?->emp_no,
                 'sem1'   => (bool) ($ipcr?->sem1_done),
                 'sem2'   => (bool) ($ipcr?->sem2_done),
-                'leave_used'    => $leaveUsed,
-                'leave_pending' => $leavePending,
-                'leave_balance' => $leaveBalance,
+                'balances'      => $balances,
+                'leave_pending' => $pending,
                 'ld_hours'      => $ldHours,
                 'ld_pending'    => max(0, $target - $ldHours),
                 'ld_entries'    => $ldEntries->map(fn ($l) => [
@@ -137,24 +141,85 @@ class DashboardController extends Controller
         ]);
     }
 
-    /** [approved days used this year, pending count, VL balance estimate|null] */
-    private function leaveNumbers(Employee $e, int $year): array
+    /** Admin: one employee's full card — IPCR, balances + ledger, L&D, leaves. */
+    public function showEmployee(Request $request, Employee $employee)
     {
-        $apps = LeaveApplication::where('employee_id', $e->id)->get();
+        abort_unless(
+            LeaveWorkflow::isAdmin($request->user())
+            && $request->session()->get('view_mode') !== 'employee',
+            403
+        );
 
-        $used = (float) $apps
-            ->where('status', LeaveWorkflow::APPROVED)
-            ->filter(fn ($a) => optional($a->date_from)->year === $year)
-            ->sum('days_with_pay');
+        $year = now()->year;
+        $target = (float) config('agency.ld_target_hours');
 
-        $pending = $apps->where('status', LeaveWorkflow::PENDING)->count();
+        $ldEntries = $employee->ldEntries()->whereYear('date', $year)->orderByDesc('date')->get();
 
-        // Gross service accrual minus days used — an estimate, only when the
-        // appointment date is on record.
-        $start = LeaveCredits::serviceStart($e);
-        $balance = $start ? round(LeaveCredits::earned($start) - $used, 2) : null;
+        return Inertia::render('Dashboard/Employee', [
+            'year' => $year,
+            'ldTarget' => $target,
+            'employee' => [
+                'id'      => $employee->id,
+                'emp_no'  => $employee->emp_no,
+                'name'    => trim($employee->first_name.' '.$employee->last_name),
+                'position'=> $employee->position,
+                'contact' => $employee->contact_no,
+                'birthday'=> optional($employee->date_of_birth)->format('M j, Y'),
+                'last_ape'=> optional($employee->last_ape_date)->format('M j, Y'),
+            ],
+            // Every year on record, so past compliance stays visible.
+            'ipcr' => $employee->ipcrRecords()->orderByDesc('year')->get()
+                ->map(fn ($r) => [
+                    'year' => $r->year,
+                    'sem1' => (bool) $r->sem1_done,
+                    'sem2' => (bool) $r->sem2_done,
+                ]),
+            'balances' => CreditLedger::balances($employee),
+            'ledger'   => CreditLedger::history($employee),
+            'ld' => [
+                'hours'   => (float) $ldEntries->sum('hours'),
+                'pending' => max(0, $target - (float) $ldEntries->sum('hours')),
+                'entries' => $ldEntries->map(fn ($l) => [
+                    'id'    => $l->id,
+                    'title' => $l->title,
+                    'hours' => (float) $l->hours,
+                    'date'  => $l->date->format('M j, Y'),
+                ]),
+            ],
+            'leaves' => LeaveApplication::with('leaveType:id,name')
+                ->where('employee_id', $employee->id)
+                ->latest()
+                ->limit(20)
+                ->get()
+                ->map(fn ($a) => [
+                    'id'     => $a->id,
+                    'type'   => $a->leaveType->name,
+                    'days'   => (float) $a->working_days,
+                    'when'   => $a->inclusive_dates_text,
+                    'status' => $a->status,
+                    'status_label' => LeaveWorkflow::label($a->status),
+                ]),
+        ]);
+    }
 
-        return [$used, $pending, $balance];
+    /** Admin edits a balance by posting an adjustment to the ledger. */
+    public function adjustCredit(Request $request, Employee $employee)
+    {
+        $data = $request->validate([
+            'kind'   => ['required', Rule::in(['vl', 'sl', 'wellness', 'spl'])],
+            'amount' => ['required', 'numeric', 'not_in:0', 'min:-999', 'max:999'],
+            'note'   => ['nullable', 'string', 'max:255'],
+        ]);
+
+        CreditLedger::adjust(
+            $employee,
+            $data['kind'],
+            (float) $data['amount'],
+            $data['note'] ?? null,
+            $request->user()->id
+        );
+
+        return back()->with('success', 'Balance adjusted.');
     }
 
     /** Admin ticks/unticks an IPCR semester for an employee. */
@@ -187,5 +252,13 @@ class DashboardController extends Controller
         $employee->ldEntries()->create($data);
 
         return back()->with('success', "L&D logged for {$employee->first_name} {$employee->last_name}.");
+    }
+
+    /** Plantilla staff only — the 7.C/D signatory record is excluded. */
+    private function plantilla()
+    {
+        return Employee::query()
+            ->whereNotNull('emp_no')
+            ->where('emp_no', '!=', 'mission');
     }
 }

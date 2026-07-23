@@ -15,6 +15,7 @@ class Employee extends Model
         'date_of_birth'      => 'date',
         'date_of_promotion'  => 'date',
         'last_ape_date'      => 'date',
+        'credits_accrual_start' => 'date',
         'ape_date_started'   => 'date',
         'ape_date_completed' => 'date',
     ];
@@ -32,6 +33,11 @@ class Employee extends Model
     public function ldEntries()
     {
         return $this->hasMany(LdEntry::class);
+    }
+
+    public function creditEntries()
+    {
+        return $this->hasMany(LeaveCreditEntry::class);
     }
 
     public function getAgeAttribute(): ?int

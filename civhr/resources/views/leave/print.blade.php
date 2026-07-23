@@ -223,7 +223,7 @@
             <div class="t i f75" style="left:119.5pt; top:{{ $top + 3 }}pt;">Others:</div>
             <div class="ln" style="left:119.5pt; top:{{ $top + 20 }}pt; width:150pt;"></div>
             <div class="t v f7 c" style="left:119.5pt; top:{{ $top + 12 }}pt; width:150pt; overflow:hidden;">
-                {{ $app->leave_type_id === $type->id ? $app->other_leave_type : '' }}
+                {{ $othersText ?? '' }}
             </div>
         @else
             <div class="row" style="left:109.3pt; top:{{ $top }}pt; width:{{ $MID - 109.3 - 2 }}pt; height:{{ $ROW }}pt;">
