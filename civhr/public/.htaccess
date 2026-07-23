@@ -1,3 +1,13 @@
+# The repo root's .htaccess denies everything (it sits inside public_html);
+# this folder is the only publicly served one, so re-grant access here.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
