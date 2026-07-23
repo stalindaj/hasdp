@@ -78,6 +78,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Force HTTPS
+    |--------------------------------------------------------------------------
+    |
+    | Turn on ONLY after AutoSSL has issued the certificate: redirects all
+    | plain-http traffic to https and enables HSTS. Pair it with
+    | SESSION_SECURE_COOKIE=true in .env.
+    |
+    */
+
+    'force_https' => env('FORCE_HTTPS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |
