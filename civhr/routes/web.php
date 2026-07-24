@@ -6,6 +6,7 @@ use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\BalanceController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\LdController;
@@ -77,6 +78,9 @@ Route::middleware('auth')->group(function () {
         ->middleware('admin')->name('dashboard.ld');
     Route::post('/dashboard/credit/{employee}', [DashboardController::class, 'adjustCredit'])
         ->middleware('admin')->name('dashboard.credit');
+    // Leaves taken on paper / before go-live, keyed in by an admin.
+    Route::post('/dashboard/leave/{employee}', [DashboardController::class, 'recordLeave'])
+        ->middleware('admin')->name('dashboard.record-leave');
 
     // Breeze account settings (email / password)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -130,6 +134,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // The all-employee leave balance grid, editable in place.
     Route::get('balances', [BalanceController::class, 'index'])->name('balances.index');
     Route::patch('balances/{employee}', [BalanceController::class, 'update'])->name('balances.update');
+});
+
+// The audit trail is for the system owner alone — plain admins appear in it,
+// so 'superadmin' rather than 'admin' guards these.
+Route::middleware(['auth', 'superadmin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('audit', [AuditController::class, 'index'])->name('audit.index');
+    Route::get('audit/export', [AuditController::class, 'export'])->name('audit.export');
 });
 
 require __DIR__.'/auth.php';

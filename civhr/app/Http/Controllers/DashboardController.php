@@ -183,6 +183,10 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard/Employee', [
             'year' => $year,
             'ldTarget' => $target,
+            // For recording a leave the employee already took.
+            'leaveTypes' => \App\Models\LeaveType::active()->get(['id', 'name', 'day_basis']),
+            'holidays' => \App\Models\Holiday::orderBy('date')->get()
+                ->mapWithKeys(fn ($h) => [$h->date->toDateString() => $h->name]),
             'employee' => [
                 'id'      => $employee->id,
                 'emp_no'  => $employee->emp_no,
@@ -228,6 +232,8 @@ class DashboardController extends Controller
                     'when'   => $a->inclusive_dates_text,
                     'status' => $a->status,
                     'status_label' => LeaveWorkflow::label($a->status),
+                    // Keyed in by an admin rather than filed by the employee.
+                    'recorded' => (bool) $a->recorded_by,
                 ]),
         ]);
     }
@@ -250,6 +256,75 @@ class DashboardController extends Controller
         );
 
         return back()->with('success', 'Balance adjusted.');
+    }
+
+    /**
+     * Admin records a leave the employee already took — a paper CS Form 6, or
+     * anything from before go-live. It is stored as an approved application
+     * (flagged as admin-recorded), so it deducts credits through the ledger
+     * and shows up in the employee's leave log, days-used total and forced-
+     * leave tracking exactly like a leave filed in the system.
+     */
+    public function recordLeave(Request $request, Employee $employee)
+    {
+        $user = $request->user();
+
+        $type = \App\Models\LeaveType::find($request->input('leave_type_id'));
+
+        $data = $request->validate([
+            'leave_type_id' => ['required', 'exists:leave_types,id'],
+            'date_from'     => ['required', 'date'],
+            'date_to'       => ['required', 'date', 'after_or_equal:date_from'],
+            // Prefilled from the dates, but the paper record wins if it
+            // differs (half-days, exigency cancellations, and the like).
+            'working_days'  => ['required', 'numeric', 'min:0.5', 'max:365'],
+            'remarks'       => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $application = LeaveApplication::create([
+            'user_id'     => $employee->user?->id,
+            'employee_id' => $employee->id,
+            'leave_type_id' => $data['leave_type_id'],
+
+            'office_department'     => $employee->office_department,
+            'applicant_last_name'   => $employee->last_name,
+            'applicant_first_name'  => $employee->first_name,
+            'applicant_middle_name' => $employee->middle_name,
+            'position'              => $employee->position,
+            'date_filing'           => $data['date_from'],
+
+            'working_days' => $data['working_days'],
+            'date_from'    => $data['date_from'],
+            'date_to'      => $data['date_to'],
+            'commutation'  => 'not_requested',
+
+            // Already taken, so it lands approved and fully paid.
+            'status'        => LeaveWorkflow::APPROVED,
+            'decision'      => 'approved',
+            'days_with_pay' => $data['working_days'],
+            'decided_at'    => now(),
+            'recorded_by'   => $user->id,
+        ]);
+
+        // The type and day count are already shown alongside the entry, so
+        // the remark carries only what the admin typed.
+        LeaveWorkflow::log(
+            $application,
+            $user,
+            'recorded by admin',
+            null,
+            LeaveWorkflow::APPROVED,
+            $data['remarks'] ?? null
+        );
+
+        CreditLedger::applyForApplication($application->fresh(['leaveType', 'employee']));
+
+        return back()->with('success', sprintf(
+            'Recorded %s day/s of %s for %s.',
+            $data['working_days'],
+            $type?->name,
+            $employee->first_name
+        ));
     }
 
     /** Admin ticks/unticks an IPCR semester for an employee. */

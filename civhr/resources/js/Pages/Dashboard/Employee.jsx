@@ -30,10 +30,63 @@ function Card({ title, children, actions }) {
     );
 }
 
-export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances, forced, ledger, ld, leaves }) {
+/** 'YYYY-MM-DD' in local time — toISOString would shift the PH date. */
+function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Mirrors App\Support\WorkingDays::count() for the prefilled day count. */
+function countDays(fromStr, toStr, basis, holidays) {
+    if (!fromStr || !toStr) return null;
+    const from = new Date(`${fromStr}T00:00:00`);
+    const to = new Date(`${toStr}T00:00:00`);
+    if (isNaN(from) || isNaN(to) || to < from) return null;
+
+    let days = 0;
+    for (let d = new Date(from), guard = 0; d <= to && guard < 1000; d.setDate(d.getDate() + 1), guard++) {
+        if (basis === 'calendar') { days++; continue; }
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        if (!weekend && !holidays[isoDate(d)]) days++;
+    }
+    return days;
+}
+
+export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances, forced, ledger, ld, leaves, leaveTypes, holidays }) {
     const flash = usePage().props.flash;
     const [adjusting, setAdjusting] = useState(null); // kind being adjusted
     const [ldOpen, setLdOpen] = useState(false);
+    const [recordOpen, setRecordOpen] = useState(false);
+
+    const record = useForm({
+        leave_type_id: '',
+        date_from: '',
+        date_to: '',
+        working_days: '',
+        remarks: '',
+    });
+
+    const recordType = leaveTypes?.find(
+        (t) => String(t.id) === String(record.data.leave_type_id),
+    );
+
+    // Prefill the day count from the dates; the admin can still override it
+    // to match the paper record.
+    const syncDays = (from, to, typeId) => {
+        const type = leaveTypes?.find((t) => String(t.id) === String(typeId));
+        const n = countDays(from, to, type?.day_basis ?? 'working', holidays ?? {});
+        if (n !== null) record.setData('working_days', String(n));
+    };
+
+    const submitRecord = (e) => {
+        e.preventDefault();
+        record.post(route('dashboard.record-leave', employee.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                record.reset();
+                setRecordOpen(false);
+            },
+        });
+    };
 
     const adjust = useForm({ kind: 'vl', amount: '', note: '' });
     const ldForm = useForm({
@@ -336,26 +389,155 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                 </Card>
 
                 {/* Leave applications */}
-                <Card title="Leave applications">
+                <Card
+                    title="Leave applications"
+                    actions={
+                        <button
+                            onClick={() => setRecordOpen(true)}
+                            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+                            title="Key in a leave already taken (paper form, or before go-live)"
+                        >
+                            + Record leave used
+                        </button>
+                    }
+                >
                     {leaves.length === 0 ? (
                         <p className="text-sm text-slate-400">None filed yet.</p>
                     ) : (
                         <ul className="divide-y divide-slate-100 text-sm">
                             {leaves.map((a) => (
-                                <li key={a.id} className="flex items-center justify-between py-2">
+                                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                                     <Link
                                         href={route('leave.show', a.id)}
                                         className="text-slate-700 hover:text-blue-600"
                                     >
                                         {a.type} · {a.days}d · {a.when}
                                     </Link>
-                                    <StatusBadge status={a.status} label={a.status_label} />
+                                    <span className="flex items-center gap-2">
+                                        {a.recorded && (
+                                            <span
+                                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500"
+                                                title="Keyed in by an admin, not filed through the system"
+                                            >
+                                                recorded
+                                            </span>
+                                        )}
+                                        <StatusBadge status={a.status} label={a.status_label} />
+                                    </span>
                                 </li>
                             ))}
                         </ul>
                     )}
                 </Card>
             </div>
+
+            {/* Record a leave already taken */}
+            <Modal show={recordOpen} onClose={() => setRecordOpen(false)} maxWidth="lg">
+                <form onSubmit={submitRecord} className="p-6">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                        Record leave used — {employee.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        For leaves taken on paper or before the system went
+                        live. It is filed as approved, deducts the right
+                        balance, and appears in the logs marked{' '}
+                        <span className="font-medium">recorded</span>.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                        <div>
+                            <InputLabel htmlFor="rec_type" value="Leave type" />
+                            <select
+                                id="rec_type"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                value={record.data.leave_type_id}
+                                onChange={(e) => {
+                                    record.setData('leave_type_id', e.target.value);
+                                    syncDays(record.data.date_from, record.data.date_to, e.target.value);
+                                }}
+                            >
+                                <option value="">Select a leave type…</option>
+                                {(leaveTypes ?? []).map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <InputError message={record.errors.leave_type_id} className="mt-1" />
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <div>
+                                <InputLabel htmlFor="rec_from" value="From" />
+                                <TextInput
+                                    id="rec_from"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={record.data.date_from}
+                                    onChange={(e) => {
+                                        record.setData('date_from', e.target.value);
+                                        syncDays(e.target.value, record.data.date_to, record.data.leave_type_id);
+                                    }}
+                                />
+                                <InputError message={record.errors.date_from} className="mt-1" />
+                            </div>
+                            <div>
+                                <InputLabel htmlFor="rec_to" value="To" />
+                                <TextInput
+                                    id="rec_to"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={record.data.date_to}
+                                    onChange={(e) => {
+                                        record.setData('date_to', e.target.value);
+                                        syncDays(record.data.date_from, e.target.value, record.data.leave_type_id);
+                                    }}
+                                />
+                                <InputError message={record.errors.date_to} className="mt-1" />
+                            </div>
+                            <div>
+                                <InputLabel htmlFor="rec_days" value="Days used" />
+                                <TextInput
+                                    id="rec_days"
+                                    type="number"
+                                    step="0.5"
+                                    min="0.5"
+                                    className="mt-1 block w-full"
+                                    value={record.data.working_days}
+                                    onChange={(e) => record.setData('working_days', e.target.value)}
+                                />
+                                <InputError message={record.errors.working_days} className="mt-1" />
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                            Days are counted from the dates
+                            {recordType?.day_basis === 'calendar'
+                                ? ' as calendar days'
+                                : ', skipping weekends and holidays'}{' '}
+                            — edit the number if the paper record differs.
+                        </p>
+
+                        <div>
+                            <InputLabel htmlFor="rec_remarks" value="Remarks (kept in the audit trail)" />
+                            <TextInput
+                                id="rec_remarks"
+                                className="mt-1 block w-full"
+                                placeholder="e.g. Paper CS Form 6 dated 12 Mar 2026"
+                                value={record.data.remarks}
+                                onChange={(e) => record.setData('remarks', e.target.value)}
+                            />
+                            <InputError message={record.errors.remarks} className="mt-1" />
+                        </div>
+                    </div>
+                    <div className="mt-6 flex justify-end gap-3">
+                        <SecondaryButton type="button" onClick={() => setRecordOpen(false)}>
+                            Cancel
+                        </SecondaryButton>
+                        <PrimaryButton disabled={record.processing}>
+                            {record.processing ? 'Recording…' : 'Record leave'}
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </Modal>
 
             {/* Adjust balance modal */}
             <Modal show={!!adjusting} onClose={() => setAdjusting(null)} maxWidth="md">

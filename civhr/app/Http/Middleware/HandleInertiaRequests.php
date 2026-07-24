@@ -48,6 +48,8 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
                 'roles' => $roles,
                 'isAdmin' => $hasAdminRole && ! $asEmployee,
+                // The audit trail is superadmin-only, so the nav link is too.
+                'isSuperadmin' => $roles->contains('superadmin') && ! $asEmployee,
                 'canSwitchView' => $hasAdminRole,
                 'viewMode' => $asEmployee ? 'employee' : 'admin',
             ],

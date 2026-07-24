@@ -23,7 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // added: register the "admin" route middleware
         $middleware->alias([
-            'admin' => \App\Http\Middleware\EnsureAdmin::class,
+            'admin'      => \App\Http\Middleware\EnsureAdmin::class,
+            'superadmin' => \App\Http\Middleware\EnsureSuperadmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

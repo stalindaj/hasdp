@@ -6,7 +6,8 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, router, usePage } from '@inertiajs/react';
 
 export default function AuthenticatedLayout({ header, children }) {
-    const { user, isAdmin, canSwitchView, viewMode } = usePage().props.auth;
+    const { user, isAdmin, isSuperadmin, canSwitchView, viewMode } =
+        usePage().props.auth;
 
     const switchView = () => router.post(route('view-mode.toggle'));
 
@@ -83,6 +84,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                         )}
                                     >
                                         Holidays
+                                    </NavLink>
+                                )}
+                                {isSuperadmin && (
+                                    <NavLink
+                                        href={route('admin.audit.index')}
+                                        active={route().current('admin.audit.*')}
+                                    >
+                                        Audit
                                     </NavLink>
                                 )}
                             </div>
@@ -258,6 +267,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                 active={route().current('admin.holidays.*')}
                             >
                                 Holidays
+                            </ResponsiveNavLink>
+                        )}
+                        {isSuperadmin && (
+                            <ResponsiveNavLink
+                                href={route('admin.audit.index')}
+                                active={route().current('admin.audit.*')}
+                            >
+                                Audit
                             </ResponsiveNavLink>
                         )}
                     </div>
