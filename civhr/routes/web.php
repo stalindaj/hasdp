@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\LeaveLedgerController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\AuditController;
@@ -72,6 +73,9 @@ Route::middleware('auth')->group(function () {
     // Dashboard status trackers (admin-only).
     Route::get('/dashboard/employee/{employee}', [DashboardController::class, 'showEmployee'])
         ->name('dashboard.employee');
+    // The printable CSC-style VL/SL leave card.
+    Route::get('/dashboard/employee/{employee}/ledger', [LeaveLedgerController::class, 'print'])
+        ->middleware('admin')->name('dashboard.ledger');
     Route::patch('/dashboard/ipcr/{employee}', [DashboardController::class, 'toggleIpcr'])
         ->middleware('admin')->name('dashboard.ipcr');
     Route::post('/dashboard/ld/{employee}', [DashboardController::class, 'storeLd'])

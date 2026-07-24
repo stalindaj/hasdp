@@ -142,12 +142,22 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                             {employee.position ? ` · ${employee.position}` : ''}
                         </p>
                     </div>
-                    <Link
-                        href={route('dashboard')}
-                        className="text-sm text-slate-600 underline hover:text-slate-900"
-                    >
-                        ← Dashboard
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <a
+                            href={route('dashboard.ledger', employee.id)}
+                            target="_blank"
+                            rel="noopener"
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            Leave card
+                        </a>
+                        <Link
+                            href={route('dashboard')}
+                            className="text-sm text-slate-600 underline hover:text-slate-900"
+                        >
+                            ← Dashboard
+                        </Link>
+                    </div>
                 </div>
             }
         >
