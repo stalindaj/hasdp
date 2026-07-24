@@ -46,6 +46,7 @@ Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'agency' => [
+            'unit'      => config('agency.unit'),
             'name'      => config('agency.name'),
             'address'   => config('agency.address'),
             'address2'  => config('agency.address2'),

@@ -39,29 +39,23 @@ export default function Welcome({ canLogin, agency }) {
 
                 {/* Top bar */}
                 <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+                    {/* The site fronts the unit, not the whole service — only
+                        the 15SW seal and name. The official PAF header still
+                        prints on CS Form No. 6. */}
                     <div className="flex items-center gap-3">
-                        <div className="flex -space-x-2">
-                            {agency.logoLeft && (
-                                <img
-                                    src={agency.logoLeft}
-                                    alt=""
-                                    className="h-10 w-10 rounded-full bg-white object-contain ring-1 ring-slate-200"
-                                />
-                            )}
-                            {agency.logoRight && (
-                                <img
-                                    src={agency.logoRight}
-                                    alt=""
-                                    className="h-10 w-10 rounded-full bg-white object-contain ring-1 ring-slate-200"
-                                />
-                            )}
-                        </div>
+                        {agency.logoRight && (
+                            <img
+                                src={agency.logoRight}
+                                alt=""
+                                className="h-10 w-10 rounded-full bg-white object-contain ring-1 ring-slate-200"
+                            />
+                        )}
                         <div className="leading-tight">
                             <p className="text-sm font-semibold text-slate-900">
-                                {agency.name}
+                                {agency.unit}
                             </p>
                             <p className="text-xs text-slate-500">
-                                {agency.address}
+                                Civilian Systems
                             </p>
                         </div>
                     </div>
@@ -132,36 +126,22 @@ export default function Welcome({ canLogin, agency }) {
                         <div className="relative">
                             <div className="absolute inset-0 -z-10 rounded-[2rem] bg-gradient-to-tr from-blue-600/10 to-amber-400/10 blur-2xl" />
                             <div className="mx-auto flex max-w-sm flex-col items-center rounded-[2rem] border border-slate-200/80 bg-white/80 p-10 text-center shadow-xl shadow-slate-900/5 backdrop-blur">
-                                <div className="flex items-center gap-6">
-                                    {agency.logoLeft && (
-                                        <img
-                                            src={agency.logoLeft}
-                                            alt=""
-                                            className="h-20 w-20 object-contain drop-shadow"
-                                        />
-                                    )}
-                                    {agency.logoRight && (
-                                        <img
-                                            src={agency.logoRight}
-                                            alt=""
-                                            className="h-20 w-20 object-contain drop-shadow"
-                                        />
-                                    )}
-                                </div>
+                                {agency.logoRight && (
+                                    <img
+                                        src={agency.logoRight}
+                                        alt=""
+                                        className="h-28 w-28 object-contain drop-shadow"
+                                    />
+                                )}
                                 <p className="mt-7 text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
                                     Republic of the Philippines
                                 </p>
                                 <p className="mt-1 text-lg font-bold text-slate-900">
-                                    {agency.name}
+                                    {agency.unit}
                                 </p>
                                 <p className="mt-0.5 text-sm text-slate-500">
-                                    {agency.address}
+                                    Civilian&rsquo;s Directory
                                 </p>
-                                {agency.address2 && (
-                                    <p className="text-sm text-slate-500">
-                                        {agency.address2}
-                                    </p>
-                                )}
                             </div>
                         </div>
                     </section>
@@ -206,8 +186,7 @@ export default function Welcome({ canLogin, agency }) {
 
                 <footer className="border-t border-slate-200/80 py-6">
                     <p className="mx-auto max-w-6xl px-6 text-center text-xs text-slate-500">
-                        {agency.name} · {agency.address}
-                        {agency.address2 ? `, ${agency.address2}` : ''}
+                        {agency.unit} · Civilian Systems
                     </p>
                 </footer>
             </div>

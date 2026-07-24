@@ -10,6 +10,10 @@ return [
     'address'  => env('AGENCY_ADDRESS', 'Col Jesus Villamor Air Base'),
     'address2' => env('AGENCY_ADDRESS_2', 'Pasay City, Metro Manila'),
 
+    // The unit the website itself fronts. The name/address above stay for the
+    // official form header; the site shows only the unit.
+    'unit' => env('AGENCY_UNIT', '15TH STRIKE WING'),
+
     // Header seals, paths under public/. The form carries two: the service
     // seal on the left and the unit seal on the right.
     'logo_left'  => env('AGENCY_LOGO_LEFT', 'images/paf-logo.png'),
