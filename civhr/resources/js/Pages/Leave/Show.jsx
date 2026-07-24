@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import StatusBadge from '@/Components/StatusBadge';
 import InputError from '@/Components/InputError';
@@ -110,110 +110,194 @@ function SignedFormCard({ application, canUpload }) {
     );
 }
 
-/* ── Admin: type the 7.B recommending officer, saved on its own ───────── */
-function RecommenderCard({ application, signatories }) {
+/* ── One signature block: military or civilian, typed by the admin ────── */
+function SignatoryForm({ application, slot, label, initial, onSaved }) {
     const { data, setData, patch, processing, errors, recentlySuccessful } =
         useForm({
-            recommender_name: signatories.recommender?.name ?? '',
-            recommender_rank: signatories.recommender?.rank ?? '',
-            recommender_office: signatories.recommender?.office ?? '',
+            slot,
+            type: initial?.type ?? 'civilian',
+            name: initial?.name ?? '',
+            rank: initial?.rank ?? '',
+            position: initial?.position ?? '',
+            office: initial?.office ?? '',
         });
+
+    const military = data.type === 'military';
 
     const save = (e) => {
         e.preventDefault();
-        patch(route('leave.recommender', application.id), { preserveScroll: true });
+        patch(route('leave.signatory', application.id), {
+            preserveScroll: true,
+            onSuccess: () => onSaved?.(),
+        });
     };
+
+    return (
+        <form onSubmit={save} className="mt-2">
+            <div className="mb-3 flex flex-wrap items-center gap-4">
+                <span className="text-xs uppercase tracking-wide text-gray-500">
+                    {label}
+                </span>
+                {/* Civilians (like the HR officer) have no rank or branch. */}
+                {['military', 'civilian'].map((t) => (
+                    <label
+                        key={t}
+                        className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
+                    >
+                        <input
+                            type="radio"
+                            name={`${slot}_type`}
+                            checked={data.type === t}
+                            onChange={() => setData('type', t)}
+                            className="border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="capitalize">{t}</span>
+                    </label>
+                ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-6">
+                <div className="sm:col-span-3">
+                    <InputLabel htmlFor={`${slot}_name`} value="Name" />
+                    <TextInput
+                        id={`${slot}_name`}
+                        className="mt-1 block w-full uppercase"
+                        placeholder={
+                            military ? 'e.g. JUAN P DELA CRUZ' : 'e.g. MARIE CRIS A URI'
+                        }
+                        value={data.name}
+                        onChange={(e) => setData('name', e.target.value)}
+                    />
+                    <InputError message={errors.name} className="mt-1" />
+                </div>
+
+                {military ? (
+                    <div className="sm:col-span-1">
+                        <InputLabel htmlFor={`${slot}_rank`} value="Rank" />
+                        <TextInput
+                            id={`${slot}_rank`}
+                            className="mt-1 block w-full"
+                            placeholder="MAJ"
+                            value={data.rank}
+                            onChange={(e) => setData('rank', e.target.value)}
+                        />
+                        <InputError message={errors.rank} className="mt-1" />
+                    </div>
+                ) : (
+                    <div className="sm:col-span-3">
+                        <InputLabel htmlFor={`${slot}_position`} value="Position" />
+                        <TextInput
+                            id={`${slot}_position`}
+                            className="mt-1 block w-full"
+                            placeholder="e.g. Admin Officer IV (HRMO II)"
+                            value={data.position}
+                            onChange={(e) => setData('position', e.target.value)}
+                        />
+                        <InputError message={errors.position} className="mt-1" />
+                    </div>
+                )}
+
+                <div className={military ? 'sm:col-span-2' : 'sm:col-span-6'}>
+                    <InputLabel
+                        htmlFor={`${slot}_office`}
+                        value="Office / designation"
+                    />
+                    <TextInput
+                        id={`${slot}_office`}
+                        className="mt-1 block w-full"
+                        placeholder={
+                            military ? 'e.g. Chief, MPMBR' : 'e.g. Wing Civilian Supervisor'
+                        }
+                        value={data.office}
+                        onChange={(e) => setData('office', e.target.value)}
+                    />
+                    <InputError message={errors.office} className="mt-1" />
+                </div>
+            </div>
+
+            <div className="mt-3 flex items-center gap-3">
+                <PrimaryButton disabled={processing}>
+                    {processing ? 'Saving…' : 'Save'}
+                </PrimaryButton>
+                {recentlySuccessful && (
+                    <span className="text-xs text-green-600">Saved.</span>
+                )}
+                <span className="text-xs text-gray-400">
+                    {military
+                        ? 'Prints: name centred, rank left, branch right, office below.'
+                        : 'Prints: name centred, then the position and office lines.'}
+                </span>
+            </div>
+        </form>
+    );
+}
+
+/* ── Admin: the three signature blocks on the printed form ───────────── */
+function SignatoriesCard({ application, signatories }) {
+    // 7.A and 7.C/7.D come from the role holders and rarely change, so they
+    // stay collapsed behind a quiet link; 7.B is picked per leave.
+    const [editing, setEditing] = useState(null);
+
+    const fixed = [
+        ['certifier', '7.A — Authorized officer'],
+        ['approver', '7.C / 7.D — Authorized official'],
+    ];
 
     return (
         <Card title="Signatories on the printed form">
             <dl className="grid gap-4 sm:grid-cols-2">
-                <Field label="7.A — Authorized officer">
-                    {signatories.certifier}
-                </Field>
-                <Field label="7.C / 7.D — Authorized official">
-                    {signatories.approver}
-                </Field>
+                {fixed.map(([slot, label]) => (
+                    <div key={slot}>
+                        <dt className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-500">
+                            {label}
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setEditing(editing === slot ? null : slot)
+                                }
+                                className="text-[11px] font-medium normal-case text-gray-400 underline-offset-2 hover:text-indigo-600 hover:underline"
+                            >
+                                {editing === slot ? 'cancel' : 'change'}
+                            </button>
+                        </dt>
+                        <dd className="mt-0.5 text-sm text-gray-900">
+                            {signatories[slot]?.label || '—'}
+                        </dd>
+                    </div>
+                ))}
             </dl>
 
-            <form
-                onSubmit={save}
-                className="mt-5 border-t border-gray-100 pt-4"
-            >
-                <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
-                    7.B — Recommending officer
-                </p>
-                <div className="grid gap-4 sm:grid-cols-7">
-                    <div className="sm:col-span-3">
-                        <InputLabel
-                            htmlFor="recommender_name"
-                            value="Name"
-                        />
-                        <TextInput
-                            id="recommender_name"
-                            className="mt-1 block w-full uppercase"
-                            placeholder="e.g. JUAN P DELA CRUZ"
-                            value={data.recommender_name}
-                            onChange={(e) =>
-                                setData('recommender_name', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={errors.recommender_name}
-                            className="mt-1"
-                        />
-                    </div>
-                    <div className="sm:col-span-1">
-                        <InputLabel htmlFor="recommender_rank" value="Rank" />
-                        <TextInput
-                            id="recommender_rank"
-                            className="mt-1 block w-full"
-                            placeholder="MAJ"
-                            value={data.recommender_rank}
-                            onChange={(e) =>
-                                setData('recommender_rank', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={errors.recommender_rank}
-                            className="mt-1"
-                        />
-                    </div>
-                    <div className="sm:col-span-3">
-                        <InputLabel
-                            htmlFor="recommender_office"
-                            value="Office / designation"
-                        />
-                        <TextInput
-                            id="recommender_office"
-                            className="mt-1 block w-full"
-                            placeholder="e.g. Chief, MPMBR"
-                            value={data.recommender_office}
-                            onChange={(e) =>
-                                setData('recommender_office', e.target.value)
-                            }
-                        />
-                        <InputError
-                            message={errors.recommender_office}
-                            className="mt-1"
-                        />
-                    </div>
+            {editing && (
+                <div className="mt-4 rounded-md border border-gray-200 bg-gray-50/60 p-4">
+                    <SignatoryForm
+                        application={application}
+                        slot={editing}
+                        label={
+                            editing === 'certifier'
+                                ? '7.A — stand-in'
+                                : '7.C / 7.D — stand-in'
+                        }
+                        initial={signatories[editing]}
+                        onSaved={() => setEditing(null)}
+                    />
+                    <p className="mt-3 text-xs text-gray-500">
+                        Only for this leave. Clear the name and save to fall
+                        back to the role holder set under Admin → Users.
+                    </p>
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                    <PrimaryButton disabled={processing}>
-                        {processing ? 'Saving…' : 'Save 7.B'}
-                    </PrimaryButton>
-                    {recentlySuccessful && (
-                        <p className="text-xs text-green-600">Saved.</p>
-                    )}
-                </div>
-            </form>
+            )}
+
+            <div className="mt-5 border-t border-gray-100 pt-4">
+                <SignatoryForm
+                    application={application}
+                    slot="recommender"
+                    label="7.B — Recommending officer"
+                    initial={signatories.recommender}
+                />
+            </div>
 
             <p className="mt-3 text-xs text-gray-500">
-                7.A and 7.C/7.D are fixed (set via the “HR Officer” / “Approving
-                Official” roles under Admin → Users). 7.B prints exactly as
-                typed: name centred, rank at the left with the branch opposite,
-                office on the line below. Leave the name blank (and save) to
-                clear 7.B.
+                Leave a name blank and save to clear that block.
             </p>
         </Card>
     );
@@ -363,7 +447,8 @@ function ProcessForm({ application, prefill, balanceCheck }) {
                             onChange={(e) => setData('cert_as_of', e.target.value)}
                         />
                     </div>
-                    <table className="w-full max-w-2xl border border-gray-200 text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full min-w-[30rem] max-w-2xl border border-gray-200 text-sm">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="border-b border-gray-200 px-3 py-2"></th>
@@ -401,6 +486,7 @@ function ProcessForm({ application, prefill, balanceCheck }) {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     <p className="mt-1 text-xs text-gray-500">
                         Auto-filled from length of service (1.25 days/month). It
                         does not subtract leave already taken — adjust to the true
@@ -703,7 +789,7 @@ export default function Show({ application: a, can, signatories, creditPrefill, 
                     )}
 
                     {can.process && signatories && (
-                        <RecommenderCard
+                        <SignatoriesCard
                             application={a}
                             signatories={signatories}
                         />

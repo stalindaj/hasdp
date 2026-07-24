@@ -240,10 +240,9 @@ class LeaveTest extends TestCase
         $admin = $this->marie();   // Marie (admin) processes
 
         // The admin types the 7.B recommending officer…
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_name'   => 'Julie Ann T Pedrosa',
-            'recommender_rank'   => '1LT',
-            'recommender_office' => 'MPMBR',
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Julie Ann T Pedrosa', 'rank' => '1LT', 'office' => 'MPMBR',
         ])->assertRedirect();
 
         // …then approves; deciding must not wipe what was typed.
@@ -282,8 +281,9 @@ class LeaveTest extends TestCase
         [, $leave] = $this->fileAsEmployee();
         $admin = $this->marie();
 
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_name' => 'Julie Ann T Pedrosa', 'recommender_rank' => '1LT',
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Julie Ann T Pedrosa', 'rank' => '1LT',
         ]);
         $this->actingAs($admin)->post(route('leave.decide', $leave->fresh()), [
             'decision' => 'approved', 'days_with_pay' => 3,
@@ -291,8 +291,9 @@ class LeaveTest extends TestCase
         $this->assertSame('JULIE ANN T PEDROSA', $leave->fresh()->recommender_sig['name']);
 
         // Switch 7.B on the already-approved leave.
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave->fresh()), [
-            'recommender_name' => 'Carlo Reyes', 'recommender_rank' => 'CPT',
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave->fresh()), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Carlo Reyes', 'rank' => 'CPT',
         ])->assertRedirect();
 
         $leave->refresh();
@@ -329,37 +330,80 @@ class LeaveTest extends TestCase
         $admin = $this->marie();
 
         config(['agency.branch_suffix' => 'PAF']);
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_name'   => 'Julie Ann T Pedrosa',
-            'recommender_rank'   => '1LT',
-            'recommender_office' => 'MPMBR',
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Julie Ann T Pedrosa', 'rank' => '1LT', 'office' => 'MPMBR',
         ])->assertRedirect();
 
         $this->assertSame('JULIE ANN T PEDROSA', $leave->fresh()->recommender_sig['name']);
         $this->assertSame('PAF', $leave->fresh()->recommender_sig['branch']);
 
-        // A civilian recommender: no rank, so no branch either.
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_name'   => 'Maria Cruz',
-            'recommender_office' => 'Wing Civilian Supervisor',
-        ])->assertRedirect();
-        $this->assertSame('', $leave->fresh()->recommender_sig['branch']);
-        $this->assertSame('Wing Civilian Supervisor', $leave->fresh()->recommender_sig['designation']);
-
         // …and a blank name clears 7.B again.
-        $this->actingAs($admin)->patch(route('leave.recommender', $leave), [
-            'recommender_name' => '',
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military', 'name' => '',
         ])->assertRedirect();
         $this->assertNull($leave->fresh()->recommender_sig);
     }
 
-    public function test_a_non_admin_cannot_set_the_recommender(): void
+    public function test_a_civilian_signatory_prints_without_rank_or_branch(): void
+    {
+        config(['agency.branch_suffix' => 'PAF']);
+        $this->marie();
+        $this->mission();
+        [, $leave] = $this->fileAsEmployee();
+
+        // Marie herself recommending: civilian, two title lines, no branch.
+        $this->actingAs($this->marie())->patch(route('leave.signatory', $leave), [
+            'slot'     => 'recommender',
+            'type'     => 'civilian',
+            'name'     => 'Marie Cris A Uri',
+            'rank'     => 'MAJ',   // ignored for a civilian
+            'position' => 'Admin Officer IV (HRMO II)',
+            'office'   => 'Wing Civilian Supervisor',
+        ])->assertRedirect();
+
+        $this->assertSame([
+            'rank'        => '',
+            'name'        => 'MARIE CRIS A URI',
+            'branch'      => '',
+            'position'    => 'Admin Officer IV (HRMO II)',
+            'designation' => 'Wing Civilian Supervisor',
+        ], $leave->fresh()->recommender_sig);
+    }
+
+    public function test_an_admin_can_stand_in_for_7a_and_7cd_and_the_decision_keeps_it(): void
+    {
+        config(['agency.branch_suffix' => 'PAF']);
+        $this->marie();
+        $this->mission();
+        [, $leave] = $this->fileAsEmployee();
+        $admin = $this->marie();
+
+        // Someone else signs 7.C/7.D this time.
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'approver', 'type' => 'military',
+            'name' => 'Pedro D Santos', 'rank' => 'COL', 'office' => 'Acting Director for Personnel',
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->post(route('leave.decide', $leave->fresh()), [
+            'decision' => 'approved', 'days_with_pay' => 3,
+        ])->assertRedirect();
+
+        // Deciding must not restore the role holder over the stand-in.
+        $leave->refresh();
+        $this->assertSame('PEDRO D SANTOS', $leave->approver_sig['name']);
+        $this->assertSame('COL', $leave->approver_sig['rank']);
+        $this->assertSame('PAF', $leave->approver_sig['branch']);
+    }
+
+    public function test_a_non_admin_cannot_set_a_signatory(): void
     {
         [, $leave] = $this->fileAsEmployee();
 
         $this->actingAs($this->userWithRoles(['employee']))
-            ->patch(route('leave.recommender', $leave), ['recommender_name' => 'Julie Pedrosa'])
-            ->assertForbidden();
+            ->patch(route('leave.signatory', $leave), [
+                'slot' => 'recommender', 'type' => 'military', 'name' => 'Julie Pedrosa',
+            ])->assertForbidden();
     }
 
     public function test_office_department_is_editable_on_the_profile(): void

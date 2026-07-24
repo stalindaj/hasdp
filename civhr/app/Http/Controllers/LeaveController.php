@@ -184,15 +184,12 @@ class LeaveController extends Controller
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
             'balanceCheck' => $canProcess ? $this->balanceCheck($application) : null,
-            // 7.A / 7.C-D are fixed; the 7.B recommender is typed in here.
+            // All three blocks are editable; 7.A / 7.C-D fall back to the role
+            // holders while nothing has been typed for them.
             'signatories' => $canProcess ? [
-                'certifier'   => $this->defaultCertifier()?->signatoryLabel(),
-                'approver'    => $this->defaultApprover()?->signatoryLabel(),
-                'recommender' => [
-                    'name'   => $application->recommender_sig['name'] ?? '',
-                    'rank'   => $application->recommender_sig['rank'] ?? '',
-                    'office' => $application->recommender_sig['designation'] ?? '',
-                ],
+                'certifier'   => $this->signatoryFields($application->hr_officer_sig, $this->defaultCertifier()),
+                'recommender' => $this->signatoryFields($application->recommender_sig, null),
+                'approver'    => $this->signatoryFields($application->approver_sig, $this->defaultApprover()),
             ] : null,
             'creditPrefill' => $canProcess ? $this->creditPrefill($application) : null,
         ]);
@@ -229,11 +226,12 @@ class LeaveController extends Controller
             'disapproval_reason'  => [Rule::requiredIf(! $approved), 'nullable', 'string', 'max:1000'],
         ]);
 
-        // 7.A / 7.C-D are fixed defaults (e.g. HR officer + Director for
-        // Personnel). 7.B is typed in on its own card (setRecommender) and is
-        // deliberately untouched here so deciding never wipes it.
-        $certifier = $this->defaultCertifier();
-        $approver  = $this->defaultApprover();
+        // 7.A and 7.C/7.D come from the HR-officer / approver roles, but an
+        // admin may have typed a stand-in on the signatories card. Only fill
+        // a block that is still empty, so deciding never wipes an override.
+        // 7.B is likewise left alone here.
+        $certifier = $application->hr_officer_sig ? null : $this->defaultCertifier();
+        $approver  = $application->approver_sig ? null : $this->defaultApprover();
 
         // Keep 7.C and 7.D mutually exclusive on the printout.
         if ($approved) {
@@ -248,11 +246,12 @@ class LeaveController extends Controller
         $application->update($this->only($data, [
             'cert_as_of', 'vl_earned', 'vl_less', 'vl_balance', 'sl_earned', 'sl_less', 'sl_balance',
             'days_with_pay', 'days_without_pay', 'days_others', 'days_others_specify', 'disapproval_reason',
-        ]) + [
+        ]) + array_filter([
             'hr_officer_id'   => $certifier?->id,
             'hr_officer_sig'  => $certifier?->signatoryBlock(),
             'approver_id'     => $approver?->id,
             'approver_sig'    => $approver?->signatoryBlock(),
+        ]) + [
             'certified_at'    => now(),
             'decided_at'      => now(),
             'decision'        => $approved ? 'approved' : 'disapproved',
@@ -310,40 +309,58 @@ class LeaveController extends Controller
     }
 
     /**
-     * Set the 7.B recommending officer, any time. The admin types the name,
-     * rank and office; they print on the signature block exactly like the
-     * other signatories (name centred, rank left / branch right, office
-     * on the title line). A blank name clears 7.B.
+     * Type in any of the three signature blocks, any time.
+     *
+     * 7.A and 7.C/7.D normally come from the HR-officer / approver roles and
+     * rarely change; 7.B is chosen per application. Either way the admin
+     * types the person, because a stand-in may not have a user account.
+     *
+     * Military signatories print rank at the left with the service branch
+     * opposite; civilians print neither, and may carry two title lines
+     * (e.g. "Admin Officer IV (HRMO II)" over "Wing Civilian Supervisor").
+     * A blank name clears the block — 7.A / 7.C-D then fall back to the role
+     * holder the next time the leave is decided.
      */
-    public function setRecommender(Request $request, LeaveApplication $application)
+    public function setSignatory(Request $request, LeaveApplication $application)
     {
-        $user = $request->user();
-        abort_unless(LeaveWorkflow::isAdmin($user), 403);
+        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
 
         $data = $request->validate([
-            'recommender_name'   => ['nullable', 'string', 'max:255'],
-            'recommender_rank'   => ['nullable', 'string', 'max:50'],
-            'recommender_office' => ['nullable', 'string', 'max:255'],
+            'slot'     => ['required', Rule::in(['certifier', 'recommender', 'approver'])],
+            'type'     => ['required', Rule::in(['military', 'civilian'])],
+            'name'     => ['nullable', 'string', 'max:255'],
+            'rank'     => ['nullable', 'string', 'max:50'],
+            'position' => ['nullable', 'string', 'max:255'],
+            'office'   => ['nullable', 'string', 'max:255'],
         ]);
 
-        $name = strtoupper(trim((string) ($data['recommender_name'] ?? '')));
-        $rank = trim((string) ($data['recommender_rank'] ?? ''));
+        $military = $data['type'] === 'military';
+        $name = strtoupper(trim((string) ($data['name'] ?? '')));
+        $rank = $military ? trim((string) ($data['rank'] ?? '')) : '';
 
         $sig = $name === '' ? null : [
-            'rank'        => $rank,
-            'name'        => $name,
-            // Ranked officers print the service branch opposite the rank,
-            // same as 7.A / 7.C-D; civilians print neither.
-            'branch'      => $rank !== '' ? (string) config('agency.branch_suffix') : '',
-            'position'    => '',
-            'designation' => trim((string) ($data['recommender_office'] ?? '')),
+            'rank'   => $rank,
+            'name'   => $name,
+            'branch' => $rank !== '' ? (string) config('agency.branch_suffix') : '',
+            // Civilians get the extra title line; a ranked officer's block
+            // stays the compact rank/name/branch/office shape.
+            'position'    => $military ? '' : trim((string) ($data['position'] ?? '')),
+            'designation' => trim((string) ($data['office'] ?? '')),
         ];
 
-        $application->update(['recommender_sig' => $sig]);
+        $column = [
+            'certifier'   => 'hr_officer_sig',
+            'recommender' => 'recommender_sig',
+            'approver'    => 'approver_sig',
+        ][$data['slot']];
+
+        $application->update([$column => $sig]);
+
+        $label = ['certifier' => '7.A', 'recommender' => '7.B', 'approver' => '7.C/7.D'][$data['slot']];
 
         return back()->with('success', $sig
-            ? "7.B recommending officer set to {$name}."
-            : '7.B recommending officer cleared.');
+            ? "{$label} set to {$name}."
+            : "{$label} cleared.");
     }
 
     /**
@@ -465,6 +482,27 @@ class LeaveController extends Controller
     private function defaultApprover(): ?User
     {
         return $this->firstWithRole('approver');
+    }
+
+    /** One signature block as the edit form wants it, with a printed preview. */
+    private function signatoryFields(?array $sig, ?User $fallback): array
+    {
+        $sig ??= $fallback?->signatoryBlock();
+
+        $rank = $sig['rank'] ?? '';
+
+        return [
+            'type'     => $rank !== '' ? 'military' : 'civilian',
+            'name'     => $sig['name'] ?? '',
+            'rank'     => $rank,
+            'position' => $sig['position'] ?? '',
+            'office'   => $sig['designation'] ?? '',
+            'label'    => trim(implode(' ', array_filter([
+                $rank,
+                $sig['name'] ?? '',
+                $sig['branch'] ?? '',
+            ]))),
+        ];
     }
 
     private function firstWithRole(string $role): ?User

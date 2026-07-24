@@ -100,7 +100,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/leave/{application}/print', [LeaveController::class, 'print'])->name('leave.print');
     Route::patch('/leave/{application}/save', [LeaveController::class, 'saveDraft'])->name('leave.save');
     Route::post('/leave/{application}/decide', [LeaveController::class, 'decide'])->name('leave.decide');
-    Route::patch('/leave/{application}/recommender', [LeaveController::class, 'setRecommender'])->name('leave.recommender');
+    // Any of the three signature blocks (7.A, 7.B, 7.C/7.D), typed in.
+    Route::patch('/leave/{application}/signatory', [LeaveController::class, 'setSignatory'])->name('leave.signatory');
     Route::post('/leave/{application}/cancel', [LeaveController::class, 'cancel'])->name('leave.cancel');
 
     // The wet-signed CS Form 6, uploaded by the applicant after approval.
