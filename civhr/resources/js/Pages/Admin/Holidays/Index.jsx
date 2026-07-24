@@ -127,14 +127,15 @@ export default function Index({ holidays }) {
                                     {list.length === 1 ? '' : 's'}
                                 </span>
                             </h3>
-                            <table className="w-full text-sm">
+                            <div className="overflow-x-auto">
+                            <table className="w-full min-w-[22rem] text-sm">
                                 <tbody>
                                     {list.map((h) => (
                                         <tr
                                             key={h.id}
                                             className="border-t border-gray-100"
                                         >
-                                            <td className="w-48 py-2 text-gray-600">
+                                            <td className="w-44 whitespace-nowrap py-2 pr-3 text-gray-600">
                                                 {h.label}
                                             </td>
                                             <td className="py-2 font-medium text-gray-900">
@@ -153,6 +154,7 @@ export default function Index({ holidays }) {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </section>
                     ))}
 

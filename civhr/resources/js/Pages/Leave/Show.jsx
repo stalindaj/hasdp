@@ -24,7 +24,7 @@ const DETAIL_LABELS = {
 function Card({ title, children, actions }) {
     return (
         <section className="bg-white p-6 shadow-sm sm:rounded-lg">
-            <header className="mb-4 flex items-center justify-between">
+            <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-gray-900">{title}</h3>
                 {actions}
             </header>

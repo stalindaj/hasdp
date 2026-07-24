@@ -273,6 +273,19 @@ export default function AuthenticatedLayout({ header, children }) {
                         </div>
 
                         <div className="mt-3 space-y-1">
+                            {/* The admin's view switch lives in the top bar on
+                                desktop; phones only have this menu. */}
+                            {canSwitchView && (
+                                <ResponsiveNavLink
+                                    method="post"
+                                    href={route('view-mode.toggle')}
+                                    as="button"
+                                >
+                                    {viewMode === 'employee'
+                                        ? '← Back to admin'
+                                        : 'View as employee'}
+                                </ResponsiveNavLink>
+                            )}
                             <ResponsiveNavLink href={route('profile.edit')}>
                                 Account settings
                             </ResponsiveNavLink>

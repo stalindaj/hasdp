@@ -12,6 +12,7 @@ export default function Requests({ applications }) {
                 {emptyText}
             </p>
         ) : (
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
@@ -81,12 +82,13 @@ export default function Requests({ applications }) {
                     ))}
                 </tbody>
             </table>
+            </div>
         );
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         Leave requests
                     </h2>

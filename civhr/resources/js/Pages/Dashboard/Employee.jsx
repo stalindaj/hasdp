@@ -19,7 +19,7 @@ const KINDS = [
 function Card({ title, children, actions }) {
     return (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <header className="mb-4 flex items-center justify-between">
+            <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                     {title}
                 </h3>
@@ -79,7 +79,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-semibold text-slate-800">
                             {employee.name}
@@ -223,7 +223,8 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                                 No IPCR records yet — tick semesters from the dashboard.
                             </p>
                         ) : (
-                            <table className="w-full text-sm">
+                            <div className="overflow-x-auto">
+                            <table className="w-full min-w-[18rem] text-sm">
                                 <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
                                     <tr>
                                         <th className="py-1">Year</th>
@@ -243,6 +244,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         )}
                     </Card>
                 </div>
@@ -251,7 +253,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                 <Card
                     title={`Learning & Development · ${year}`}
                     actions={
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             <span className="text-xs text-slate-500">
                                 {ld.hours}h of {ldTarget}h
                                 {ld.pending > 0 ? ` · ${ld.pending}h pending` : ' · target met'}

@@ -106,7 +106,7 @@ export default function Index({ employees }) {
                         </div>
                     )}
 
-                    <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div className="overflow-x-auto bg-white shadow-sm sm:rounded-lg">
                         {employees.length === 0 ? (
                             <p className="px-6 py-16 text-center text-sm text-gray-600">
                                 No employee records yet. They arrive with the

@@ -141,7 +141,7 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
             {/* The big view — three boxes */}
             <div className="grid gap-5 sm:grid-cols-3">
                 <BigBox title={`IPCR status · ${year}`} accent="border-blue-100">
-                    <div className="flex items-end gap-6">
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                         <Stat
                             value={`${boxes.ipcr.sem1_done}/${boxes.ipcr.total}`}
                             label="1st semester submitted"
@@ -153,7 +153,7 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
                     </div>
                 </BigBox>
                 <BigBox title="Leave" accent="border-amber-100">
-                    <div className="flex items-end gap-6">
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                         <Stat value={boxes.leave.pending} label="pending approval" />
                         <Stat
                             value={`${boxes.leave.used_days}d`}
@@ -162,7 +162,7 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
                     </div>
                 </BigBox>
                 <BigBox title="Learning & Development" accent="border-emerald-100">
-                    <div className="flex items-end gap-6">
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                         <Stat
                             value={`${boxes.ld.total_hours}h`}
                             label={`hours approved · ${year}`}
@@ -180,8 +180,9 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
             </div>
 
             <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_300px]">
-                {/* Everyone's status */}
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                {/* Everyone's status — scrolls sideways on a phone rather
+                    than squashing the columns. */}
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                             <tr>

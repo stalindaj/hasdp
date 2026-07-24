@@ -6,11 +6,11 @@ export default function Index({ applications, isAdmin, pendingCount }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         My Leave
                     </h2>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         {isAdmin && (
                             <Link
                                 href={route('leave.requests')}
@@ -52,6 +52,7 @@ export default function Index({ applications, isAdmin, pendingCount }) {
                                 </Link>
                             </div>
                         ) : (
+                            <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -129,6 +130,7 @@ export default function Index({ applications, isAdmin, pendingCount }) {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         )}
                     </div>
                 </div>
