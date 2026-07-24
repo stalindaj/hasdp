@@ -528,6 +528,54 @@ class LeaveTest extends TestCase
         $this->assertSame('Director for Personnel', $employee->designation);
     }
 
+    public function test_an_admin_can_edit_the_whole_official_record(): void
+    {
+        $admin = $this->userWithRoles(['admin']);
+        $employee = Employee::create([
+            'emp_no' => '5867', 'first_name' => 'Stalin Joseph', 'last_name' => 'Baguio',
+        ]);
+        // The employee number doubles as the login username.
+        $account = User::factory()->create(['employee_id' => $employee->id, 'username' => '5867']);
+
+        $this->actingAs($admin)->patch(route('admin.employees.update', $employee), [
+            'emp_no' => '5868',
+            'item_no' => 'ADAS1-30-2013',
+            'psipop_placement' => 'Wing HQ',
+            'last_name' => 'Baguio', 'first_name' => 'Stalin Joseph', 'middle_name' => 'G',
+            'sex' => 'Male',
+            'date_of_birth' => '2002-02-01',
+            'level' => 'First Level',
+            'salary_grade' => 11, 'step_increment' => 2,
+            'position' => 'Computer Operator',
+            'office_department' => 'Directorate for Personnel',
+            'date_orig_appt' => '2026-04-10',
+            'date_assumption' => '2026-04-10',
+            'contact_no' => '09171234567',
+        ])->assertRedirect();
+
+        $employee->refresh();
+        $this->assertSame('ADAS1-30-2013', $employee->item_no);
+        $this->assertSame('Male', $employee->sex);
+        $this->assertSame(11, $employee->salary_grade);
+        $this->assertSame('Computer Operator', $employee->position);
+        $this->assertSame('Directorate for Personnel', $employee->office_department);
+        // Correcting the employee number must follow through to the login.
+        $this->assertSame('5868', $account->fresh()->username);
+    }
+
+    public function test_the_employee_number_must_stay_unique(): void
+    {
+        $admin = $this->userWithRoles(['admin']);
+        Employee::create(['emp_no' => '5807', 'first_name' => 'Justin', 'last_name' => 'Bercades']);
+        $other = Employee::create(['emp_no' => '5797', 'first_name' => 'Cyric', 'last_name' => 'Bulanan']);
+
+        $this->actingAs($admin)->patch(route('admin.employees.update', $other), [
+            'emp_no' => '5807',
+        ])->assertSessionHasErrors('emp_no');
+
+        $this->assertSame('5797', $other->fresh()->emp_no);
+    }
+
     public function test_a_non_admin_cannot_edit_employees(): void
     {
         $user = $this->userWithRoles(['employee']);
