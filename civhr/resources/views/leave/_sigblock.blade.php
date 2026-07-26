@@ -51,10 +51,11 @@
     // …and the caption below the rule.
     $captionTop = $ruleTop + 1.4;
 
-    // Rank and branch flank the name at the block's edges, matching the office
-    // form: rank sits just inside the left margin, the branch right-aligns to
-    // the right margin — both a small inset in from the very edge.
-    $edgeInset  = $width * 0.10;
+    // Rank and branch flank the name symmetrically around the centre — not at
+    // the block edges — matching the office form: the rank sits ~22% in from
+    // the left and the branch right-aligns ~22% in from the right, so both hug
+    // the centred name/designation rather than the margins.
+    $edgeInset  = $width * 0.22;
     $rankLeft   = $left + $edgeInset;
     $branchWidth = $width - $edgeInset;   // branch right-aligned within this
 @endphp
