@@ -359,10 +359,14 @@ class DashboardController extends Controller
         return back()->with('success', "L&D logged for {$employee->first_name} {$employee->last_name}.");
     }
 
-    /** Plantilla staff only — the 7.C/D signatory record is excluded. */
+    /**
+     * Active plantilla staff — the 7.C/D signatory record is excluded, and so
+     * are archived (deactivated) employees.
+     */
     private function plantilla()
     {
         return Employee::query()
+            ->active()
             ->whereNotNull('emp_no')
             ->where('emp_no', '!=', 'mission');
     }

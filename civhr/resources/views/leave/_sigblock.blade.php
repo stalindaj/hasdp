@@ -51,11 +51,12 @@
     // …and the caption below the rule.
     $captionTop = $ruleTop + 1.4;
 
-    // Rank and branch flank the name from the inner third, not the cell edges,
-    // matching the office form (rank ~26% in from the left, branch ~14% from
-    // the right).
-    $rankLeft   = $left + $width * 0.26;
-    $branchSpan = $width * 0.60;   // right-aligned within this from $rankLeft
+    // Rank and branch flank the name at the block's edges, matching the office
+    // form: rank sits just inside the left margin, the branch right-aligns to
+    // the right margin — both a small inset in from the very edge.
+    $edgeInset  = $width * 0.10;
+    $rankLeft   = $left + $edgeInset;
+    $branchWidth = $width - $edgeInset;   // branch right-aligned within this
 @endphp
 
 <div class="t v b f75 c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt; overflow:hidden;">{{ $name }}</div>
@@ -64,7 +65,7 @@
     <div class="t b f7" style="left:{{ $rankLeft }}pt; top:{{ $rankTop }}pt;">{{ $rank }}</div>
 @endif
 @if ($branch !== '')
-    <div class="t b f7" style="left:{{ $rankLeft }}pt; top:{{ $rankTop }}pt; width:{{ $branchSpan }}pt; text-align:right;">{{ $branch }}</div>
+    <div class="t b f7" style="left:{{ $left }}pt; top:{{ $rankTop }}pt; width:{{ $branchWidth }}pt; text-align:right;">{{ $branch }}</div>
 @endif
 
 @foreach ($titleLines as $i => $line)

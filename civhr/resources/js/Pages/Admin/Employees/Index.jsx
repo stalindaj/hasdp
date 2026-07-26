@@ -6,7 +6,7 @@ import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 
 /* The whole plantilla record, grouped the way My Profile displays it. */
 const SECTIONS = [
@@ -141,7 +141,7 @@ function EditModal({ employee, onClose }) {
     );
 }
 
-export default function Index({ employees }) {
+export default function Index({ employees, showArchived, archivedCount }) {
     const flash = usePage().props.flash;
     const [editing, setEditing] = useState(null);
 
@@ -162,6 +162,22 @@ export default function Index({ employees }) {
                             {flash.success}
                         </div>
                     )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm text-gray-600">
+                            {showArchived
+                                ? 'Showing active and archived staff. Archived = the login was deactivated.'
+                                : 'Active staff. Deactivate a login under Users to archive someone.'}
+                        </p>
+                        <Link
+                            href={route('admin.employees.index', showArchived ? {} : { archived: 1 })}
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            {showArchived
+                                ? 'Hide archived'
+                                : `Show archived${archivedCount ? ` (${archivedCount})` : ''}`}
+                        </Link>
+                    </div>
 
                     <div className="overflow-x-auto bg-white shadow-sm sm:rounded-lg">
                         {employees.length === 0 ? (
@@ -193,9 +209,14 @@ export default function Index({ employees }) {
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 bg-white">
                                     {employees.map((e) => (
-                                        <tr key={e.id} className="hover:bg-gray-50">
+                                        <tr key={e.id} className={`hover:bg-gray-50 ${e.archived ? 'bg-gray-50/60' : ''}`}>
                                             <td className="px-4 py-3 text-sm font-medium text-gray-900">
                                                 {e.name}
+                                                {e.archived && (
+                                                    <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                                        archived
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-500">
                                                 {e.rank || '—'}

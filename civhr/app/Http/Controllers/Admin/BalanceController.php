@@ -19,6 +19,7 @@ class BalanceController extends Controller
     public function index()
     {
         $rows = Employee::query()
+            ->active()                           // deactivated staff are archived
             ->whereNotNull('emp_no')
             ->where('emp_no', '!=', 'mission')   // the 7.C/D signatory record
             ->orderBy('last_name')

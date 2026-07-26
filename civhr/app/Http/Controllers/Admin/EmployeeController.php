@@ -11,13 +11,22 @@ use Inertia\Inertia;
 
 class EmployeeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Deactivated staff are archived out of the list; a toggle brings them
+        // back so records are never lost.
+        $showArchived = $request->boolean('archived');
+
         return Inertia::render('Admin/Employees/Index', [
-            'employees' => Employee::orderBy('last_name')->orderBy('first_name')->get()
+            'showArchived' => $showArchived,
+            'archivedCount' => Employee::archived()->count(),
+            'employees' => Employee::with('user:id,employee_id,is_active')
+                ->when(! $showArchived, fn ($q) => $q->active())
+                ->orderBy('last_name')->orderBy('first_name')->get()
                 ->map(fn ($e) => [
                     'id'              => $e->id,
                     'name'            => trim($e->last_name.', '.$e->first_name),
+                    'archived'        => $e->archived,
                     // The whole plantilla (PSIPOP) record is editable here —
                     // My Profile shows these read-only and points at HR.
                     'emp_no'           => $e->emp_no,

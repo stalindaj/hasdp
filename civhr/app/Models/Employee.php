@@ -25,6 +25,29 @@ class Employee extends Model
         return $this->hasOne(User::class);
     }
 
+    /**
+     * "Archived" means the person's login has been deactivated — they drop
+     * out of the active rosters (dashboard, balances, employees) but every
+     * record they touched stays intact. An employee with no account (e.g. the
+     * approving-official signatory) is never archived.
+     */
+    public function getArchivedAttribute(): bool
+    {
+        return (bool) ($this->user && ! $this->user->is_active);
+    }
+
+    /** Employees whose login is active (or who have no login at all). */
+    public function scopeActive($query)
+    {
+        return $query->whereDoesntHave('user', fn ($u) => $u->where('is_active', false));
+    }
+
+    /** Employees whose login has been deactivated. */
+    public function scopeArchived($query)
+    {
+        return $query->whereHas('user', fn ($u) => $u->where('is_active', false));
+    }
+
     public function ipcrRecords()
     {
         return $this->hasMany(IpcrRecord::class);
