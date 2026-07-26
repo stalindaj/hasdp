@@ -302,10 +302,28 @@ class LeaveController extends Controller
             'disapproval_reason'  => ['nullable', 'string', 'max:1000'],
         ]);
 
+        // 7.A must be filled the moment a draft is saved, so the printed form
+        // shows the credit certification before any decision is made. Anything
+        // the admin left blank falls back to the ledger's own figures; the
+        // 7.C/7.D pay split stays blank until the leave is actually decided.
+        $prefill = $this->creditPrefill($application);
+        foreach (['cert_as_of', 'vl_earned', 'vl_balance', 'sl_earned', 'sl_balance'] as $field) {
+            if (($data[$field] ?? null) === null || $data[$field] === '') {
+                $data[$field] = $prefill[$field] ?? null;
+            }
+        }
+        // "Less this application" is only ever set for the balance this leave
+        // draws on — the other side stays null and prints as a dash.
+        foreach (['vl_less', 'sl_less'] as $field) {
+            if (($data[$field] ?? null) === null || $data[$field] === '') {
+                $data[$field] = $prefill[$field];
+            }
+        }
+
         // Only touch the figures — the status and decision are untouched.
         $application->update($data);
 
-        return back()->with('success', 'Draft saved. The leave is still pending — approve or disapprove when ready.');
+        return back()->with('success', 'Draft saved — 7.A now shows on the printed form. The leave is still pending; approve or disapprove when ready.');
     }
 
     /**
@@ -457,16 +475,17 @@ class LeaveController extends Controller
     /** How the applicant is printed on 6.D. */
     private function applicantBlock(User $user, array $data): array
     {
-        $rank = $user->employee?->rank;
+        // Civilians sign with their name alone — no rank, no branch.
+        $rank = (string) ($user->employee?->printed_rank ?? '');
 
         return [
-            'rank'   => (string) ($rank ?? ''),
+            'rank'   => $rank,
             'name'   => strtoupper(trim(implode(' ', array_filter([
                 $data['applicant_first_name'],
                 $data['applicant_middle_name'] ?? null,
                 $data['applicant_last_name'],
             ])))),
-            'branch'      => $rank ? (string) config('agency.branch_suffix') : '',
+            'branch'      => $rank !== '' ? (string) config('agency.branch_suffix') : '',
             'position'    => '',
             'designation' => '',
         ];
@@ -562,17 +581,20 @@ class LeaveController extends Controller
             $kind = $a->leaveType->credit_kind;
             $days = (float) $a->working_days;
 
-            $vlLess = $kind === 'vl' ? $days : 0.0;
-            $slLess = $kind === 'sl' ? $days : 0.0;
+            // A leave draws on one balance at most. The side it does not touch
+            // gets no "less" figure at all (printed as "—"), and its balance
+            // simply carries the total earned down.
+            $vlLess = $kind === 'vl' ? $days : null;
+            $slLess = $kind === 'sl' ? $days : null;
 
             return [
                 'cert_as_of' => now()->toDateString(),
                 'vl_earned'  => $balances['vl'],
                 'vl_less'    => $vlLess,
-                'vl_balance' => round($balances['vl'] - $vlLess, 2),
+                'vl_balance' => round($balances['vl'] - (float) $vlLess, 2),
                 'sl_earned'  => $balances['sl'],
                 'sl_less'    => $slLess,
-                'sl_balance' => round($balances['sl'] - $slLess, 2),
+                'sl_balance' => round($balances['sl'] - (float) $slLess, 2),
             ];
         }
 

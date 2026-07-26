@@ -72,10 +72,13 @@ class User extends Authenticatable
             $employee->suffix,
         ])));
 
+        // Civilians print neither rank nor service branch.
+        $rank = $employee->printed_rank;
+
         return [
-            'rank'        => (string) ($employee->rank ?? ''),
+            'rank'        => $rank,
             'name'        => strtoupper($name !== '' ? $name : $this->name),
-            'branch'      => $employee->rank ? (string) config('agency.branch_suffix') : '',
+            'branch'      => $rank !== '' ? (string) config('agency.branch_suffix') : '',
             'position'    => (string) ($employee->position ?? ''),
             'designation' => (string) ($employee->designation ?? ''),
         ];

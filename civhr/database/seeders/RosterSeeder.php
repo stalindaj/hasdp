@@ -53,6 +53,7 @@ class RosterSeeder extends Seeder
             // Not on the plantilla list; login optional.
             ['mission', null, 'Mission', 'Adrian Lee', 'G', null, 'adrian.mission@civhr.test', null, null, null, null, null, ['approver'], [
                 'rank' => 'LTC',
+                'is_civilian' => false,
                 'designation' => 'Director for Personnel',
             ]],
         ];

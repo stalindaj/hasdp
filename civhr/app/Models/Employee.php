@@ -10,6 +10,7 @@ class Employee extends Model
     protected $guarded = [];   // all fields fillable (simple for an admin-managed table)
 
     protected $casts = [
+        'is_civilian'        => 'boolean',
         'date_orig_appt'     => 'date',
         'date_assumption'    => 'date',
         'date_of_birth'      => 'date',
@@ -61,6 +62,16 @@ class Employee extends Model
     public function creditEntries()
     {
         return $this->hasMany(LeaveCreditEntry::class);
+    }
+
+    /**
+     * The rank printed on a signature block — military only. Civilians print
+     * nothing there (and therefore no service branch either), whatever text
+     * happens to sit in the rank column.
+     */
+    public function getPrintedRankAttribute(): string
+    {
+        return $this->is_civilian ? '' : (string) ($this->rank ?? '');
     }
 
     public function getAgeAttribute(): ?int

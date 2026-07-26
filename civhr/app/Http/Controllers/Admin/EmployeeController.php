@@ -41,6 +41,7 @@ class EmployeeController extends Controller
                     'salary_grade'     => $e->salary_grade,
                     'step_increment'   => $e->step_increment,
                     'rank'             => $e->rank,
+                    'is_civilian'      => $e->is_civilian ? '1' : '0',
                     'position'         => $e->position,
                     'designation'      => $e->designation,
                     'office_department'=> $e->office_department,
@@ -75,6 +76,9 @@ class EmployeeController extends Controller
             'salary_grade'   => ['nullable', 'integer', 'min:1', 'max:33'],
             'step_increment' => ['nullable', 'integer', 'min:1', 'max:8'],
             'rank'           => ['nullable', 'string', 'max:30'],
+            // Optional so a partial update never silently flips someone's
+            // personnel type; the edit form always sends it.
+            'is_civilian'    => ['sometimes', 'boolean'],
             'position'       => ['nullable', 'string', 'max:255'],
             'designation'    => ['nullable', 'string', 'max:255'],
             'office_department' => ['nullable', 'string', 'max:255'],

@@ -37,7 +37,8 @@ const SECTIONS = [
         [
             ['position', 'Position', 'text', 'Plantilla title, e.g. Admin Officer IV (HRMO II)', 'sm:col-span-2'],
             ['designation', 'Designation', 'text', 'Signing title, e.g. Director for Personnel', 'sm:col-span-2'],
-            ['rank', 'Rank', 'text', 'TSg, 1LT, LTC — blank for civilians', 'sm:col-span-2'],
+            ['is_civilian', 'Personnel type', 'civilian', 'Civilians print no rank and no PAF on signature blocks', 'sm:col-span-2'],
+            ['rank', 'Rank', 'text', 'TSg, 1LT, LTC — military only', 'sm:col-span-2'],
             ['office_department', 'Office / department', 'text', 'Prints on box 1 of CS Form 6', 'sm:col-span-2'],
             ['date_orig_appt', 'Date of original appointment', 'date', 'Drives the leave-credit estimate', 'sm:col-span-2'],
             ['date_assumption', 'Date of assumption to duty', 'date', '', 'sm:col-span-2'],
@@ -92,7 +93,17 @@ function EditModal({ employee, onClose }) {
                                 {fields.map(([field, label, type, hint, span]) => (
                                     <div key={field} className={span}>
                                         <InputLabel htmlFor={field} value={label} />
-                                        {type === 'select' ? (
+                                        {type === 'civilian' ? (
+                                            <select
+                                                id={field}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                value={data[field]}
+                                                onChange={(e) => setData(field, e.target.value)}
+                                            >
+                                                <option value="1">Civilian</option>
+                                                <option value="0">Military</option>
+                                            </select>
+                                        ) : type === 'select' ? (
                                             <select
                                                 id={field}
                                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"

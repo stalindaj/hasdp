@@ -380,17 +380,23 @@
     <div class="t f7 c" style="left:256.5pt; top:{{ $gTop + 1.6 }}pt; width:{{ 323.8 - 256.5 }}pt;">Sick Leave</div>
 
     @php
+        // "Less this application" prints a dash on the side this leave does
+        // not draw from — but only once the block has been certified at all,
+        // so an untouched form still prints blank.
+        $certified = $app->cert_as_of || $app->vl_earned !== null || $app->sl_earned !== null;
+        $less = fn ($v) => $v !== null ? $num($v) : ($certified ? '—' : '');
+
         $rows = [
-            ['Total Earned',        $app->vl_earned,  $app->sl_earned],
-            ['Less this application', $app->vl_less,  $app->sl_less],
-            ['Balance',             $app->vl_balance, $app->sl_balance],
+            ['Total Earned',          $num($app->vl_earned),  $num($app->sl_earned)],
+            ['Less this application', $less($app->vl_less),   $less($app->sl_less)],
+            ['Balance',               $num($app->vl_balance), $num($app->sl_balance)],
         ];
     @endphp
     @foreach ($rows as $r => [$label, $vl, $sl])
         @php $ry = $gTop + ($r + 1) * $gPitch; @endphp
         <div class="t i f7 c" style="left:119.3pt; top:{{ $ry + 1.6 }}pt; width:{{ 189.1 - 119.3 }}pt;">{{ $label }}</div>
-        <div class="t v f7 c" style="left:189.1pt; top:{{ $ry + 1.6 }}pt; width:{{ 256.5 - 189.1 }}pt;">{{ $num($vl) }}</div>
-        <div class="t v f7 c" style="left:256.5pt; top:{{ $ry + 1.6 }}pt; width:{{ 323.8 - 256.5 }}pt;">{{ $num($sl) }}</div>
+        <div class="t v f7 c" style="left:189.1pt; top:{{ $ry + 1.6 }}pt; width:{{ 256.5 - 189.1 }}pt;">{{ $vl }}</div>
+        <div class="t v f7 c" style="left:256.5pt; top:{{ $ry + 1.6 }}pt; width:{{ 323.8 - 256.5 }}pt;">{{ $sl }}</div>
     @endforeach
 
     @include('leave._sigblock', [

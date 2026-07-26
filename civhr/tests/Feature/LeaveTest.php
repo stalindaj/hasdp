@@ -51,7 +51,7 @@ class LeaveTest extends TestCase
     {
         return $this->userWithRoles(['approver'], [
             'first_name' => 'Adrian', 'middle_name' => 'Lee', 'last_name' => 'Mission',
-            'rank' => 'LTC', 'designation' => 'Director for Personnel',
+            'rank' => 'LTC', 'is_civilian' => false, 'designation' => 'Director for Personnel',
         ]);
     }
 
@@ -539,7 +539,7 @@ class LeaveTest extends TestCase
         config(['agency.branch_suffix' => 'PAF']);
         $employee = Employee::create([
             'first_name' => 'Adrian', 'middle_name' => 'Lee', 'last_name' => 'Mission',
-            'rank' => 'LTC', 'designation' => 'Director for Personnel',
+            'rank' => 'LTC', 'is_civilian' => false, 'designation' => 'Director for Personnel',
         ]);
         $user = User::factory()->create(['name' => 'Adrian Mission', 'employee_id' => $employee->id]);
 
