@@ -16,22 +16,29 @@ use Inertia\Inertia;
  */
 class BalanceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Deactivated staff are archived off this grid; a quiet toggle brings
+        // them back when someone needs to check a departed employee's credits.
+        $showArchived = $request->boolean('archived');
+
         $rows = Employee::query()
-            ->active()                           // deactivated staff are archived
+            ->when(! $showArchived, fn ($q) => $q->active())
             ->whereNotNull('emp_no')
             ->where('emp_no', '!=', 'mission')   // the 7.C/D signatory record
             ->orderBy('last_name')
             ->get()
             ->map(fn ($e) => [
-                'id'     => $e->id,
-                'emp_no' => $e->emp_no,
-                'name'   => trim($e->last_name.', '.$e->first_name),
+                'id'       => $e->id,
+                'emp_no'   => $e->emp_no,
+                'name'     => trim($e->last_name.', '.$e->first_name),
+                'archived' => $e->archived,
             ] + CreditLedger::balances($e));
 
         return Inertia::render('Admin/Balances/Index', [
             'rows' => $rows,
+            'showArchived'  => $showArchived,
+            'archivedCount' => Employee::archived()->whereNotNull('emp_no')->count(),
             'totals' => [
                 'vl'       => round($rows->sum('vl'), 2),
                 'sl'       => round($rows->sum('sl'), 2),

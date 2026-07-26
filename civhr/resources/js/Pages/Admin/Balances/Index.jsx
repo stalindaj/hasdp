@@ -20,7 +20,7 @@ const KINDS = [
  * Click any number to set it — the change is stored as a ledger adjustment,
  * so the audit trail (who, when, why) is preserved.
  */
-export default function Index({ rows, totals }) {
+export default function Index({ rows, totals, showArchived, archivedCount }) {
     const flash = usePage().props.flash;
 
     // {row, kind} currently being edited, or null.
@@ -67,12 +67,22 @@ export default function Index({ rows, totals }) {
                         </div>
                     )}
 
-                    <p className="text-sm text-gray-600">
-                        Everyone&rsquo;s current credits. Click a number to set
-                        it (e.g. the opening balance from the 201 file) — every
-                        change is recorded in the employee&rsquo;s ledger with
-                        your reason.
-                    </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-sm text-gray-600">
+                            Everyone&rsquo;s current credits. Click a number to
+                            set it (e.g. the opening balance from the 201 file)
+                            — every change is recorded in the employee&rsquo;s
+                            ledger with your reason.
+                        </p>
+                        <Link
+                            href={route('admin.balances.index', showArchived ? {} : { archived: 1 })}
+                            className="shrink-0 text-xs text-gray-400 underline-offset-2 hover:text-indigo-600 hover:underline"
+                        >
+                            {showArchived
+                                ? 'hide archived'
+                                : `show archived${archivedCount ? ` (${archivedCount})` : ''}`}
+                        </Link>
+                    </div>
 
                     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -88,7 +98,7 @@ export default function Index({ rows, totals }) {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {rows.map((r) => (
-                                    <tr key={r.id} className="hover:bg-slate-50">
+                                    <tr key={r.id} className={`hover:bg-slate-50 ${r.archived ? 'bg-slate-50/60' : ''}`}>
                                         <td className="px-4 py-2.5">
                                             <Link
                                                 href={route('dashboard.employee', r.id)}
@@ -99,6 +109,11 @@ export default function Index({ rows, totals }) {
                                             <span className="ml-2 text-xs text-slate-400">
                                                 #{r.emp_no}
                                             </span>
+                                            {r.archived && (
+                                                <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                                    archived
+                                                </span>
+                                            )}
                                         </td>
                                         {KINDS.map(([kind]) => (
                                             <td key={kind} className="px-4 py-2.5 text-center">

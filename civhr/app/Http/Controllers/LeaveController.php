@@ -288,6 +288,9 @@ class LeaveController extends Controller
         abort_unless(LeaveWorkflow::canProcess($application, $user), 403, 'This application is not awaiting your action.');
 
         $data = $request->validate([
+            // Which way the admin is leaning, so the draft printout shows the
+            // matching block. It does not decide the leave.
+            'decision'   => ['nullable', Rule::in(['approved', 'disapproved'])],
             'cert_as_of' => ['nullable', 'date'],
             'vl_earned'  => ['nullable', 'numeric', 'min:0'],
             'vl_less'    => ['nullable', 'numeric', 'min:0'],
@@ -301,6 +304,19 @@ class LeaveController extends Controller
             'days_others_specify' => ['nullable', 'string', 'max:255'],
             'disapproval_reason'  => ['nullable', 'string', 'max:1000'],
         ]);
+
+        // Keep 7.C and 7.D mutually exclusive on the draft printout, exactly as
+        // a real decision would. `decision` itself is never stored here — the
+        // leave stays pending until the admin approves or disapproves.
+        $leaning = $data['decision'] ?? 'approved';
+        unset($data['decision']);
+
+        if ($leaning === 'approved') {
+            $data['disapproval_reason'] = null;
+        } else {
+            $data['days_with_pay'] = $data['days_without_pay'] = $data['days_others'] = null;
+            $data['days_others_specify'] = null;
+        }
 
         // 7.A must be filled the moment a draft is saved, so the printed form
         // shows the credit certification before any decision is made. Anything

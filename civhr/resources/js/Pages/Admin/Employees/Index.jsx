@@ -174,19 +174,16 @@ export default function Index({ employees, showArchived, archivedCount }) {
                         </div>
                     )}
 
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-sm text-gray-600">
-                            {showArchived
-                                ? 'Showing active and archived staff. Archived = the login was deactivated.'
-                                : 'Active staff. Deactivate a login under Users to archive someone.'}
-                        </p>
+                    {/* Quiet, like the signatory "change" link — archived staff
+                        are an occasional lookup, not a headline. */}
+                    <div className="flex justify-end">
                         <Link
                             href={route('admin.employees.index', showArchived ? {} : { archived: 1 })}
-                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                            className="text-xs text-gray-400 underline-offset-2 hover:text-indigo-600 hover:underline"
                         >
                             {showArchived
-                                ? 'Hide archived'
-                                : `Show archived${archivedCount ? ` (${archivedCount})` : ''}`}
+                                ? 'hide archived'
+                                : `show archived${archivedCount ? ` (${archivedCount})` : ''}`}
                         </Link>
                     </div>
 

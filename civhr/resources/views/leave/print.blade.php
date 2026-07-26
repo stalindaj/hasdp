@@ -447,6 +447,11 @@
     <div class="t f75" style="left:106pt; top:632pt;">7.C&nbsp; APPROVED FOR:</div>
     @php
         $approved = $app->decision === 'approved';
+        // A saved draft prints its figures too, so the admin can proof the
+        // whole form before approving. Once decided, only the matching block
+        // prints. saveDraft() keeps the two sides mutually exclusive.
+        $decided  = $app->decision !== null;
+        $showPay  = $approved || ! $decided;
         $payRows = [
             [$app->days_with_pay,    'days with pay'],
             [$app->days_without_pay, 'days without pay'],
@@ -456,15 +461,15 @@
     @foreach ($payRows as $i => [$val, $label])
         @php $py = 642.5 + $i * 9.6; @endphp
         <div class="ln" style="left:126pt; top:{{ $py + 7.4 }}pt; width:36pt;"></div>
-        <div class="t v f75 c" style="left:126pt; top:{{ $py }}pt; width:36pt;">{{ $approved ? $num($val) : '' }}</div>
+        <div class="t v f75 c" style="left:126pt; top:{{ $py }}pt; width:36pt;">{{ $showPay ? $num($val) : '' }}</div>
         <div class="t f75" style="left:166pt; top:{{ $py }}pt;">{{ $label }}</div>
     @endforeach
     {{-- 7.C "others (Specify)" free text --}}
-    <div class="t v f7" style="left:236pt; top:661.7pt; width:96pt; overflow:hidden;">{{ $approved ? $app->days_others_specify : '' }}</div>
+    <div class="t v f7" style="left:236pt; top:661.7pt; width:96pt; overflow:hidden;">{{ $showPay ? $app->days_others_specify : '' }}</div>
 
     <div class="t f75" style="left:{{ $MID + 3.5 }}pt; top:632pt;">7.D&nbsp;&nbsp; DISAPPROVED DUE TO:</div>
     @php
-        $dis = $app->decision === 'disapproved' ? (string) $app->disapproval_reason : '';
+        $dis = ! $approved ? (string) $app->disapproval_reason : '';
         $disLines = $dis === '' ? [] : explode("\n", wordwrap($dis, 44, "\n", true));
     @endphp
     @for ($i = 0; $i < 4; $i++)

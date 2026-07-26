@@ -97,6 +97,27 @@ class ArchiveEmployeeTest extends TestCase
                 ->where('employees', fn ($e) => collect($e)->firstWhere('name', 'Dela Cruz, Ben')['archived'] === true));
     }
 
+    public function test_the_balances_grid_hides_archived_until_toggled(): void
+    {
+        $admin = $this->admin();
+        $this->staff('5001', 'Ana');
+        $archived = $this->staff('5002', 'Ben');
+        $this->actingAs($admin)->patch(route('admin.users.toggle', $archived->user));
+
+        // Default: Ben is off the grid.
+        $this->actingAs($admin)->get(route('admin.balances.index'))
+            ->assertInertia(fn ($p) => $p
+                ->where('archivedCount', 1)
+                ->where('showArchived', false)
+                ->where('rows', fn ($rows) => collect($rows)->pluck('emp_no')->doesntContain('5002')));
+
+        // With ?archived=1 he is back, flagged.
+        $this->actingAs($admin)->get(route('admin.balances.index', ['archived' => 1]))
+            ->assertInertia(fn ($p) => $p
+                ->where('showArchived', true)
+                ->where('rows', fn ($rows) => collect($rows)->firstWhere('emp_no', '5002')['archived'] === true));
+    }
+
     public function test_reactivating_brings_the_employee_back(): void
     {
         $admin = $this->admin();
