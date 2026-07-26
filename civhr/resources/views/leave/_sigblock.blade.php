@@ -51,23 +51,23 @@
     // …and the caption below the rule.
     $captionTop = $ruleTop + 1.4;
 
-    // Rank and branch flank the name symmetrically around the centre — not at
-    // the block edges — matching the office form: the rank sits ~22% in from
-    // the left and the branch right-aligns ~22% in from the right, so both hug
-    // the centred name/designation rather than the margins.
-    $edgeInset  = $width * 0.22;
-    $rankLeft   = $left + $edgeInset;
-    $branchWidth = $width - $edgeInset;   // branch right-aligned within this
+    // Rank and branch align with the ENDS OF THE NAME itself — the rank under
+    // the name's first letter, the branch under its last — however long the
+    // name is. Done by anchoring both to an inline-block wrapped around the
+    // name, so they track its actual printed width.
+    $rankDrop = $rankTop - $nameTop;   // vertical offset of the rank row
 @endphp
 
-<div class="t v b f75 c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt; overflow:hidden;">{{ $name }}</div>
-
-@if ($rank !== '')
-    <div class="t b f7" style="left:{{ $rankLeft }}pt; top:{{ $rankTop }}pt;">{{ $rank }}</div>
-@endif
-@if ($branch !== '')
-    <div class="t b f7" style="left:{{ $left }}pt; top:{{ $rankTop }}pt; width:{{ $branchWidth }}pt; text-align:right;">{{ $branch }}</div>
-@endif
+<div class="t c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt;">
+    <span class="v b f75" style="position:relative; display:inline-block; white-space:nowrap;">{{ $name }}
+        @if ($rank !== '')
+            <span class="b f7" style="position:absolute; left:0; top:{{ $rankDrop }}pt;">{{ $rank }}</span>
+        @endif
+        @if ($branch !== '')
+            <span class="b f7" style="position:absolute; right:0; top:{{ $rankDrop }}pt;">{{ $branch }}</span>
+        @endif
+    </span>
+</div>
 
 @foreach ($titleLines as $i => $line)
     <div class="t f7 c" style="left:{{ $left }}pt; top:{{ $titleTops[$i] }}pt; width:{{ $width }}pt; overflow:hidden;">{{ $line }}</div>
