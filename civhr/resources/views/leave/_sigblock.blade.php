@@ -54,17 +54,18 @@
     // Rank and branch align with the ENDS OF THE NAME itself — the rank under
     // the name's first letter, the branch under its last — however long the
     // name is. Done by anchoring both to an inline-block wrapped around the
-    // name, so they track its actual printed width.
-    $rankDrop = $rankTop - $nameTop;   // vertical offset of the rank row
+    // name. The wrapper's line-height is pinned to $nameGap so top:100% puts
+    // the rank row exactly where the old fixed layout had it (no drift from
+    // the page's default 8.4pt line box).
 @endphp
 
-<div class="t c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt;">
-    <span class="v b f75" style="position:relative; display:inline-block; white-space:nowrap;">{{ $name }}
+<div class="t c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt; line-height:{{ $nameGap }}pt;">
+    <span class="v b f75" style="position:relative; display:inline-block; vertical-align:top; line-height:{{ $nameGap }}pt; white-space:nowrap;">{{ $name }}
         @if ($rank !== '')
-            <span class="b f7" style="position:absolute; left:0; top:{{ $rankDrop }}pt;">{{ $rank }}</span>
+            <span class="b f7" style="position:absolute; left:0; top:100%; line-height:{{ $step }}pt;">{{ $rank }}</span>
         @endif
         @if ($branch !== '')
-            <span class="b f7" style="position:absolute; right:0; top:{{ $rankDrop }}pt;">{{ $branch }}</span>
+            <span class="b f7" style="position:absolute; right:0; top:100%; line-height:{{ $step }}pt;">{{ $branch }}</span>
         @endif
     </span>
 </div>
