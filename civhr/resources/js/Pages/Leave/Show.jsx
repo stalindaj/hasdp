@@ -44,6 +44,259 @@ function Field({ label, children }) {
     );
 }
 
+/** 'YYYY-MM-DD' in local time — toISOString would shift the PH date. */
+function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Mirrors App\Support\WorkingDays::count() for the live 6.C preview. */
+function countDays(fromStr, toStr, basis, holidays) {
+    if (!fromStr || !toStr) return null;
+    const from = new Date(`${fromStr}T00:00:00`);
+    const to = new Date(`${toStr}T00:00:00`);
+    if (isNaN(from) || isNaN(to) || to < from) return null;
+
+    let days = 0;
+    const skipped = [];
+    for (let d = new Date(from), g = 0; d <= to && g < 1000; d.setDate(d.getDate() + 1), g++) {
+        if (basis === 'calendar') { days++; continue; }
+        const iso = isoDate(d);
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        if (holidays[iso] && !weekend) skipped.push({ date: iso, name: holidays[iso] });
+        if (!weekend && !holidays[iso]) days++;
+    }
+    return { days, skipped };
+}
+
+/* ── Applicant: revise boxes 1–6 while the leave is still pending ─────── */
+function EditApplicationCard({ application, form, leaveTypes, holidays }) {
+    const [open, setOpen] = useState(false);
+    const { data, setData, patch, processing, errors } = useForm(form);
+
+    const type = leaveTypes.find((t) => String(t.id) === String(data.leave_type_id));
+    const group = type?.detail_group ?? null;
+    const basis = type?.day_basis ?? 'working';
+    const computed = useMemo(
+        () => countDays(data.date_from, data.date_to, basis, holidays ?? {}),
+        [data.date_from, data.date_to, basis, holidays],
+    );
+
+    const submit = (e) => {
+        e.preventDefault();
+        patch(route('leave.update', application.id), {
+            preserveScroll: true,
+            onSuccess: () => setOpen(false),
+        });
+    };
+
+    if (!open) {
+        return (
+            <Card
+                title="Your application"
+                actions={
+                    <SecondaryButton type="button" onClick={() => setOpen(true)}>
+                        Edit details
+                    </SecondaryButton>
+                }
+            >
+                <p className="text-sm text-gray-600">
+                    You can still change anything on this form — the leave type,
+                    dates, details, commutation and the 7.B recommending officer
+                    — until the admin approves it.
+                </p>
+            </Card>
+        );
+    }
+
+    return (
+        <Card title="Edit your application">
+            <form onSubmit={submit} className="space-y-5">
+                <div>
+                    <InputLabel htmlFor="e_type" value="6.A — Type of leave" />
+                    <select
+                        id="e_type"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        value={data.leave_type_id}
+                        onChange={(e) => setData('leave_type_id', e.target.value)}
+                    >
+                        {leaveTypes.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                    </select>
+                    <InputError message={errors.leave_type_id} className="mt-1" />
+                </div>
+
+                {type?.code === 'others' && (
+                    <div>
+                        <InputLabel htmlFor="e_other" value="Specify the leave" />
+                        <TextInput
+                            id="e_other"
+                            className="mt-1 block w-full"
+                            value={data.other_leave_type ?? ''}
+                            onChange={(e) => setData('other_leave_type', e.target.value)}
+                        />
+                        <InputError message={errors.other_leave_type} className="mt-1" />
+                    </div>
+                )}
+
+                {/* 6.B — only the block matching the chosen type */}
+                {group === 'vacation' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <InputLabel htmlFor="e_vac" value="In case of Vacation / SPL" />
+                            <select
+                                id="e_vac"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                value={data.detail_vacation ?? ''}
+                                onChange={(e) => setData('detail_vacation', e.target.value)}
+                            >
+                                <option value="">Select…</option>
+                                <option value="within_philippines">Within the Philippines</option>
+                                <option value="abroad">Abroad</option>
+                            </select>
+                            <InputError message={errors.detail_vacation} className="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="e_vacloc" value="Location" />
+                            <TextInput
+                                id="e_vacloc"
+                                className="mt-1 block w-full"
+                                value={data.detail_vacation_location ?? ''}
+                                onChange={(e) => setData('detail_vacation_location', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {group === 'sick' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <InputLabel htmlFor="e_sick" value="In case of Sick Leave" />
+                            <select
+                                id="e_sick"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                value={data.detail_sick ?? ''}
+                                onChange={(e) => setData('detail_sick', e.target.value)}
+                            >
+                                <option value="">Select…</option>
+                                <option value="in_hospital">In Hospital</option>
+                                <option value="out_patient">Out Patient</option>
+                            </select>
+                            <InputError message={errors.detail_sick} className="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="e_ill" value="Specify illness" />
+                            <TextInput
+                                id="e_ill"
+                                className="mt-1 block w-full"
+                                value={data.detail_sick_illness ?? ''}
+                                onChange={(e) => setData('detail_sick_illness', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {group === 'women' && (
+                    <div>
+                        <InputLabel htmlFor="e_women" value="Specify illness" />
+                        <TextInput
+                            id="e_women"
+                            className="mt-1 block w-full"
+                            value={data.detail_women_illness ?? ''}
+                            onChange={(e) => setData('detail_women_illness', e.target.value)}
+                        />
+                        <InputError message={errors.detail_women_illness} className="mt-1" />
+                    </div>
+                )}
+
+                {group === 'study' && (
+                    <div>
+                        <InputLabel htmlFor="e_study" value="In case of Study Leave" />
+                        <select
+                            id="e_study"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                            value={data.detail_study ?? ''}
+                            onChange={(e) => setData('detail_study', e.target.value)}
+                        >
+                            <option value="">Select…</option>
+                            <option value="masters">Completion of Master's Degree</option>
+                            <option value="bar_board">BAR/Board Examination Review</option>
+                        </select>
+                        <InputError message={errors.detail_study} className="mt-1" />
+                    </div>
+                )}
+
+                {/* 6.C */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <InputLabel htmlFor="e_from" value="Inclusive from" />
+                        <TextInput
+                            id="e_from"
+                            type="date"
+                            className="mt-1 block w-full"
+                            value={data.date_from ?? ''}
+                            onChange={(e) => setData('date_from', e.target.value)}
+                        />
+                        <InputError message={errors.date_from} className="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel htmlFor="e_to" value="To" />
+                        <TextInput
+                            id="e_to"
+                            type="date"
+                            className="mt-1 block w-full"
+                            value={data.date_to ?? ''}
+                            onChange={(e) => setData('date_to', e.target.value)}
+                        />
+                        <InputError message={errors.date_to} className="mt-1" />
+                    </div>
+                    <div>
+                        <dt className="text-xs uppercase tracking-wide text-gray-500">
+                            {basis === 'calendar' ? 'Calendar' : 'Working'} days
+                        </dt>
+                        <dd className="mt-1 rounded-md bg-gray-50 px-3 py-2 text-lg font-semibold ring-1 ring-gray-200">
+                            {computed ? computed.days : '—'}
+                        </dd>
+                    </div>
+                </div>
+                {computed?.skipped?.length > 0 && (
+                    <ul className="list-inside list-disc text-xs text-amber-700">
+                        {computed.skipped.map((h) => (
+                            <li key={h.date}>{h.date} — {h.name} (not counted)</li>
+                        ))}
+                    </ul>
+                )}
+
+                {/* 6.D */}
+                <div>
+                    <p className="mb-1 text-sm font-medium text-gray-700">6.D Commutation</p>
+                    {[['not_requested', 'Not Requested'], ['requested', 'Requested']].map(([v, label]) => (
+                        <label key={v} className="flex cursor-pointer items-center gap-2 py-0.5">
+                            <input
+                                type="radio"
+                                name="e_commutation"
+                                checked={data.commutation === v}
+                                onChange={() => setData('commutation', v)}
+                                className="border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-gray-700">{label}</span>
+                        </label>
+                    ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                    <SecondaryButton type="button" onClick={() => setOpen(false)}>
+                        Cancel
+                    </SecondaryButton>
+                    <PrimaryButton disabled={processing}>
+                        {processing ? 'Saving…' : 'Save changes'}
+                    </PrimaryButton>
+                </div>
+            </form>
+        </Card>
+    );
+}
+
 /* ── The wet-signed CS Form 6, filed digitally after approval ─────────── */
 function SignedFormCard({ application, canUpload }) {
     const { data, setData, post, processing, errors, recentlySuccessful } =
@@ -650,7 +903,17 @@ function ProcessForm({ application, prefill, balanceCheck }) {
     );
 }
 
-export default function Show({ application: a, can, signatories, creditPrefill, balanceCheck }) {
+export default function Show({
+    application: a,
+    can,
+    signatories,
+    creditPrefill,
+    balanceCheck,
+    leaveTypes,
+    holidays,
+    form,
+    myRecommender,
+}) {
     const flash = usePage().props.flash;
 
     const cancel = () => {
@@ -779,6 +1042,32 @@ export default function Show({ application: a, can, signatories, creditPrefill, 
                             </dl>
                         )}
                     </Card>
+
+                    {/* The applicant completes their own half of the form so
+                        the admin only has to verify and finalise. */}
+                    {can.edit && form && (
+                        <EditApplicationCard
+                            application={a}
+                            form={form}
+                            leaveTypes={leaveTypes ?? []}
+                            holidays={holidays ?? {}}
+                        />
+                    )}
+
+                    {can.edit && (
+                        <Card title="7.B — Recommending officer">
+                            <p className="mb-3 text-sm text-gray-600">
+                                Name the officer who will recommend your leave.
+                                They sign this block on the printed form.
+                            </p>
+                            <SignatoryForm
+                                application={a}
+                                slot="recommender"
+                                label="Recommending officer"
+                                initial={myRecommender}
+                            />
+                        </Card>
+                    )}
 
                     {(can.upload_form ||
                         (a.status === 'approved' && can.process)) && (

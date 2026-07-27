@@ -101,6 +101,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/leave/create', [LeaveController::class, 'create'])->name('leave.create');
     Route::post('/leave', [LeaveController::class, 'store'])->name('leave.store');
     Route::get('/leave/{application}', [LeaveController::class, 'show'])->name('leave.show');
+    // The applicant revises their own pending application.
+    Route::patch('/leave/{application}', [LeaveController::class, 'update'])->name('leave.update');
     Route::get('/leave/{application}/print', [LeaveController::class, 'print'])->name('leave.print');
     Route::patch('/leave/{application}/save', [LeaveController::class, 'saveDraft'])->name('leave.save');
     Route::post('/leave/{application}/decide', [LeaveController::class, 'decide'])->name('leave.decide');

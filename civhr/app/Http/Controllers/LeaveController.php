@@ -82,14 +82,15 @@ class LeaveController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    /**
+     * The applicant-supplied half of CS Form 6 (boxes 1–6). Shared by filing
+     * and by the applicant's own edits, so the two can never drift apart.
+     */
+    private function applicationRules(?LeaveType $type): array
     {
-        $user = $request->user();
-
-        $type = LeaveType::find($request->input('leave_type_id'));
         $group = $type?->detail_group;
 
-        $data = $request->validate([
+        return [
             'leave_type_id'     => ['required', 'exists:leave_types,id'],
             'other_leave_type'  => [Rule::requiredIf($type?->code === 'others'), 'nullable', 'string', 'max:255'],
 
@@ -114,8 +115,12 @@ class LeaveController extends Controller
             'date_from'    => ['required', 'date'],
             'date_to'      => ['required', 'date', 'after_or_equal:date_from'],
             'commutation'  => ['required', Rule::in(['not_requested', 'requested'])],
-        ]);
+        ];
+    }
 
+    /** 6.C plus the 6.B tidy-up — identical whether filing or editing. */
+    private function withComputedDays(array $data, ?LeaveType $type): array
+    {
         // 6.C is computed here, never taken from the client: weekends and
         // holidays don't count (calendar-day types like maternity count all).
         $data['working_days'] = WorkingDays::count(
@@ -132,9 +137,23 @@ class LeaveController extends Controller
 
         // Detail fields that belong to a different leave type would otherwise
         // linger and print on the wrong block of 6.B.
-        foreach ($this->detailFieldsOutside($group) as $field) {
+        foreach ($this->detailFieldsOutside($type?->detail_group) as $field) {
             $data[$field] = null;
         }
+
+        return $data;
+    }
+
+    public function store(Request $request)
+    {
+        $user = $request->user();
+
+        $type = LeaveType::find($request->input('leave_type_id'));
+
+        $data = $this->withComputedDays(
+            $request->validate($this->applicationRules($type)),
+            $type
+        );
 
         $data['user_id']     = $user->id;
         $data['employee_id'] = $user->employee?->id;
@@ -162,6 +181,41 @@ class LeaveController extends Controller
             ->with('success', 'Leave application filed. It is now with the admin for approval.');
     }
 
+    /**
+     * The applicant revises their own application while it is still pending,
+     * so the admin's job is to verify and finalise rather than retype. Locked
+     * the moment a decision is made.
+     */
+    public function update(Request $request, LeaveApplication $application)
+    {
+        $user = $request->user();
+
+        abort_unless($this->canEdit($application, $user), 403, 'This application can no longer be edited.');
+
+        $type = LeaveType::find($request->input('leave_type_id'));
+
+        $data = $this->withComputedDays(
+            $request->validate($this->applicationRules($type)),
+            $type
+        );
+
+        // The 6.D block follows whatever name the applicant now carries.
+        $data['applicant_sig'] = $this->applicantBlock($user, $data);
+
+        $application->update($data);
+
+        LeaveWorkflow::log($application, $user, 'updated', null, null);
+
+        return back()->with('success', 'Application updated.');
+    }
+
+    /** An application is the applicant's to revise until it is decided. */
+    private function canEdit(LeaveApplication $application, User $user): bool
+    {
+        return (int) $application->user_id === (int) $user->id
+            && $application->status === LeaveWorkflow::PENDING;
+    }
+
     public function show(Request $request, LeaveApplication $application)
     {
         $user = $request->user();
@@ -170,9 +224,44 @@ class LeaveController extends Controller
         $application->load(['leaveType', 'user:id,name', 'actions.user:id,name']);
 
         $canProcess = LeaveWorkflow::canProcess($application, $user);
+        $canEdit    = $this->canEdit($application, $user);
 
         return Inertia::render('Leave/Show', [
             'application' => $this->detail($application),
+            // The applicant revises boxes 1–6 and names 7.B while pending, so
+            // the edit form needs the same reference data as the filing form.
+            'leaveTypes' => $canEdit
+                ? LeaveType::active()->get(['id', 'code', 'name', 'legal_basis', 'detail_group', 'day_basis'])
+                : null,
+            'holidays' => $canEdit
+                ? Holiday::orderBy('date')->get()->mapWithKeys(fn ($h) => [$h->date->toDateString() => $h->name])
+                : null,
+            'form' => $canEdit ? [
+                'leave_type_id'  => $application->leave_type_id,
+                'other_leave_type' => $application->other_leave_type,
+                'office_department' => $application->office_department,
+                'applicant_last_name' => $application->applicant_last_name,
+                'applicant_first_name' => $application->applicant_first_name,
+                'applicant_middle_name' => $application->applicant_middle_name,
+                'date_filing'    => optional($application->date_filing)->toDateString(),
+                'position'       => $application->position,
+                'salary'         => $application->salary,
+                'detail_vacation' => $application->detail_vacation,
+                'detail_vacation_location' => $application->detail_vacation_location,
+                'detail_sick'    => $application->detail_sick,
+                'detail_sick_illness' => $application->detail_sick_illness,
+                'detail_women_illness' => $application->detail_women_illness,
+                'detail_study'   => $application->detail_study,
+                'detail_study_other' => $application->detail_study_other,
+                'detail_other_purpose' => $application->detail_other_purpose,
+                'date_from'      => optional($application->date_from)->toDateString(),
+                'date_to'        => optional($application->date_to)->toDateString(),
+                'commutation'    => $application->commutation,
+            ] : null,
+            // The applicant sees their own 7.B so they can name the officer.
+            'myRecommender' => $canEdit
+                ? $this->signatoryFields($application->recommender_sig, null)
+                : null,
             'can' => [
                 'process' => $canProcess,
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
@@ -180,6 +269,7 @@ class LeaveController extends Controller
                 // The applicant files the wet-signed copy once approved.
                 'upload_form' => (int) $application->user_id === (int) $user->id
                     && $application->status === LeaveWorkflow::APPROVED,
+                'edit' => $canEdit,
             ],
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
@@ -357,7 +447,15 @@ class LeaveController extends Controller
      */
     public function setSignatory(Request $request, LeaveApplication $application)
     {
-        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
+        $user = $request->user();
+
+        // The applicant names their own recommending officer (7.B) while the
+        // leave is pending; only an admin may touch 7.A or 7.C/7.D.
+        $isAdmin = LeaveWorkflow::isAdmin($user);
+        $ownRecommender = $request->input('slot') === 'recommender'
+            && $this->canEdit($application, $user);
+
+        abort_unless($isAdmin || $ownRecommender, 403);
 
         $data = $request->validate([
             'slot'     => ['required', Rule::in(['certifier', 'recommender', 'approver'])],
