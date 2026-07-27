@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
+import SignatureUploader from '@/Components/SignatureUploader';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
@@ -33,6 +34,7 @@ export default function Index({ users, roles, employees }) {
     const [open, setOpen] = useState(false); // create
     const [editing, setEditing] = useState(null); // user being edited
     const [resetting, setResetting] = useState(null); // user whose pw is reset
+    const [signing, setSigning] = useState(null);     // user whose e-signature is set
     const meId = usePage().props.auth?.user?.id;
 
     const create = useForm({
@@ -230,6 +232,13 @@ export default function Index({ users, roles, employees }) {
                                             >
                                                 Reset password
                                             </button>
+                                            <button
+                                                onClick={() => setSigning(u)}
+                                                className="text-slate-600 hover:text-slate-500"
+                                                title="The signature printed over this person's name on CS Form 6"
+                                            >
+                                                Signature{u.signature_url ? ' ✓' : ''}
+                                            </button>
                                             {u.id !== meId && (
                                                 <button
                                                     onClick={() => toggleActive(u)}
@@ -382,6 +391,33 @@ export default function Index({ users, roles, employees }) {
                             <PrimaryButton disabled={pw.processing}>Reset password</PrimaryButton>
                         </div>
                     </form>
+                )}
+            </Modal>
+
+            {/* E-signature — set one for a signatory who rarely logs in. */}
+            <Modal show={!!signing} onClose={() => setSigning(null)} maxWidth="lg">
+                {signing && (
+                    <div className="p-6">
+                        <h3 className="text-lg font-semibold text-slate-800">
+                            Signature — {signing.name}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Prints over their name on CS Form No. 6 once they
+                            certify or approve a leave.
+                        </p>
+                        <div className="mt-4">
+                            <SignatureUploader
+                                userId={signing.id}
+                                url={signing.signature_url}
+                                compact
+                            />
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <SecondaryButton type="button" onClick={() => setSigning(null)}>
+                                Close
+                            </SecondaryButton>
+                        </div>
+                    </div>
                 )}
             </Modal>
         </AuthenticatedLayout>

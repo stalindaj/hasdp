@@ -22,15 +22,35 @@
     $checkedType = $app->leave_type_id;
     $det = fn ($field, $value) => $app->{$field} === $value;
 
-    // Signature blocks are frozen at filing. Older rows predate the snapshot,
-    // so fall back to the linked account's name rather than printing nothing.
-    $sigOf = fn (?array $sig, $user) => $sig ?: [
-        'rank'        => '',
-        'name'        => strtoupper((string) ($user?->name ?? '')),
-        'branch'      => '',
-        'position'    => '',
-        'designation' => '',
-    ];
+    /**
+     * Signature blocks are frozen at filing. Older rows predate the snapshot,
+     * so fall back to the linked account's name rather than printing nothing.
+     *
+     * The e-signature is resolved live from the signatory's account (not
+     * frozen), so uploading one later fixes every form at once. $signed says
+     * whether that block's act has actually happened — a signature must never
+     * print on a step nobody has taken yet.
+     */
+    $sigOf = function (?array $sig, $user, bool $signed = false) {
+        $block = $sig ?: [
+            'rank'        => '',
+            'name'        => strtoupper((string) ($user?->name ?? '')),
+            'branch'      => '',
+            'position'    => '',
+            'designation' => '',
+        ];
+
+        $block['signature'] = $signed && $user?->signature_path
+            ? route('signature.show', $user)
+            : null;
+
+        return $block;
+    };
+
+    // 7.A is signed once the credits are certified; 7.C/7.D once decided; the
+    // applicant signs 6.D by filing.
+    $certified = (bool) ($app->certified_at || $app->cert_as_of);
+    $decided   = $app->decision !== null;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -334,13 +354,13 @@
         <span class="lbl f75">Requested</span>
     </div>
 
-    {{-- Applicant signs here by pen. --}}
+    {{-- The applicant signs 6.D by filing the application. --}}
     @include('leave._sigblock', [
-        'sig' => $app->applicant_sig ?: [
+        'sig' => $sigOf($app->applicant_sig ?: [
             'rank'   => '',
             'name'   => strtoupper((string) $app->applicant_name),
             'branch' => '',
-        ],
+        ], $app->user, true),
         'left'    => $MID + 5,
         'width'   => 190,
         'top'     => 485,
@@ -400,7 +420,7 @@
     @endforeach
 
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer),
+        'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer, $certified),
         'left'    => 120,
         'width'   => 204,
         'top'     => 594,
@@ -479,7 +499,7 @@
 
     {{-- Approving official signs by pen. --}}
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->approver_sig, $app->approver),
+        'sig'     => $sigOf($app->approver_sig, $app->approver, $decided),
         'left'    => 216,
         'width'   => 199,
         'top'     => 686,

@@ -3,6 +3,7 @@ import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import PrimaryButton from '@/Components/PrimaryButton';
+import SignatureUploader from '@/Components/SignatureUploader';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
 
@@ -18,7 +19,7 @@ function Field({ label, value }) {
     );
 }
 
-export default function MyProfile({ employee }) {
+export default function MyProfile({ employee, signature }) {
     const flash = usePage().props.flash;
 
     const { data, setData, patch, processing, errors, recentlySuccessful } =
@@ -192,6 +193,15 @@ export default function MyProfile({ employee }) {
                                 </Transition>
                             </div>
                         </form>
+                    </section>
+
+                    {/* The e-signature printed over your name on CS Form 6. */}
+                    <section className="bg-white p-6 shadow-sm sm:rounded-lg">
+                        <SignatureUploader
+                            userId={signature.user_id}
+                            url={signature.url}
+                            label="My signature"
+                        />
                     </section>
                 </div>
             </div>

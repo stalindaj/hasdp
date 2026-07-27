@@ -59,6 +59,21 @@
     // the page's default 8.4pt line box).
 @endphp
 
+@if (! empty($sig['signature']))
+    {{-- The e-signature sits over the printed name, the way a pen signature
+         does: centred on the block, its baseline overlapping the name's top
+         so the two read as one. --}}
+    <img src="{{ $sig['signature'] }}" alt=""
+         style="position:absolute;
+                left:{{ $left }}pt;
+                top:{{ $nameTop - 20 }}pt;
+                width:{{ $width }}pt;
+                height:24pt;
+                object-fit:contain;
+                object-position:center bottom;
+                mix-blend-mode:multiply;">
+@endif
+
 <div class="t c" style="left:{{ $left }}pt; top:{{ $nameTop }}pt; width:{{ $width }}pt; line-height:{{ $nameGap }}pt;">
     <span class="v b f75" style="position:relative; display:inline-block; vertical-align:top; line-height:{{ $nameGap }}pt; white-space:nowrap;">{{ $name }}
         @if ($rank !== '')

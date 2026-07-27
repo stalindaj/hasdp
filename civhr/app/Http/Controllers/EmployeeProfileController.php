@@ -35,6 +35,13 @@ class EmployeeProfileController extends Controller
                 'philhealth_no'    => $employee->philhealth_no,
                 'pagibig_mid'      => $employee->pagibig_mid,
             ] : null,
+            // The e-signature that prints over this person's name on CS Form 6.
+            'signature' => [
+                'user_id' => $request->user()->id,
+                'url'     => $request->user()->signature_path
+                    ? route('signature.show', $request->user())
+                    : null,
+            ],
         ]);
     }
 

@@ -31,6 +31,12 @@ class UserController extends Controller
                     'employee'  => $u->employee
                         ? $u->employee->first_name.' '.$u->employee->last_name
                         : null,
+                    // The e-signature printed over this person's name on
+                    // CS Form 6 — admins set it for signatories who rarely
+                    // log in, such as the Director for Personnel.
+                    'signature_url' => $u->signature_path
+                        ? route('signature.show', $u)
+                        : null,
                 ]),
             'roles' => Role::orderBy('label')->get(['id', 'name', 'label']),
             // Employees not yet linked to a login, for linking on create/edit.

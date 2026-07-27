@@ -5,6 +5,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EmployeeProfileController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveLedgerController;
+use App\Http\Controllers\SignatureController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\AuditController;
@@ -90,6 +91,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // E-signatures — your own, or anyone's if you are an admin.
+    Route::post('/signature/{user}', [SignatureController::class, 'store'])->name('signature.store');
+    Route::delete('/signature/{user}', [SignatureController::class, 'destroy'])->name('signature.destroy');
+    Route::get('/signature/{user}', [SignatureController::class, 'show'])->name('signature.show');
 
     // Employee self-service profile (HR record)
     Route::get('/my-profile', [EmployeeProfileController::class, 'edit'])->name('my-profile.edit');
