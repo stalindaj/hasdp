@@ -111,6 +111,85 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
     return (
         <Card title="Edit your application">
             <form onSubmit={submit} className="space-y-5">
+                {/* Boxes 1–5 — normally carried over from the profile, but
+                    editable here so a wrong office or position can be fixed
+                    on the form itself. */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                        <InputLabel htmlFor="e_office" value="1. Office / Department" />
+                        <TextInput
+                            id="e_office"
+                            className="mt-1 block w-full"
+                            value={data.office_department ?? ''}
+                            onChange={(e) => setData('office_department', e.target.value)}
+                        />
+                        <InputError message={errors.office_department} className="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel htmlFor="e_last" value="2. Last name" />
+                        <TextInput
+                            id="e_last"
+                            className="mt-1 block w-full"
+                            value={data.applicant_last_name ?? ''}
+                            onChange={(e) => setData('applicant_last_name', e.target.value)}
+                        />
+                        <InputError message={errors.applicant_last_name} className="mt-1" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel htmlFor="e_first" value="First name" />
+                            <TextInput
+                                id="e_first"
+                                className="mt-1 block w-full"
+                                value={data.applicant_first_name ?? ''}
+                                onChange={(e) => setData('applicant_first_name', e.target.value)}
+                            />
+                            <InputError message={errors.applicant_first_name} className="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="e_mid" value="Middle" />
+                            <TextInput
+                                id="e_mid"
+                                className="mt-1 block w-full"
+                                value={data.applicant_middle_name ?? ''}
+                                onChange={(e) => setData('applicant_middle_name', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <InputLabel htmlFor="e_filing" value="3. Date of filing" />
+                        <TextInput
+                            id="e_filing"
+                            type="date"
+                            className="mt-1 block w-full"
+                            value={data.date_filing ?? ''}
+                            onChange={(e) => setData('date_filing', e.target.value)}
+                        />
+                        <InputError message={errors.date_filing} className="mt-1" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel htmlFor="e_pos" value="4. Position" />
+                            <TextInput
+                                id="e_pos"
+                                className="mt-1 block w-full"
+                                value={data.position ?? ''}
+                                onChange={(e) => setData('position', e.target.value)}
+                            />
+                            <InputError message={errors.position} className="mt-1" />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="e_sal" value="5. Salary grade" />
+                            <TextInput
+                                id="e_sal"
+                                className="mt-1 block w-full"
+                                value={data.salary ?? ''}
+                                onChange={(e) => setData('salary', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     <InputLabel htmlFor="e_type" value="6.A — Type of leave" />
                     <select
@@ -266,6 +345,37 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                         ))}
                     </ul>
                 )}
+
+                {/* 6.B — other purpose, available on any leave type */}
+                <div>
+                    <p className="mb-1 text-sm font-medium text-gray-700">
+                        Other purpose (optional)
+                    </p>
+                    {[
+                        ['monetization', 'Monetization of Leave Credits'],
+                        ['terminal', 'Terminal Leave'],
+                    ].map(([v, label]) => (
+                        <label key={v} className="flex cursor-pointer items-center gap-2 py-0.5">
+                            <input
+                                type="radio"
+                                name="e_other_purpose"
+                                checked={data.detail_other_purpose === v}
+                                onChange={() => setData('detail_other_purpose', v)}
+                                className="border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-gray-700">{label}</span>
+                        </label>
+                    ))}
+                    {data.detail_other_purpose && (
+                        <button
+                            type="button"
+                            className="mt-1 text-xs text-gray-500 underline"
+                            onClick={() => setData('detail_other_purpose', '')}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
 
                 {/* 6.D */}
                 <div>
@@ -569,7 +679,11 @@ function SignatoriesCard({ application, signatories, canEditFixed, canEditRecomm
 /* ── What 7.A will certify — read-only, for the applicant ────────────── */
 function CreditSummaryCard({ application, balanceCheck }) {
     const c = application.certification ?? {};
+    const d = application.decision ?? {};
     const certified = c.as_of || c.vl_earned !== null;
+    // Figures the admin has drafted but not yet committed to a decision.
+    const hasDraftPay =
+        d.days_with_pay != null || d.days_without_pay != null || d.days_others != null;
 
     return (
         <Card title="7.A — Certification of leave credits">
@@ -610,6 +724,39 @@ function CreditSummaryCard({ application, balanceCheck }) {
                     process your application.
                 </p>
             )}
+
+            {/* 7.C / 7.D — the bottom of the form, so nothing is a surprise. */}
+            <div className="mt-5 border-t border-gray-100 pt-4">
+                <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+                    7.C / 7.D — Action on the application
+                </p>
+                {d.value ? (
+                    d.value === 'approved' ? (
+                        <dl className="grid gap-4 sm:grid-cols-3">
+                            <Field label="Days with pay">{d.days_with_pay}</Field>
+                            <Field label="Days without pay">{d.days_without_pay}</Field>
+                            <Field label="Others">
+                                {d.days_others
+                                    ? `${d.days_others}${d.others_specify ? ` — ${d.others_specify}` : ''}`
+                                    : null}
+                            </Field>
+                        </dl>
+                    ) : (
+                        <Field label="Disapproved due to">{d.reason}</Field>
+                    )
+                ) : hasDraftPay ? (
+                    <dl className="grid gap-4 sm:grid-cols-3">
+                        <Field label="Days with pay (draft)">{d.days_with_pay}</Field>
+                        <Field label="Days without pay (draft)">{d.days_without_pay}</Field>
+                        <Field label="Others (draft)">{d.days_others}</Field>
+                    </dl>
+                ) : (
+                    <p className="text-xs text-gray-500">
+                        Filled in by the approving official when your leave is
+                        acted on.
+                    </p>
+                )}
+            </div>
         </Card>
     );
 }

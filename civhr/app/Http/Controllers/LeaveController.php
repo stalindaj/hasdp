@@ -493,7 +493,11 @@ class LeaveController extends Controller
             'approver'    => 'approver_sig',
         ][$data['slot']];
 
-        $application->update([$column => $sig]);
+        $application->update([$column => $sig] + (
+            // Stamp when 7.B was recommended, so the form can print the date
+            // beside the signature.
+            $data['slot'] === 'recommender' ? ['recommended_at' => $sig ? now() : null] : []
+        ));
 
         $label = ['certifier' => '7.A', 'recommender' => '7.B', 'approver' => '7.C/7.D'][$data['slot']];
 

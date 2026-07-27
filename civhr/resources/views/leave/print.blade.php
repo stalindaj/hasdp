@@ -365,6 +365,7 @@
         'width'   => 190,
         'top'     => 485,
         'caption' => '(Signature of Applicant)',
+        'signedOn' => $d($app->date_filing, 'd M Y'),
     ])
 
     {{-- ── Band: 7. DETAILS OF ACTION ON APPLICATION ── --}}
@@ -425,6 +426,7 @@
         'width'   => 204,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
+        'signedOn' => $certified ? $d($app->certified_at ?: $app->cert_as_of, 'd M Y') : null,
     ])
 
     {{-- ── 7.B RECOMMENDATION ── --}}
@@ -459,6 +461,7 @@
         'width'   => 190,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
+        'signedOn' => $app->recommended_at ? $d($app->recommended_at, 'd M Y') : null,
     ])
 
     {{-- ── 7.C APPROVED FOR / 7.D DISAPPROVED DUE TO ── --}}
@@ -504,6 +507,7 @@
         'width'   => 199,
         'top'     => 686,
         'caption' => '(Authorized Official)',
+        'signedOn' => $decided ? $d($app->decided_at, 'd M Y') : null,
     ])
 
 </div>
