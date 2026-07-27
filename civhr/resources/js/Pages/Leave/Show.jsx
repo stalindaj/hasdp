@@ -485,10 +485,10 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
     );
 }
 
-/* ── Admin: the three signature blocks on the printed form ───────────── */
-function SignatoriesCard({ application, signatories }) {
-    // 7.A and 7.C/7.D come from the role holders and rarely change, so they
-    // stay collapsed behind a quiet link; 7.B is picked per leave.
+/* ── The three signature blocks on the printed form ──────────────────── */
+function SignatoriesCard({ application, signatories, canEditFixed, canEditRecommender }) {
+    // 7.A and 7.C/7.D come from the role holders and rarely change, so their
+    // editors stay collapsed behind a quiet link — and only for an admin.
     const [editing, setEditing] = useState(null);
 
     const fixed = [
@@ -503,15 +503,17 @@ function SignatoriesCard({ application, signatories }) {
                     <div key={slot}>
                         <dt className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-500">
                             {label}
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setEditing(editing === slot ? null : slot)
-                                }
-                                className="text-[11px] font-medium normal-case text-gray-400 underline-offset-2 hover:text-indigo-600 hover:underline"
-                            >
-                                {editing === slot ? 'cancel' : 'change'}
-                            </button>
+                            {canEditFixed && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setEditing(editing === slot ? null : slot)
+                                    }
+                                    className="text-[11px] font-medium normal-case text-gray-400 underline-offset-2 hover:text-indigo-600 hover:underline"
+                                >
+                                    {editing === slot ? 'cancel' : 'change'}
+                                </button>
+                            )}
                         </dt>
                         <dd className="mt-0.5 text-sm text-gray-900">
                             {signatories[slot]?.label || '—'}
@@ -541,17 +543,73 @@ function SignatoriesCard({ application, signatories }) {
             )}
 
             <div className="mt-5 border-t border-gray-100 pt-4">
-                <SignatoryForm
-                    application={application}
-                    slot="recommender"
-                    label="7.B — Recommending officer"
-                    initial={signatories.recommender}
-                />
+                {canEditRecommender ? (
+                    <SignatoryForm
+                        application={application}
+                        slot="recommender"
+                        label="7.B — Recommending officer"
+                        initial={signatories.recommender}
+                    />
+                ) : (
+                    <Field label="7.B — Recommending officer">
+                        {signatories.recommender?.label}
+                    </Field>
+                )}
             </div>
 
-            <p className="mt-3 text-xs text-gray-500">
-                Leave a name blank and save to clear that block.
-            </p>
+            {canEditRecommender && (
+                <p className="mt-3 text-xs text-gray-500">
+                    Leave a name blank and save to clear that block.
+                </p>
+            )}
+        </Card>
+    );
+}
+
+/* ── What 7.A will certify — read-only, for the applicant ────────────── */
+function CreditSummaryCard({ application, balanceCheck }) {
+    const c = application.certification ?? {};
+    const certified = c.as_of || c.vl_earned !== null;
+
+    return (
+        <Card title="7.A — Certification of leave credits">
+            {balanceCheck && (
+                <table className="w-full max-w-md text-center text-sm">
+                    <thead>
+                        <tr className="text-xs uppercase tracking-wide text-slate-400">
+                            <th className="pb-1">VL</th>
+                            <th className="pb-1">SL</th>
+                            <th className="pb-1">Wellness</th>
+                            <th className="pb-1">SPL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr className="text-base font-semibold text-slate-900">
+                            <td>{balanceCheck.balances.vl}</td>
+                            <td>{balanceCheck.balances.sl}</td>
+                            <td>{balanceCheck.balances.wellness}</td>
+                            <td>{balanceCheck.balances.spl}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            )}
+
+            {certified ? (
+                <dl className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
+                    <Field label="As of">{c.as_of}</Field>
+                    <Field label="VL — earned / less / balance">
+                        {`${c.vl_earned ?? '—'} / ${c.vl_less ?? '—'} / ${c.vl_balance ?? '—'}`}
+                    </Field>
+                    <Field label="SL — earned / less / balance">
+                        {`${c.sl_earned ?? '—'} / ${c.sl_less ?? '—'} / ${c.sl_balance ?? '—'}`}
+                    </Field>
+                </dl>
+            ) : (
+                <p className="mt-3 text-xs text-gray-500">
+                    HR certifies these figures on the printed form when they
+                    process your application.
+                </p>
+            )}
         </Card>
     );
 }
@@ -912,7 +970,6 @@ export default function Show({
     leaveTypes,
     holidays,
     form,
-    myRecommender,
 }) {
     const flash = usePage().props.flash;
 
@@ -1054,21 +1111,6 @@ export default function Show({
                         />
                     )}
 
-                    {can.edit && (
-                        <Card title="7.B — Recommending officer">
-                            <p className="mb-3 text-sm text-gray-600">
-                                Name the officer who will recommend your leave.
-                                They sign this block on the printed form.
-                            </p>
-                            <SignatoryForm
-                                application={a}
-                                slot="recommender"
-                                label="Recommending officer"
-                                initial={myRecommender}
-                            />
-                        </Card>
-                    )}
-
                     {(can.upload_form ||
                         (a.status === 'approved' && can.process)) && (
                         <SignedFormCard
@@ -1077,10 +1119,21 @@ export default function Show({
                         />
                     )}
 
-                    {can.process && signatories && (
+                    {signatories && (
                         <SignatoriesCard
                             application={a}
                             signatories={signatories}
+                            canEditFixed={can.process}
+                            canEditRecommender={can.edit}
+                        />
+                    )}
+
+                    {/* The applicant sees what 7.A will certify; the admin
+                        gets the editable version in the processing card. */}
+                    {!can.process && (
+                        <CreditSummaryCard
+                            application={a}
+                            balanceCheck={balanceCheck}
                         />
                     )}
 

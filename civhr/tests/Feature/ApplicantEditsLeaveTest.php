@@ -209,8 +209,78 @@ class ApplicantEditsLeaveTest extends TestCase
                 ->has('form')
                 ->where('form.commutation', 'not_requested'));
 
-        // An admin viewing it is not offered the applicant's edit form.
+        // An admin may also edit, to finalise rather than bounce it back.
         $this->actingAs($this->admin())->get(route('leave.show', $leave))
-            ->assertInertia(fn ($p) => $p->where('can.edit', false));
+            ->assertInertia(fn ($p) => $p
+                ->where('can.edit', true)
+                ->where('can.process', true));
+    }
+
+    public function test_an_admin_can_correct_the_form_while_finalising(): void
+    {
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
+
+        $this->actingAs($this->admin())->patch(route('leave.update', $leave), [
+            'leave_type_id' => LeaveType::where('code', 'vacation')->value('id'),
+            'office_department' => 'Directorate for Personnel',
+            'applicant_last_name' => 'Bercades', 'applicant_first_name' => 'Justin',
+            'date_filing' => '2026-07-03', 'position' => 'Admin Aide IV',
+            'detail_vacation' => 'within_philippines',
+            'date_from' => '2026-07-20', 'date_to' => '2026-07-21',
+            'commutation' => 'not_requested',
+        ])->assertRedirect();
+
+        $this->assertEquals(2.0, (float) $leave->fresh()->working_days);
+    }
+
+    public function test_the_applicant_sees_the_signatories_and_their_balances(): void
+    {
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
+
+        $this->actingAs($this->admin())->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Juan P Dela Cruz', 'rank' => 'MAJ', 'office' => 'Chief, MPMBR',
+        ]);
+
+        $this->actingAs($applicant)->get(route('leave.show', $leave))
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                // The employee sees the same signatory panel the admin does…
+                ->where('signatories.recommender.label', 'MAJ JUAN P DELA CRUZ PAF')
+                ->has('signatories.certifier')
+                ->has('signatories.approver')
+                // …and their own credit balances.
+                ->has('balanceCheck.balances')
+                // But cannot process the leave.
+                ->where('can.process', false));
+    }
+
+    public function test_signatory_changes_land_on_the_audit_trail(): void
+    {
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
+
+        $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'civilian',
+            'name' => 'Dianne R Relato', 'position' => 'Admin Officer V',
+            'office' => 'Supply Accountable Officer',
+        ])->assertRedirect();
+
+        $action = $leave->actions()->where('action', 'set 7.B')->first();
+        $this->assertNotNull($action);
+        $this->assertSame($applicant->id, $action->user_id);
+        $this->assertStringContainsString('DIANNE R RELATO', $action->remarks);
+
+        // The superadmin audit page picks it up.
+        $super = User::factory()->create();
+        $super->roles()->sync(Role::where('name', 'superadmin')->pluck('id'));
+
+        $this->actingAs($super)->get(route('admin.audit.index'))
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->where('events', fn ($events) => collect($events)
+                    ->pluck('action')->contains('set 7.B')));
     }
 }

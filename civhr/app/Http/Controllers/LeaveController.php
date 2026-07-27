@@ -209,11 +209,19 @@ class LeaveController extends Controller
         return back()->with('success', 'Application updated.');
     }
 
-    /** An application is the applicant's to revise until it is decided. */
+    /**
+     * Boxes 1–6 stay open until the leave is decided: the applicant fills
+     * them in, and an admin may correct anything while finalising rather
+     * than bouncing the form back.
+     */
     private function canEdit(LeaveApplication $application, User $user): bool
     {
+        if ($application->status !== LeaveWorkflow::PENDING) {
+            return false;
+        }
+
         return (int) $application->user_id === (int) $user->id
-            && $application->status === LeaveWorkflow::PENDING;
+            || LeaveWorkflow::isAdmin($user);
     }
 
     public function show(Request $request, LeaveApplication $application)
@@ -258,10 +266,6 @@ class LeaveController extends Controller
                 'date_to'        => optional($application->date_to)->toDateString(),
                 'commutation'    => $application->commutation,
             ] : null,
-            // The applicant sees their own 7.B so they can name the officer.
-            'myRecommender' => $canEdit
-                ? $this->signatoryFields($application->recommender_sig, null)
-                : null,
             'can' => [
                 'process' => $canProcess,
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
@@ -273,14 +277,17 @@ class LeaveController extends Controller
             ],
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
-            'balanceCheck' => $canProcess ? $this->balanceCheck($application) : null,
-            // All three blocks are editable; 7.A / 7.C-D fall back to the role
-            // holders while nothing has been typed for them.
-            'signatories' => $canProcess ? [
+            'balanceCheck' => ($canProcess || (int) $application->user_id === (int) $user->id)
+                ? $this->balanceCheck($application)
+                : null,
+            // Everyone who can see the leave sees who signs it; the page only
+            // offers the 7.A / 7.C-D editors to an admin. 7.A / 7.C-D fall
+            // back to the role holders until something is typed for them.
+            'signatories' => [
                 'certifier'   => $this->signatoryFields($application->hr_officer_sig, $this->defaultCertifier()),
                 'recommender' => $this->signatoryFields($application->recommender_sig, null),
                 'approver'    => $this->signatoryFields($application->approver_sig, $this->defaultApprover()),
-            ] : null,
+            ],
             'creditPrefill' => $canProcess ? $this->creditPrefill($application) : null,
         ]);
     }
@@ -489,6 +496,16 @@ class LeaveController extends Controller
         $application->update([$column => $sig]);
 
         $label = ['certifier' => '7.A', 'recommender' => '7.B', 'approver' => '7.C/7.D'][$data['slot']];
+
+        // Signatory changes belong on the audit trail like any other act.
+        LeaveWorkflow::log(
+            $application,
+            $user,
+            'set '.$label,
+            null,
+            null,
+            $sig ? trim($rank.' '.$name.' '.($sig['designation'] ?: '')) : 'cleared'
+        );
 
         return back()->with('success', $sig
             ? "{$label} set to {$name}."
