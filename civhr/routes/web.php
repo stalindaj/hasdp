@@ -120,6 +120,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/leave/{application}/signed-form', [LeaveController::class, 'storeSignedForm'])->name('leave.signed-form.store');
     Route::get('/leave/{application}/signed-form', [LeaveController::class, 'signedForm'])->name('leave.signed-form');
 
+    // A signature image uploaded straight from the printed form, per block
+    // (applicant / certifier / recommender / approver) — printed over the name.
+    Route::post('/leave/{application}/signature/{slot}', [LeaveController::class, 'storeBlockSignature'])->name('leave.block-signature.store');
+    Route::delete('/leave/{application}/signature/{slot}', [LeaveController::class, 'destroyBlockSignature'])->name('leave.block-signature.destroy');
+    Route::get('/leave/{application}/signature/{slot}', [LeaveController::class, 'blockSignature'])->name('leave.block-signature');
+
     // L&D — employee submits with photo proof; admin approves; files are
     // private and served only to the owner and admins.
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');

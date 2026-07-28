@@ -67,11 +67,13 @@
          does: centred on the block, its baseline overlapping the name's top
          so the two read as one. --}}
     <img src="{{ $sig['signature'] }}" alt=""
+         onerror="this.style.display='none'"
          style="position:absolute;
                 left:{{ $left }}pt;
                 top:{{ $nameTop - 20 }}pt;
                 width:{{ $width }}pt;
                 height:24pt;
+                border:0;
                 object-fit:contain;
                 object-position:center bottom;
                 mix-blend-mode:multiply;">

@@ -21,6 +21,7 @@ class LeaveApplication extends Model
         'hr_officer_sig'   => 'array',
         'recommender_sig'  => 'array',
         'approver_sig'     => 'array',
+        'signature_uploads' => 'array',
         'working_days'     => 'decimal:2',
         'days_with_pay'    => 'decimal:2',
         'days_without_pay' => 'decimal:2',

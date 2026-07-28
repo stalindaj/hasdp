@@ -548,6 +548,71 @@ class LeaveController extends Controller
         return back()->with('success', 'Signed form uploaded — it is now on file.');
     }
 
+    /** The four signature blocks on the printed form, by slot. */
+    private const SIGNATURE_SLOTS = ['applicant', 'certifier', 'recommender', 'approver'];
+
+    /**
+     * Upload a signature image for one of the four blocks, straight from the
+     * printed form. Unlike an account e-signature this is tied to this one
+     * leave, so it also covers signatories with no account (e.g. the 7.B
+     * recommending officer). Replaces any image already on that block.
+     */
+    public function storeBlockSignature(Request $request, LeaveApplication $application, string $slot)
+    {
+        abort_unless(in_array($slot, self::SIGNATURE_SLOTS, true), 404);
+        abort_unless(LeaveWorkflow::canProcess($application, $request->user()), 403);
+
+        $request->validate([
+            'signature' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:8192'],
+        ], [
+            'signature.image' => 'Upload a picture of the signature (a PNG with a transparent background prints cleanest).',
+            'signature.max'   => 'That image is too large — keep it under 8 MB.',
+        ]);
+
+        $uploads = $application->signature_uploads ?? [];
+
+        // One image per block: replace rather than accumulate.
+        if (! empty($uploads[$slot])) {
+            \Illuminate\Support\Facades\Storage::delete($uploads[$slot]);
+        }
+
+        $uploads[$slot] = $request->file('signature')->store("leave-signatures/{$application->id}");
+        $application->update(['signature_uploads' => $uploads]);
+
+        $label = ['applicant' => '6.D', 'certifier' => '7.A', 'recommender' => '7.B', 'approver' => '7.C/7.D'][$slot];
+        LeaveWorkflow::log($application, $request->user(), "signed {$label}", null, null);
+
+        return back()->with('success', "Signature added to {$label}. It prints over the name on CS Form No. 6.");
+    }
+
+    /** Remove the uploaded signature from one block. */
+    public function destroyBlockSignature(Request $request, LeaveApplication $application, string $slot)
+    {
+        abort_unless(in_array($slot, self::SIGNATURE_SLOTS, true), 404);
+        abort_unless(LeaveWorkflow::canProcess($application, $request->user()), 403);
+
+        $uploads = $application->signature_uploads ?? [];
+        if (! empty($uploads[$slot])) {
+            \Illuminate\Support\Facades\Storage::delete($uploads[$slot]);
+            unset($uploads[$slot]);
+            $application->update(['signature_uploads' => $uploads]);
+        }
+
+        return back()->with('success', 'Signature removed.');
+    }
+
+    /** Serve a block's uploaded signature — it prints on the shared form. */
+    public function blockSignature(Request $request, LeaveApplication $application, string $slot)
+    {
+        abort_unless(in_array($slot, self::SIGNATURE_SLOTS, true), 404);
+        $this->authorizeView($application, $request->user());
+
+        $path = ($application->signature_uploads ?? [])[$slot] ?? null;
+        abort_unless($path && \Illuminate\Support\Facades\Storage::exists($path), 404);
+
+        return response()->file(\Illuminate\Support\Facades\Storage::path($path));
+    }
+
     /** The uploaded signed form, visible to the owner and admins. */
     public function signedForm(Request $request, LeaveApplication $application)
     {
@@ -587,6 +652,9 @@ class LeaveController extends Controller
 
         return view('leave.print', [
             'app'            => $application,
+            // Whoever may process the leave may also sign the blocks directly
+            // on the form; drives the on-screen upload controls.
+            'canSign'        => LeaveWorkflow::canProcess($application, $user),
             // Only the official CSC checkboxes render in 6.A; unofficial types
             // (e.g. Wellness Leave) print on the "Others:" blank instead.
             'types'          => LeaveType::active()->where('is_official', true)->get(),

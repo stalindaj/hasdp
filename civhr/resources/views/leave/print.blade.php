@@ -31,7 +31,7 @@
      * whether that block's act has actually happened — a signature must never
      * print on a step nobody has taken yet.
      */
-    $sigOf = function (?array $sig, $user, bool $signed = false) {
+    $sigOf = function (?array $sig, $user, bool $signed = false, ?string $slot = null) use ($app) {
         $block = $sig ?: [
             'rank'        => '',
             'name'        => strtoupper((string) ($user?->name ?? '')),
@@ -40,9 +40,17 @@
             'designation' => '',
         ];
 
-        $block['signature'] = $signed && $user?->signature_path
-            ? route('signature.show', $user)
-            : null;
+        // A signature uploaded onto this very form wins — it also covers
+        // signatories with no account (e.g. 7.B). Otherwise fall back to the
+        // signatory's own account e-signature, once that step has been taken.
+        $uploaded = $slot && ! empty(($app->signature_uploads ?? [])[$slot]);
+
+        // Root-relative paths only: an absolute URL built from APP_URL would
+        // point at the wrong host/port whenever the app is served somewhere
+        // else (e.g. the dev server on :8123), leaving broken-image boxes.
+        $block['signature'] = $uploaded
+            ? parse_url(route('leave.block-signature', [$app, $slot]), PHP_URL_PATH).'?v='.substr(md5($app->signature_uploads[$slot]), 0, 8)
+            : ($signed && $user?->signature_path ? parse_url(route('signature.show', $user), PHP_URL_PATH) : null);
 
         return $block;
     };
@@ -155,9 +163,24 @@
     }
     .toolbar .ghost { background: #374151; }
 
+    /* On-screen "sign here" controls — never printed. Each sits at a signature
+       block and opens the file picker to drop an image over the name. */
+    .sigup {
+        position: absolute; z-index: 6;
+        display: inline-flex; align-items: center; gap: 3px;
+        font-family: Arial, Helvetica, sans-serif; font-size: 7pt; line-height: 1;
+        padding: 2.5pt 4pt; border: 0; border-radius: 3pt;
+        background: #2563eb; color: #fff; cursor: pointer; white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(0,0,0,.25);
+    }
+    .sigup:hover { background: #1d4ed8; }
+    .sigup.rm { background: #6b7280; padding: 2.5pt 3.5pt; }
+    .sigup.rm:hover { background: #4b5563; }
+
     @media print {
         html, body { background: #fff; }
         .toolbar { display: none !important; }
+        .sigup { display: none !important; }
         .sheet { margin: 0; page-break-after: always; }
         .sheet:last-child { page-break-after: auto; }
     }
@@ -360,7 +383,7 @@
             'rank'   => '',
             'name'   => strtoupper((string) $app->applicant_name),
             'branch' => '',
-        ], $app->user, true),
+        ], $app->user, true, 'applicant'),
         'left'    => $MID + 5,
         'width'   => 190,
         'top'     => 485,
@@ -421,7 +444,7 @@
     @endforeach
 
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer, $certified),
+        'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer, $certified, 'certifier'),
         'left'    => 120,
         'width'   => 204,
         'top'     => 594,
@@ -456,7 +479,7 @@
     @endfor
 
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->recommender_sig, null),   {{-- typed in by the admin, never linked to an account --}}
+        'sig'     => $sigOf($app->recommender_sig, null, false, 'recommender'),   {{-- typed in by the admin, never linked to an account --}}
         'left'    => $MID + 5,
         'width'   => 190,
         'top'     => 594,
@@ -502,7 +525,7 @@
 
     {{-- Approving official signs by pen. --}}
     @include('leave._sigblock', [
-        'sig'     => $sigOf($app->approver_sig, $app->approver, $decided),
+        'sig'     => $sigOf($app->approver_sig, $app->approver, $decided, 'approver'),
         'left'    => 216,
         'width'   => 199,
         'top'     => 686,
@@ -510,7 +533,86 @@
         'signedOn' => $decided ? $d($app->decided_at, 'd M Y') : null,
     ])
 
+    {{-- ── On-screen signing controls (never printed) ──
+         One per block, sitting just right of its name, so a signature image can
+         be dropped straight onto the form. --}}
+    @if ($canSign)
+        @php
+            $sigButtons = [
+                ['slot' => 'applicant',   'left' => 468, 'top' => 484],
+                ['slot' => 'certifier',   'left' => 262, 'top' => 594],
+                ['slot' => 'recommender', 'left' => 468, 'top' => 594],
+                ['slot' => 'approver',    'left' => 352, 'top' => 686],
+            ];
+        @endphp
+        @foreach ($sigButtons as $b)
+            @php $has = ! empty(($app->signature_uploads ?? [])[$b['slot']]); @endphp
+            <button type="button" class="sigup"
+                    style="left:{{ $b['left'] }}pt; top:{{ $b['top'] }}pt;"
+                    onclick="pickSig('{{ $b['slot'] }}')">{{ $has ? '✎ Replace signature' : '✎ Upload signature' }}</button>
+            @if ($has)
+                <button type="button" class="sigup rm"
+                        style="left:{{ $b['left'] - 12 }}pt; top:{{ $b['top'] }}pt;"
+                        title="Remove signature"
+                        onclick="removeSig('{{ $b['slot'] }}')">✕</button>
+            @endif
+        @endforeach
+    @endif
+
 </div>
+
+@if ($canSign)
+    <input type="file" id="sig-file" accept="image/png,image/jpeg,image/webp" style="display:none">
+    <script>
+        (function () {
+            const token = @json(csrf_token());
+            // Path only — resolves against the current origin, so it works on
+            // the dev server (:8123) and in production alike.
+            const base = @json(parse_url(url('leave/'.$app->id.'/signature'), PHP_URL_PATH));
+            const input = document.getElementById('sig-file');
+            let slot = null;
+
+            window.pickSig = function (s) { slot = s; input.value = ''; input.click(); };
+
+            // Pull the clearest message out of whatever the server returned —
+            // a validation JSON, plain text, or just a status code.
+            function explain(r, body) {
+                try {
+                    const j = JSON.parse(body);
+                    if (j.errors && j.errors.signature) return j.errors.signature[0];
+                    if (j.message) return j.message;
+                } catch (e) { /* not JSON */ }
+                if (r.status === 419) return 'Your session expired — reload the page and try again.';
+                if (r.status === 413) return 'That image is too large for the server. Try one under 8 MB.';
+                return 'Upload failed (' + r.status + '). Use a PNG, JPG or WEBP under 8 MB.';
+            }
+
+            input.addEventListener('change', function () {
+                if (!input.files.length || !slot) return;
+                const fd = new FormData();
+                fd.append('signature', input.files[0]);
+                fetch(base + '/' + slot, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                    body: fd,
+                }).then(function (r) {
+                    if (r.ok || r.redirected) { location.reload(); return; }
+                    return r.text().then(function (body) { alert(explain(r, body)); });
+                }).catch(function () {
+                    alert('Could not reach the server. Check your connection and try again.');
+                });
+            });
+
+            window.removeSig = function (s) {
+                if (!confirm('Remove this signature from the form?')) return;
+                fetch(base + '/' + s, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                }).then(function (r) { if (r.ok || r.redirected) location.reload(); });
+            };
+        })();
+    </script>
+@endif
 
 </body>
 </html>

@@ -143,24 +143,27 @@ class SignatureTest extends TestCase
 
         $leave = $this->file($applicant);
 
+        // Signatures print with a root-relative src, so assert on the path.
+        $sig = fn ($u) => parse_url(route('signature.show', $u), PHP_URL_PATH);
+
         // Freshly filed: the applicant has signed 6.D, nobody else has acted.
         $html = $this->actingAs($marie)->get(route('leave.print', $leave))->getContent();
-        $this->assertStringContainsString(route('signature.show', $applicant), $html);
-        $this->assertStringNotContainsString(route('signature.show', $marie), $html);
-        $this->assertStringNotContainsString(route('signature.show', $mission), $html);
+        $this->assertStringContainsString($sig($applicant), $html);
+        $this->assertStringNotContainsString($sig($marie), $html);
+        $this->assertStringNotContainsString($sig($mission), $html);
 
         // Certifying 7.A brings Marie's signature in, but not the approver's.
         $this->actingAs($marie)->patch(route('leave.save', $leave))->assertRedirect();
         $html = $this->actingAs($marie)->get(route('leave.print', $leave->fresh()))->getContent();
-        $this->assertStringContainsString(route('signature.show', $marie), $html);
-        $this->assertStringNotContainsString(route('signature.show', $mission), $html);
+        $this->assertStringContainsString($sig($marie), $html);
+        $this->assertStringNotContainsString($sig($mission), $html);
 
         // Approving brings in 7.C/7.D.
         $this->actingAs($marie)->post(route('leave.decide', $leave->fresh()), [
             'decision' => 'approved', 'days_with_pay' => 3,
         ])->assertRedirect();
         $html = $this->actingAs($marie)->get(route('leave.print', $leave->fresh()))->getContent();
-        $this->assertStringContainsString(route('signature.show', $mission), $html);
+        $this->assertStringContainsString($sig($mission), $html);
     }
 
     public function test_a_form_prints_normally_when_nobody_has_a_signature(): void
