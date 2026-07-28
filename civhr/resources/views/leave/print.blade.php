@@ -388,7 +388,9 @@
         'width'   => 190,
         'top'     => 485,
         'caption' => '(Signature of Applicant)',
-        'signedOn' => $d($app->date_filing, 'd M Y'),
+        // The applicant's name already prints in box 2; 6.D is just their
+        // signature over the line.
+        'hideName' => true,
     ])
 
     {{-- ── Band: 7. DETAILS OF ACTION ON APPLICATION ── --}}
@@ -400,16 +402,17 @@
     <div class="box" style="left:{{ $L }}pt; top:525.7pt; width:{{ $MID - $L }}pt; height:{{ 629.0 - 525.7 }}pt;"></div>
     <div class="t f75" style="left:106pt; top:528.5pt;">7.A&nbsp; CERTIFICATION OF LEAVE CREDITS</div>
 
-    <div class="row" style="left:156pt; top:537pt; width:130pt; height:13pt;">
+    <div class="row" style="left:156pt; top:538pt; width:130pt; height:13pt;">
         <span class="lbl f75">As of</span>
         <span class="fill v">{{ $d($app->cert_as_of) }}</span>
     </div>
 
     {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8.
-         Rows are kept compact so a signature band clears the grid and sits
-         above the certifier's name (which stays at top:594). --}}
+         Rows stay a readable height; the grid is nudged up and the certifier's
+         name pushed down (top:600) so a proper signature band fits in the gap
+         between the balances and the name, clear of the numbers. --}}
     @php
-        $gTop = 551; $gPitch = 7.8;
+        $gTop = 550; $gPitch = 8.5;
         $cols = [119.3, 189.1, 256.5, 323.8];
     @endphp
     <div class="box" style="left:119.3pt; top:{{ $gTop }}pt; width:{{ 323.8 - 119.3 }}pt; height:{{ $gPitch * 4 }}pt;"></div>
@@ -449,12 +452,14 @@
         'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer, $certified, 'certifier'),
         'left'    => 120,
         'width'   => 204,
-        'top'     => 594,
+        'top'     => 600,
         'caption' => '(Authorized Officer)',
-        // Tight cell: a short band tucked into the gap the compact grid opens.
-        'sigHeight' => 10,
+        // Tight cell: name pushed down and its lines tightened so a decent
+        // signature band fits in the gap the grid leaves above it.
+        'sigHeight' => 14,
         'sigGapAbove' => 1.5,
-        'signedOn' => $certified ? $d($app->certified_at ?: $app->cert_as_of, 'd M Y') : null,
+        'nameGapArg' => 6.5,
+        'stepArg' => 5.5,
     ])
 
     {{-- ── 7.B RECOMMENDATION ── --}}

@@ -23,11 +23,14 @@
     $sigGap = $sigGapAbove ?? 2;
 
     $rank   = $sig['rank'] ?? '';
-    $name   = $sig['name'] ?? '';
+    // Some blocks (e.g. 6.D applicant) print no name — just a signature space.
+    $name   = ($hideName ?? false) ? '' : ($sig['name'] ?? '');
     $branch = $sig['branch'] ?? '';
 
-    $nameGap = 7.6;              // extra room below the (taller) name line
-    $step = 6.3;                 // vertical pitch of each stacked line
+    // Tight cells can pass a smaller line pitch to make room above for a
+    // larger signature while still fitting the caption inside the cell.
+    $nameGap = $nameGapArg ?? 7.6;  // extra room below the (taller) name line
+    $step = $stepArg ?? 6.3;        // vertical pitch of each stacked line
     $y = $top;                   // running cursor
 
     // Name (bold), centred.
@@ -58,6 +61,11 @@
     // …and the caption below the rule.
     $captionTop = $ruleTop + 1.4;
 
+    // The signature normally sits above the name; when the name is hidden it
+    // sits just above the signature rule instead, so it reads as signed on
+    // the line rather than floating in empty space.
+    $sigAnchor = ($hideName ?? false) ? $ruleTop : $nameTop;
+
     // Rank and branch align with the ENDS OF THE NAME itself — the rank under
     // the name's first letter, the branch under its last — however long the
     // name is. Done by anchoring both to an inline-block wrapped around the
@@ -74,7 +82,7 @@
          onerror="this.style.display='none'"
          style="position:absolute;
                 left:{{ $left }}pt;
-                top:{{ $nameTop - $sigGap - $sigH }}pt;
+                top:{{ $sigAnchor - $sigGap - $sigH }}pt;
                 width:{{ $width }}pt;
                 height:{{ $sigH }}pt;
                 border:0;

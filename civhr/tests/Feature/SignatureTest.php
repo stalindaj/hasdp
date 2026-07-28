@@ -172,8 +172,10 @@ class SignatureTest extends TestCase
         $this->mission();
         $leave = $this->file($this->applicant());
 
+        // The applicant's name prints in box 2 (NAME); 6.D is now just their
+        // signature over the line, with no duplicated name.
         $this->actingAs($marie)->get(route('leave.print', $leave))
             ->assertOk()
-            ->assertSee('BERCADES');
+            ->assertSee('Bercades');
     }
 }
