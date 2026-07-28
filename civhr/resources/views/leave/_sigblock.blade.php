@@ -96,11 +96,3 @@
 
 <div class="ln" style="left:{{ $left }}pt; top:{{ $ruleTop }}pt; width:{{ $width }}pt;"></div>
 <div class="t f7 c" style="left:{{ $left }}pt; top:{{ $captionTop }}pt; width:{{ $width }}pt;">{{ $caption }}</div>
-
-@if (! empty($signedOn))
-    {{-- When this block was signed, printed small under the caption so the
-         form carries its own dates. --}}
-    <div class="t c" style="left:{{ $left }}pt; top:{{ $captionTop + 6.3 }}pt; width:{{ $width }}pt; font-size:5.6pt; color:#333;">
-        {{ $signedOn }}
-    </div>
-@endif
