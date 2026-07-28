@@ -400,14 +400,16 @@
     <div class="box" style="left:{{ $L }}pt; top:525.7pt; width:{{ $MID - $L }}pt; height:{{ 629.0 - 525.7 }}pt;"></div>
     <div class="t f75" style="left:106pt; top:528.5pt;">7.A&nbsp; CERTIFICATION OF LEAVE CREDITS</div>
 
-    <div class="row" style="left:156pt; top:538.5pt; width:130pt; height:13pt;">
+    <div class="row" style="left:156pt; top:537pt; width:130pt; height:13pt;">
         <span class="lbl f75">As of</span>
         <span class="fill v">{{ $d($app->cert_as_of) }}</span>
     </div>
 
-    {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8 --}}
+    {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8.
+         Rows are kept compact so a signature band clears the grid and sits
+         above the certifier's name (which stays at top:594). --}}
     @php
-        $gTop = 554.3; $gPitch = 9.1;
+        $gTop = 551; $gPitch = 7.8;
         $cols = [119.3, 189.1, 256.5, 323.8];
     @endphp
     <div class="box" style="left:119.3pt; top:{{ $gTop }}pt; width:{{ 323.8 - 119.3 }}pt; height:{{ $gPitch * 4 }}pt;"></div>
@@ -449,6 +451,9 @@
         'width'   => 204,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
+        // Tight cell: a short band tucked into the gap the compact grid opens.
+        'sigHeight' => 10,
+        'sigGapAbove' => 1.5,
         'signedOn' => $certified ? $d($app->certified_at ?: $app->cert_as_of, 'd M Y') : null,
     ])
 

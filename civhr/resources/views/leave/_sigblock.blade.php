@@ -15,8 +15,12 @@
              $left, $width, $top, $caption.
 --}}
 @php
-    // Optional: the date this block was signed, printed under the caption.
-    $signedOn = $signedOn ?? null;
+    // The signature image sits ABOVE the printed name, in its own band, so the
+    // name stays readable and the ink does not fall onto the table above.
+    // $sigHeight is the band's height; $sigGapAbove is the clear space left
+    // between the ink and the name. Tight cells (e.g. 7.A) pass a smaller band.
+    $sigH   = $sigHeight ?? 20;
+    $sigGap = $sigGapAbove ?? 2;
 
     $rank   = $sig['rank'] ?? '';
     $name   = $sig['name'] ?? '';
@@ -70,9 +74,9 @@
          onerror="this.style.display='none'"
          style="position:absolute;
                 left:{{ $left }}pt;
-                top:{{ $nameTop - 20 }}pt;
+                top:{{ $nameTop - $sigGap - $sigH }}pt;
                 width:{{ $width }}pt;
-                height:24pt;
+                height:{{ $sigH }}pt;
                 border:0;
                 object-fit:contain;
                 object-position:center bottom;
