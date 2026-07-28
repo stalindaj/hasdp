@@ -15,8 +15,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The applicant completes their own half of CS Form 6 — boxes 1–6 and the
- * 7.B recommending officer — so the admin only verifies and finalises.
+ * The applicant self-serves the whole CS Form 6 — boxes 1–6, all three
+ * signature blocks, the 7.A credits and the 7.C/7.D decision — at every stage
+ * except cancellation, so a mistake can always be corrected. An admin may step
+ * in on the same fields, including on an already-approved leave.
  */
 class ApplicantEditsLeaveTest extends TestCase
 {
@@ -132,15 +134,19 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertSame('PAF', $sig['branch']);
     }
 
-    public function test_the_applicant_cannot_touch_7a_or_7cd(): void
+    public function test_the_applicant_may_type_7a_and_7cd_themselves(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
 
-        foreach (['certifier', 'approver'] as $slot) {
+        // The applicant self-serves the whole form, so all three signature
+        // blocks are theirs to type.
+        foreach (['certifier' => 'hr_officer_sig', 'approver' => 'approver_sig'] as $slot => $column) {
             $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
-                'slot' => $slot, 'type' => 'military', 'name' => 'Impostor',
-            ])->assertForbidden();
+                'slot' => $slot, 'type' => 'civilian', 'name' => "Self {$slot}",
+            ])->assertRedirect();
+
+            $this->assertSame(strtoupper("Self {$slot}"), $leave->fresh()->{$column}['name']);
         }
     }
 
@@ -169,7 +175,7 @@ class ApplicantEditsLeaveTest extends TestCase
         return $u->fresh();
     }
 
-    public function test_editing_is_locked_once_the_leave_is_decided(): void
+    public function test_editing_stays_open_after_a_decision(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
@@ -187,12 +193,36 @@ class ApplicantEditsLeaveTest extends TestCase
             'commutation' => 'not_requested',
         ];
 
+        // A mistake can still be corrected on an already-approved leave.
         $this->actingAs($applicant)->patch(route('leave.update', $leave->fresh()), $payload)
-            ->assertForbidden();
+            ->assertRedirect();
+        $this->assertEquals(5.0, (float) $leave->fresh()->working_days);
 
-        // …and 7.B is frozen too once decided.
+        // …and the signatories remain editable too.
+        $this->actingAs($applicant)->patch(route('leave.signatory', $leave->fresh()), [
+            'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Still Editable',
+        ])->assertRedirect();
+        $this->assertSame('STILL EDITABLE', $leave->fresh()->recommender_sig['name']);
+    }
+
+    public function test_editing_locks_only_once_the_leave_is_cancelled(): void
+    {
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
+
+        $this->actingAs($applicant)->post(route('leave.cancel', $leave))->assertRedirect();
+
         $this->actingAs($applicant)->patch(route('leave.signatory', $leave->fresh()), [
             'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Too Late',
+        ])->assertForbidden();
+
+        $this->actingAs($applicant)->patch(route('leave.update', $leave->fresh()), [
+            'leave_type_id' => LeaveType::where('code', 'vacation')->value('id'),
+            'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
+            'applicant_first_name' => 'Justin', 'date_filing' => '2026-07-03',
+            'position' => 'Clerk', 'detail_vacation' => 'within_philippines',
+            'date_from' => '2026-07-20', 'date_to' => '2026-07-22',
+            'commutation' => 'not_requested',
         ])->assertForbidden();
     }
 
@@ -253,8 +283,8 @@ class ApplicantEditsLeaveTest extends TestCase
                 ->has('signatories.approver')
                 // …and their own credit balances.
                 ->has('balanceCheck.balances')
-                // But cannot process the leave.
-                ->where('can.process', false));
+                // …and can process the leave themselves.
+                ->where('can.process', true));
     }
 
     public function test_signatory_changes_land_on_the_audit_trail(): void

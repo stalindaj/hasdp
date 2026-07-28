@@ -68,7 +68,7 @@ function countDays(fromStr, toStr, basis, holidays) {
     return { days, skipped };
 }
 
-/* ── Applicant: revise boxes 1–6 while the leave is still pending ─────── */
+/* ── Applicant: revise boxes 1–6 at any stage, to correct a mistake ───── */
 function EditApplicationCard({ application, form, leaveTypes, holidays }) {
     const [open, setOpen] = useState(false);
     const { data, setData, patch, processing, errors } = useForm(form);
@@ -100,9 +100,9 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                 }
             >
                 <p className="text-sm text-gray-600">
-                    You can still change anything on this form — the leave type,
-                    dates, details, commutation and the 7.B recommending officer
-                    — until the admin approves it.
+                    You can change anything on this form — the leave type, dates,
+                    details and commutation — at any time to correct a mistake,
+                    even after it has been approved.
                 </p>
             </Card>
         );
@@ -1179,7 +1179,7 @@ export default function Show({
                         </div>
                     )}
 
-                    {a.status === 'approved' && !can.process && (
+                    {a.status === 'approved' && can.own && (
                         <div className="rounded-md bg-green-50 p-4 text-sm text-green-800 ring-1 ring-green-200">
                             Your leave is <span className="font-semibold">approved</span>.
                             Use <span className="font-medium">View / print CS Form No. 6</span> above,
@@ -1187,7 +1187,7 @@ export default function Show({
                             form below so it stays on file.
                         </div>
                     )}
-                    {a.status === 'disapproved' && !can.process && (
+                    {a.status === 'disapproved' && can.own && (
                         <div className="rounded-md bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
                             Your leave was disapproved.
                             {a.decision.reason ? ` Reason: ${a.decision.reason}` : ''}

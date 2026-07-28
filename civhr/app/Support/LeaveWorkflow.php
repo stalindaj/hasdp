@@ -41,13 +41,18 @@ class LeaveWorkflow
     }
 
     /**
-     * An admin may process a leave — and revise it afterwards (e.g. change the
-     * recommending officer or the certified credits) for as long as it is not
-     * cancelled.
+     * The applicant and any admin may process a leave — fill the 7.A credit
+     * certification, name the signatories, and record the 7.C/7.D decision —
+     * and revise it all afterwards, for as long as it is not cancelled. The
+     * applicant self-serves the whole CS Form 6; an admin can step in on any.
      */
     public static function canProcess(LeaveApplication $app, User $user): bool
     {
-        return self::isAdmin($user) && $app->status !== self::CANCELLED;
+        if ($app->status === self::CANCELLED) {
+            return false;
+        }
+
+        return self::isAdmin($user) || (int) $app->user_id === (int) $user->id;
     }
 
     /** The applicant may withdraw while it is still pending. */

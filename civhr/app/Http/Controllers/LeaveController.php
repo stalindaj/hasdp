@@ -210,13 +210,14 @@ class LeaveController extends Controller
     }
 
     /**
-     * Boxes 1–6 stay open until the leave is decided: the applicant fills
-     * them in, and an admin may correct anything while finalising rather
-     * than bouncing the form back.
+     * Boxes 1–6 stay open at every stage except cancellation: the applicant
+     * fills them in and may correct anything later — a wrong date or office on
+     * an already-approved leave can be fixed on the form itself instead of
+     * refiling. An admin may likewise step in on anyone's application.
      */
     private function canEdit(LeaveApplication $application, User $user): bool
     {
-        if ($application->status !== LeaveWorkflow::PENDING) {
+        if ($application->status === LeaveWorkflow::CANCELLED) {
             return false;
         }
 
@@ -274,6 +275,9 @@ class LeaveController extends Controller
                 'upload_form' => (int) $application->user_id === (int) $user->id
                     && $application->status === LeaveWorkflow::APPROVED,
                 'edit' => $canEdit,
+                // Owns this leave — drives the applicant-facing guidance banners,
+                // which stay useful now that the owner also sees the full panel.
+                'own' => (int) $application->user_id === (int) $user->id,
             ],
             // CSC rules: credits are certified and checked BEFORE approval; if
             // the balance is short, the excess may be granted without pay.
@@ -456,13 +460,10 @@ class LeaveController extends Controller
     {
         $user = $request->user();
 
-        // The applicant names their own recommending officer (7.B) while the
-        // leave is pending; only an admin may touch 7.A or 7.C/7.D.
-        $isAdmin = LeaveWorkflow::isAdmin($user);
-        $ownRecommender = $request->input('slot') === 'recommender'
-            && $this->canEdit($application, $user);
-
-        abort_unless($isAdmin || $ownRecommender, 403);
+        // The applicant self-serves the whole form, so they may type any of the
+        // three signature blocks (7.A, 7.B, 7.C/7.D) — as can an admin — for as
+        // long as the leave is not cancelled.
+        abort_unless(LeaveWorkflow::canProcess($application, $user), 403);
 
         $data = $request->validate([
             'slot'     => ['required', Rule::in(['certifier', 'recommender', 'approver'])],
