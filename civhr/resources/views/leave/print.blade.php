@@ -471,20 +471,20 @@
         'sig'     => $sigOf($app->hr_officer_sig, $app->hrOfficer, $certified, 'certifier'),
         'left'    => 120,
         'width'   => 204,
-        'top'     => 600,
+        'top'     => 602.5,
         'caption' => '(Authorized Officer)',
-        // Tight cell: the name is pushed down and its lines tightened, but the
-        // clear gap the grid leaves above the name is only ~15pt — an ink band
-        // that small renders a signature as a speck. So the band is anchored on
-        // the signature rule and runs up to just under the grid (587.7pt),
-        // crossing the name the way a pen signature does.
-        'sigOverNameArg' => true,
-        'sigHeight' => 30,
+        // Tight cell. The ink sits ABOVE the printed name, in the gap the grid
+        // leaves — so every point of that gap is worth having. The name stack
+        // is pushed as far down as the cell bottom (629pt) allows and its lines
+        // tightened, which buys the band 16.5pt between the grid (ends 584pt)
+        // and the name. Uploads are cropped to the ink on the way in, so that
+        // band is filled by signature rather than by blank paper.
+        'sigHeight' => 16.5,
         'sigGapAbove' => 1.0,
-        // …but never up into the grid, which ends at $gTop + $gPitch * 4.
-        'sigTopMinArg' => $gTop + $gPitch * 4 + 2,
-        'nameGapArg' => 6.5,
-        'stepArg' => 5.5,
+        // Never up into the grid, whatever the signatory's name stack does.
+        'sigTopMinArg' => $gTop + $gPitch * 4 + 1,
+        'nameGapArg' => 6.2,
+        'stepArg' => 5.2,
     ])
 
     {{-- ── 7.B RECOMMENDATION ── --}}

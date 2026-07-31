@@ -65,12 +65,7 @@
     // sits just above the signature rule instead, so it reads as signed on
     // the line rather than floating in empty space.
     //
-    // A cramped cell (7.A) can pass $sigOverNameArg to anchor the ink on the
-    // rule while still printing the name: the band then reaches down across
-    // the name, as a pen signature does, instead of being squeezed into the
-    // few points of clear space above it. The multiply blend keeps the
-    // printed name readable through the ink.
-    $sigAnchor = (($hideName ?? false) || ($sigOverNameArg ?? false)) ? $ruleTop : $nameTop;
+    $sigAnchor = ($hideName ?? false) ? $ruleTop : $nameTop;
 
     // Where the ink actually starts. $sigTopMinArg is a hard ceiling for cells
     // that sit under something the ink must not touch (7.A's credit grid): the

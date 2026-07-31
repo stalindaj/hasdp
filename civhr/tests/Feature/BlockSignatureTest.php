@@ -129,11 +129,11 @@ class BlockSignatureTest extends TestCase
     }
 
     /**
-     * 7.A is the tightest cell on the form and has been re-tuned often. Its ink
-     * band must stay big enough to read as a signature rather than a speck, and
-     * must still start below the leave-credit grid (which ends at 584pt).
+     * 7.A is the tightest cell on the form and has been re-tuned often. The ink
+     * belongs in the gap between the leave-credit grid (which ends at 584pt)
+     * and the printed name: over neither of them, and filling that gap.
      */
-    public function test_the_7a_signature_band_is_large_and_clears_the_credits_grid(): void
+    public function test_the_7a_signature_sits_above_the_name_and_clears_the_grid(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
@@ -153,11 +153,15 @@ class BlockSignatureTest extends TestCase
         preg_match('/top:\s*([\d.]+)pt/', $img, $top);
         preg_match('/height:\s*([\d.]+)pt/', $img, $height);
 
-        // 20pt is the floor case: this signatory carries no title lines, so the
-        // signature rule rides up and the band is clamped against the grid. A
-        // certifier with the usual two title lines gets the full 30pt.
-        $this->assertGreaterThanOrEqual(20.0, (float) $height[1]);
-        $this->assertGreaterThan(584.0, (float) $top[1]);
+        $inkTop = (float) $top[1];
+        $inkBottom = $inkTop + (float) $height[1];
+
+        // Below the grid…
+        $this->assertGreaterThan(584.0, $inkTop);
+        // …above the printed name, never across it…
+        $this->assertLessThanOrEqual(602.5, $inkBottom);
+        // …and filling what is left, rather than a sliver of it.
+        $this->assertGreaterThanOrEqual(16.0, (float) $height[1]);
     }
 
     public function test_removing_a_signature_clears_it(): void
