@@ -142,7 +142,7 @@ class LeaveTest extends TestCase
         ]))->assertSessionHasErrors('detail_sick');
     }
 
-    public function test_detail_fields_outside_the_chosen_type_are_not_stored(): void
+    public function test_every_detail_block_the_applicant_fills_in_is_kept(): void
     {
         $applicant = $this->userWithRoles(['employee']);
 
@@ -154,9 +154,13 @@ class LeaveTest extends TestCase
             'detail_vacation_location' => 'Singapore',
         ]))->assertRedirect();
 
+        // 6.B is filled in exactly as on the paper form: whatever blocks the
+        // applicant writes on are kept, not only the one matching the type.
         $leave = LeaveApplication::firstOrFail();
         $this->assertSame('out_patient', $leave->detail_sick);
-        $this->assertNull($leave->detail_vacation);
+        $this->assertSame('Influenza', $leave->detail_sick_illness);
+        $this->assertSame('abroad', $leave->detail_vacation);
+        $this->assertSame('Singapore', $leave->detail_vacation_location);
     }
 
     // ── 6.C is computed, weekends + holidays excluded ─────────────────

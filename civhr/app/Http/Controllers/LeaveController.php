@@ -135,11 +135,8 @@ class LeaveController extends Controller
             ]);
         }
 
-        // Detail fields that belong to a different leave type would otherwise
-        // linger and print on the wrong block of 6.B.
-        foreach ($this->detailFieldsOutside($type?->detail_group) as $field) {
-            $data[$field] = null;
-        }
+        // Every 6.B block is editable, exactly as on the paper form: whatever
+        // the applicant fills in is kept, whichever type they chose.
 
         return $data;
     }
@@ -816,20 +813,6 @@ class LeaveController extends Controller
             $a->leaveType->code ?? '',
             (float) $a->working_days
         );
-    }
-
-    private function detailFieldsOutside(?string $group): array
-    {
-        $map = [
-            'vacation' => ['detail_vacation', 'detail_vacation_location'],
-            'sick'     => ['detail_sick', 'detail_sick_illness'],
-            'women'    => ['detail_women_illness'],
-            'study'    => ['detail_study', 'detail_study_other'],
-        ];
-
-        unset($map[$group]);
-
-        return $map ? array_merge(...array_values($map)) : [];
     }
 
     private function authorizeView(LeaveApplication $application, User $user): void

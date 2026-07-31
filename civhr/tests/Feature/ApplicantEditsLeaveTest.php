@@ -90,8 +90,9 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertSame('requested', $leave->commutation);
         // 6.C recomputes from the new dates…
         $this->assertEquals(5.0, (float) $leave->working_days);
-        // …the stale 6.B block from the old type is cleared…
-        $this->assertNull($leave->detail_vacation);
+        // …every 6.B block stays under the applicant's own hand: the vacation
+        // block it was filed with is left alone unless they clear it…
+        $this->assertSame('within_philippines', $leave->detail_vacation);
         // …and 6.D follows the corrected name.
         $this->assertSame('JUSTIN L BERCADES', $leave->applicant_sig['name']);
         // Still pending, and the edit is on the audit trail.

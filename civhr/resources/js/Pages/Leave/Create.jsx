@@ -129,7 +129,6 @@ export default function Create({
         [leaveTypes, data.leave_type_id],
     );
 
-    const group = selectedType?.detail_group ?? null;
     const dayBasis = selectedType?.day_basis ?? 'working';
 
     // 6.C — computed from the inclusive dates; the server recomputes on file.
@@ -266,19 +265,14 @@ export default function Create({
                             )}
                         </Section>
 
-                        {/* 6.B — only the block matching the chosen type */}
+                        {/* 6.B — every block on the paper form, always fillable.
+                            Fill whichever applies; the one that matches the
+                            leave type is required, the rest are optional. */}
                         <Section
                             title="6.B — Details of leave"
-                            description="The paper form only asks for the block that matches your leave type."
+                            description="Fill in whichever block applies to your leave."
                         >
-                            {!selectedType && (
-                                <p className="text-sm text-gray-500">
-                                    Choose a leave type above to see the details
-                                    this form asks for.
-                                </p>
-                            )}
-
-                            {group === 'vacation' && (
+                            <div className="space-y-5">
                                 <div>
                                     <p className="mb-1 text-sm italic text-gray-600">
                                         In case of Vacation/Special Privilege
@@ -334,9 +328,7 @@ export default function Create({
                                         />
                                     </div>
                                 </div>
-                            )}
 
-                            {group === 'sick' && (
                                 <div>
                                     <p className="mb-1 text-sm italic text-gray-600">
                                         In case of Sick Leave:
@@ -384,9 +376,7 @@ export default function Create({
                                         />
                                     </div>
                                 </div>
-                            )}
 
-                            {group === 'women' && (
                                 <div>
                                     <p className="mb-1 text-sm italic text-gray-600">
                                         In case of Special Leave Benefits for
@@ -412,9 +402,7 @@ export default function Create({
                                         className="mt-1"
                                     />
                                 </div>
-                            )}
 
-                            {group === 'study' && (
                                 <div>
                                     <p className="mb-1 text-sm italic text-gray-600">
                                         In case of Study Leave:
@@ -440,9 +428,7 @@ export default function Create({
                                         className="mt-1"
                                     />
                                 </div>
-                            )}
 
-                            {selectedType && (
                                 <div className="mt-5 border-t border-gray-100 pt-4">
                                     <p className="mb-1 text-sm italic text-gray-600">
                                         Other purpose (optional):
@@ -485,7 +471,7 @@ export default function Create({
                                         </button>
                                     )}
                                 </div>
-                            )}
+                            </div>
                         </Section>
 
                         {/* 6.C / 6.D */}

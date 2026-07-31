@@ -74,7 +74,6 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
     const { data, setData, patch, processing, errors } = useForm(form);
 
     const type = leaveTypes.find((t) => String(t.id) === String(data.leave_type_id));
-    const group = type?.detail_group ?? null;
     const basis = type?.day_basis ?? 'working';
     const computed = useMemo(
         () => countDays(data.date_from, data.date_to, basis, holidays ?? {}),
@@ -218,8 +217,14 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                     </div>
                 )}
 
-                {/* 6.B — only the block matching the chosen type */}
-                {group === 'vacation' && (
+                {/* 6.B — every block on the paper form, always editable.
+                    Fill whichever applies; the one that matches the leave
+                    type is required, the rest are optional. */}
+                <div className="space-y-4 rounded-md border border-gray-200 bg-gray-50/50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        6.B — Details of leave
+                    </p>
+
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                             <InputLabel htmlFor="e_vac" value="In case of Vacation / SPL" />
@@ -229,7 +234,7 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                                 value={data.detail_vacation ?? ''}
                                 onChange={(e) => setData('detail_vacation', e.target.value)}
                             >
-                                <option value="">Select…</option>
+                                <option value="">—</option>
                                 <option value="within_philippines">Within the Philippines</option>
                                 <option value="abroad">Abroad</option>
                             </select>
@@ -245,9 +250,7 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                             />
                         </div>
                     </div>
-                )}
 
-                {group === 'sick' && (
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                             <InputLabel htmlFor="e_sick" value="In case of Sick Leave" />
@@ -257,7 +260,7 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                                 value={data.detail_sick ?? ''}
                                 onChange={(e) => setData('detail_sick', e.target.value)}
                             >
-                                <option value="">Select…</option>
+                                <option value="">—</option>
                                 <option value="in_hospital">In Hospital</option>
                                 <option value="out_patient">Out Patient</option>
                             </select>
@@ -273,11 +276,9 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                             />
                         </div>
                     </div>
-                )}
 
-                {group === 'women' && (
                     <div>
-                        <InputLabel htmlFor="e_women" value="Specify illness" />
+                        <InputLabel htmlFor="e_women" value="Special Leave Benefits for Women — specify illness" />
                         <TextInput
                             id="e_women"
                             className="mt-1 block w-full"
@@ -286,9 +287,7 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                         />
                         <InputError message={errors.detail_women_illness} className="mt-1" />
                     </div>
-                )}
 
-                {group === 'study' && (
                     <div>
                         <InputLabel htmlFor="e_study" value="In case of Study Leave" />
                         <select
@@ -297,13 +296,13 @@ function EditApplicationCard({ application, form, leaveTypes, holidays }) {
                             value={data.detail_study ?? ''}
                             onChange={(e) => setData('detail_study', e.target.value)}
                         >
-                            <option value="">Select…</option>
+                            <option value="">—</option>
                             <option value="masters">Completion of Master's Degree</option>
                             <option value="bar_board">BAR/Board Examination Review</option>
                         </select>
                         <InputError message={errors.detail_study} className="mt-1" />
                     </div>
-                )}
+                </div>
 
                 {/* 6.C */}
                 <div className="grid gap-4 sm:grid-cols-3">
