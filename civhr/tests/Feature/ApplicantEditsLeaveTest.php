@@ -205,6 +205,36 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertSame('STILL EDITABLE', $leave->fresh()->recommender_sig['name']);
     }
 
+    public function test_correcting_an_approved_leaves_type_moves_the_credit_deduction(): void
+    {
+        $applicant = $this->applicant();
+        $employee = $applicant->employee;
+        $admin = $this->admin();
+
+        $leave = $this->file($applicant);   // vacation, 3 working days
+        $this->actingAs($admin)->post(route('leave.decide', $leave), [
+            'decision' => 'approved', 'days_with_pay' => 3,
+        ])->assertRedirect();
+
+        // Approved vacation deducts 3 from VL; SL is untouched.
+        $approved = \App\Support\CreditLedger::balances($employee->fresh());
+
+        // The applicant corrects the type to Sick Leave after approval.
+        $this->actingAs($applicant)->patch(route('leave.update', $leave->fresh()), [
+            'leave_type_id' => LeaveType::where('code', 'sick')->value('id'),
+            'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
+            'applicant_first_name' => 'Justin', 'date_filing' => '2026-07-03',
+            'position' => 'Clerk', 'detail_sick' => 'out_patient',
+            'date_from' => '2026-07-20', 'date_to' => '2026-07-22',
+            'commutation' => 'not_requested',
+        ])->assertRedirect();
+
+        // The 3-day deduction moves off VL (refunded) and onto SL.
+        $corrected = \App\Support\CreditLedger::balances($employee->fresh());
+        $this->assertEquals(3.0, round($corrected['vl'] - $approved['vl'], 2));   // VL back up 3
+        $this->assertEquals(-3.0, round($corrected['sl'] - $approved['sl'], 2));  // SL down 3
+    }
+
     public function test_editing_locks_only_once_the_leave_is_cancelled(): void
     {
         $applicant = $this->applicant();

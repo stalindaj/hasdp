@@ -423,7 +423,7 @@
 
     <div class="row" style="left:156pt; top:538pt; width:130pt; height:13pt;">
         <span class="lbl f75">As of</span>
-        <span class="fill v">{{ $d($app->cert_as_of) }}</span>
+        <span class="fill v">{{ $d($app->cert_as_of, 'j F Y') }}</span>
     </div>
 
     {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8.

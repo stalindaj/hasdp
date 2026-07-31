@@ -204,6 +204,15 @@ class LeaveController extends Controller
 
         $application->update($data);
 
+        // A correction after approval must keep the credit ledger in step — a
+        // changed leave type deducts from the right balance, and changed dates
+        // recompute the working days behind the deduction.
+        if ($application->status === LeaveWorkflow::APPROVED) {
+            \App\Support\CreditLedger::applyForApplication(
+                $application->fresh(['leaveType', 'employee'])
+            );
+        }
+
         LeaveWorkflow::log($application, $user, 'updated', null, null);
 
         return back()->with('success', 'Application updated.');
@@ -870,7 +879,8 @@ class LeaveController extends Controller
                 'other_purpose'     => $a->detail_other_purpose,
             ],
             'certification' => [
-                'as_of'      => optional($a->cert_as_of)->format('Y-m-d'),
+                'as_of'         => optional($a->cert_as_of)->format('Y-m-d'),   // for the date input
+                'as_of_display' => optional($a->cert_as_of)->format('j F Y'),   // day month year
                 'vl_earned'  => $a->vl_earned,
                 'vl_less'    => $a->vl_less,
                 'vl_balance' => $a->vl_balance,

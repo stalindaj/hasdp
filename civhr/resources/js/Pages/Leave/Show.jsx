@@ -710,7 +710,7 @@ function CreditSummaryCard({ application, balanceCheck }) {
 
             {certified ? (
                 <dl className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
-                    <Field label="As of">{c.as_of}</Field>
+                    <Field label="As of">{c.as_of_display || c.as_of}</Field>
                     <Field label="VL — earned / less / balance">
                         {`${c.vl_earned ?? '—'} / ${c.vl_less ?? '—'} / ${c.vl_balance ?? '—'}`}
                     </Field>
