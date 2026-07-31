@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use App\Models\User;
 use App\Support\LeaveCredits;
 use App\Support\LeaveWorkflow;
+use App\Support\SignatureImage;
 use App\Support\WorkingDays;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -582,7 +583,10 @@ class LeaveController extends Controller
             \Illuminate\Support\Facades\Storage::delete($uploads[$slot]);
         }
 
-        $uploads[$slot] = $request->file('signature')->store("leave-signatures/{$application->id}");
+        $uploads[$slot] = SignatureImage::store(
+            $request->file('signature'),
+            "leave-signatures/{$application->id}"
+        );
         $application->update(['signature_uploads' => $uploads]);
 
         $label = ['applicant' => '6.D', 'certifier' => '7.A', 'recommender' => '7.B', 'approver' => '7.C/7.D'][$slot];

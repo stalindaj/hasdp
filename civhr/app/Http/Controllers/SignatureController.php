@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\LeaveWorkflow;
+use App\Support\SignatureImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -34,7 +35,7 @@ class SignatureController extends Controller
         }
 
         $user->update([
-            'signature_path' => $request->file('signature')->store("signatures/{$user->id}"),
+            'signature_path' => SignatureImage::store($request->file('signature'), "signatures/{$user->id}"),
         ]);
 
         return back()->with('success', 'Signature saved. It will print above the name on CS Form No. 6.');
