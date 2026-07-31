@@ -19,6 +19,25 @@
     $d = fn ($date, $fmt = 'F j, Y') => $date ? Carbon::parse($date)->format($fmt) : '';
     $num = fn ($v) => $v === null ? '' : rtrim(rtrim(number_format((float) $v, 3, '.', ''), '0'), '.');
 
+    /**
+     * Shrink a value just enough to fit its blank, instead of clipping it —
+     * a long name like "Justin Gerrick Elmon" must still print in full.
+     * Arial averages ~0.5em per character at these sizes; the floor keeps it
+     * legible on a photocopy.
+     */
+    $fit = function (?string $text, float $widthPt, float $base = 8.0) {
+        $len = mb_strlen(trim((string) $text));
+        if ($len === 0) {
+            return $base;
+        }
+
+        $needed = $len * 0.5 * $base;
+
+        return $needed > $widthPt
+            ? max(4.8, round($base * $widthPt / $needed, 2))
+            : $base;
+    };
+
     $checkedType = $app->leave_type_id;
     $det = fn ($field, $value) => $app->{$field} === $value;
 
@@ -227,10 +246,10 @@
     <div class="t f75" style="left:378pt; top:161pt;">(First)</div>
     <div class="t f75" style="left:446pt; top:161pt;">(Middle)</div>
 
-    <div class="t v f8" style="left:106pt; top:174pt; max-width:135pt; overflow:hidden;">{{ $app->office_department }}</div>
-    <div class="t v f8" style="left:294pt; top:174pt; max-width:70pt; overflow:hidden;">{{ $app->applicant_last_name }}</div>
-    <div class="t v f8" style="left:370pt; top:174pt; max-width:66pt; overflow:hidden;">{{ $app->applicant_first_name }}</div>
-    <div class="t v f8" style="left:440pt; top:174pt; max-width:94pt; overflow:hidden;">{{ $app->applicant_middle_name }}</div>
+    <div class="t v" style="left:106pt; top:174pt; width:135pt; overflow:hidden; font-size:{{ $fit($app->office_department, 135) }}pt;">{{ $app->office_department }}</div>
+    <div class="t v" style="left:294pt; top:174pt; width:70pt; overflow:hidden; font-size:{{ $fit($app->applicant_last_name, 70) }}pt;">{{ $app->applicant_last_name }}</div>
+    <div class="t v" style="left:370pt; top:174pt; width:66pt; overflow:hidden; font-size:{{ $fit($app->applicant_first_name, 66) }}pt;">{{ $app->applicant_first_name }}</div>
+    <div class="t v" style="left:440pt; top:174pt; width:94pt; overflow:hidden; font-size:{{ $fit($app->applicant_middle_name, 94) }}pt;">{{ $app->applicant_middle_name }}</div>
 
     {{-- ── Row 2: 3. DATE OF FILING | 4. POSITION | 5. SALARY ── --}}
     <div class="box" style="left:{{ $L }}pt; top:186.9pt; width:{{ $R - $L }}pt; height:22.6pt;"></div>

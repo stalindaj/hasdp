@@ -69,8 +69,13 @@ class LeaveApplication extends Model
     }
 
     /**
-     * 6.C INCLUSIVE DATES, printed as free text like the paper form.
-     * A single-day leave prints one date rather than "X to X".
+     * 6.C INCLUSIVE DATES, written the way the office writes them by hand —
+     * the month and year said once when they are shared:
+     *
+     *   one day            21 July 2026
+     *   within a month     20-22 July 2026
+     *   across months      30 July - 2 August 2026
+     *   across years       30 December 2026 - 2 January 2027
      */
     public function getInclusiveDatesTextAttribute(): string
     {
@@ -81,9 +86,21 @@ class LeaveApplication extends Model
         $from = Carbon::parse($this->date_from);
         $to   = Carbon::parse($this->date_to);
 
-        return $from->isSameDay($to)
-            ? $from->format('F j, Y')
-            : $from->format('F j, Y').' to '.$to->format('F j, Y');
+        if ($from->isSameDay($to)) {
+            return $from->format('j F Y');
+        }
+
+        // Same month and year: only the days differ.
+        if ($from->isSameMonth($to, true)) {
+            return $from->format('j').'-'.$to->format('j F Y');
+        }
+
+        // Same year: repeat the month but say the year once.
+        if ($from->year === $to->year) {
+            return $from->format('j F').' - '.$to->format('j F Y');
+        }
+
+        return $from->format('j F Y').' - '.$to->format('j F Y');
     }
 
 }

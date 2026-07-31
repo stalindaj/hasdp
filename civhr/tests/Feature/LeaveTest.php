@@ -486,7 +486,8 @@ class LeaveTest extends TestCase
         $this->actingAs($applicant->fresh())->get(route('leave.print', $leave->fresh()))
             ->assertOk()
             ->assertSee('APPLICATION FOR LEAVE')
-            ->assertSee('MONTEJO')
+            // Box 2 carries the name; 6.D is just the signature over the line.
+            ->assertSee('Montejo')
             ->assertSee('MARIE CRIS A URI')
             ->assertSee('ADRIAN LEE MISSION')
             ->assertSee('PHILIPPINE AIR FORCE');
