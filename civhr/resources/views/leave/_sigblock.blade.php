@@ -64,7 +64,24 @@
     // The signature normally sits above the name; when the name is hidden it
     // sits just above the signature rule instead, so it reads as signed on
     // the line rather than floating in empty space.
-    $sigAnchor = ($hideName ?? false) ? $ruleTop : $nameTop;
+    //
+    // A cramped cell (7.A) can pass $sigOverNameArg to anchor the ink on the
+    // rule while still printing the name: the band then reaches down across
+    // the name, as a pen signature does, instead of being squeezed into the
+    // few points of clear space above it. The multiply blend keeps the
+    // printed name readable through the ink.
+    $sigAnchor = (($hideName ?? false) || ($sigOverNameArg ?? false)) ? $ruleTop : $nameTop;
+
+    // Where the ink actually starts. $sigTopMinArg is a hard ceiling for cells
+    // that sit under something the ink must not touch (7.A's credit grid): the
+    // band is shortened rather than allowed to ride up over it. How far down
+    // the rule sits varies with the signatory — a name with no title lines
+    // pulls it up — so this has to be clamped, not assumed.
+    $sigTop = $sigAnchor - $sigGap - $sigH;
+    if (isset($sigTopMinArg) && $sigTop < $sigTopMinArg) {
+        $sigTop = $sigTopMinArg;
+        $sigH = max(0, $sigAnchor - $sigGap - $sigTop);
+    }
 
     // Rank and branch align with the ENDS OF THE NAME itself — the rank under
     // the name's first letter, the branch under its last — however long the
@@ -82,9 +99,9 @@
          onerror="this.style.display='none'"
          style="position:absolute;
                 left:{{ $left }}pt;
-                top:{{ $sigAnchor - $sigGap - $sigH }}pt;
+                top:{{ $sigTop }}pt;
                 width:{{ $width }}pt;
-                height:{{ $sigH }}pt;
+                height:{{ round($sigH, 2) }}pt;
                 border:0;
                 object-fit:contain;
                 object-position:center bottom;

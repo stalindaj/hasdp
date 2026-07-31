@@ -473,10 +473,16 @@
         'width'   => 204,
         'top'     => 600,
         'caption' => '(Authorized Officer)',
-        // Tight cell: name pushed down and its lines tightened so a decent
-        // signature band fits in the gap the grid leaves above it.
-        'sigHeight' => 14,
-        'sigGapAbove' => 1.5,
+        // Tight cell: the name is pushed down and its lines tightened, but the
+        // clear gap the grid leaves above the name is only ~15pt — an ink band
+        // that small renders a signature as a speck. So the band is anchored on
+        // the signature rule and runs up to just under the grid (587.7pt),
+        // crossing the name the way a pen signature does.
+        'sigOverNameArg' => true,
+        'sigHeight' => 30,
+        'sigGapAbove' => 1.0,
+        // …but never up into the grid, which ends at $gTop + $gPitch * 4.
+        'sigTopMinArg' => $gTop + $gPitch * 4 + 2,
         'nameGapArg' => 6.5,
         'stepArg' => 5.5,
     ])
