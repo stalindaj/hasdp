@@ -22,6 +22,35 @@
 
 ## Log
 
+### 2026-08-03 — Nav slim-down, Personnel merge, new Director for Personnel
+- **Commit:** pending
+- **Summary:** (1) Merged the Users and Employees admin pages under a single
+  "Personnel" nav item with Accounts/Records tabs (`PersonnelTabs.jsx`); both
+  existing pages/toolsets kept. (2) Removed Holidays and Audit from the navbar
+  (desktop + mobile) and surfaced them as quick-buttons in the admin dashboard
+  header (Audit superadmin-only). (3) Changed the fixed 7.C/7.D Director for
+  Personnel from LTC Adrian Lee G Mission to **MARICEL C TABACO** in
+  `RosterSeeder` — recorded civilian (name only, no rank/PAF) since no rank was
+  given; emp_no sentinel 'mission' and placeholder email kept so re-seeding
+  renames the existing signatory in place (verified: one approver, no orphan).
+- **Files touched:** `resources/js/Layouts/AuthenticatedLayout.jsx`,
+  `resources/js/Components/PersonnelTabs.jsx` (new),
+  `resources/js/Pages/Admin/{Users,Employees}/Index.jsx`,
+  `resources/js/Pages/Dashboard.jsx`, `database/seeders/RosterSeeder.php`,
+  `FEATURES.md`.
+- **Features affected:** 22, 24, 25.
+- **Verified:** `php artisan test` green (164); `npm run build` clean;
+  browser-checked the slimmed nav, dashboard Holidays/Audit buttons, Personnel
+  Accounts↔Records tabs, and the new DP signatory label (MARICEL C TABACO,
+  one approver) after a local re-seed.
+- **Next step:** Commit + push. **Deploy note:** no migration, but the DP
+  rename only reaches prod via a re-seed (run `/setup`) OR by editing the
+  'mission' record under Admin → Personnel → Records. Existing frozen
+  `approver_sig` on past applications is unchanged by design; only new leaves
+  pick up the new DP.
+- **Open questions / notes:** DP recorded as civilian pending confirmation of
+  her rank — flip `is_civilian`/`rank` in RosterSeeder if she is military.
+
 ### 2026-08-03 — Admin/employee split + year-end mandatory-leave forfeiture
 - **Commit:** pending
 - **Summary:** (1) Cleanly separated admin from employee: an admin can no

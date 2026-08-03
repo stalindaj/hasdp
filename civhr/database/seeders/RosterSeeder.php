@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
  * everyone should change theirs on first login.
  *
  * Signatories on CS Form No. 6 are role-driven:
- *   hr_officer → 7.A (Marie Cris Uri) · approver → 7.C/7.D (LTC Mission)
+ *   hr_officer → 7.A (Marie Cris Uri) · approver → 7.C/7.D (Maricel C Tabaco)
  */
 class RosterSeeder extends Seeder
 {
@@ -49,11 +49,16 @@ class RosterSeeder extends Seeder
             ['5893', null,            'Candido',    'Jhona Jean', 'C', null, 'candido.jhonajean@civhr.test', '1998-10-28', null, null, null, null, ['employee'], []],
             ['5894', null,            'Garcia',     'Christine Rae', 'G', null, 'garcia.christine@civhr.test', '2000-08-31', null, null, null, null, ['employee'], []],
 
-            // LTC Adrian Lee G Mission — fixed 7.C/7.D Authorized Official.
-            // Not on the plantilla list; login optional.
-            ['mission', null, 'Mission', 'Adrian Lee', 'G', null, 'adrian.mission@civhr.test', null, null, null, null, null, ['approver'], [
-                'rank' => 'LTC',
-                'is_civilian' => false,
+            // Maricel C Tabaco — the Director for Personnel; fixed 7.C/7.D
+            // Authorized Official. Not on the plantilla list (the 'mission'
+            // emp_no is a sentinel excluded from the roster); login optional.
+            // The placeholder email is kept stable so re-seeding renames the
+            // existing signatory in place rather than orphaning the old one.
+            // Recorded as a civilian (name only, no rank/PAF) — set 'rank' +
+            // 'is_civilian' => false here if she is in fact military.
+            ['mission', null, 'Tabaco', 'Maricel', 'C', null, 'adrian.mission@civhr.test', null, null, null, null, null, ['approver'], [
+                'rank' => null,
+                'is_civilian' => true,
                 'designation' => 'Director for Personnel',
             ]],
         ];

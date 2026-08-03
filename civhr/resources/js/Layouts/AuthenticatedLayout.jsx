@@ -56,22 +56,17 @@ export default function AuthenticatedLayout({ header, children }) {
                                     {isAdmin ? 'Leave requests' : 'My Leave'}
                                 </NavLink>
 
+                                {/* Users + Employees live behind one
+                                    "Personnel" tab (Accounts / Records). */}
                                 {isAdmin && (
                                     <NavLink
                                         href={route('admin.users.index')}
-                                        active={route().current('admin.users.*')}
+                                        active={
+                                            route().current('admin.users.*') ||
+                                            route().current('admin.employees.*')
+                                        }
                                     >
-                                        Users
-                                    </NavLink>
-                                )}
-                                {isAdmin && (
-                                    <NavLink
-                                        href={route('admin.employees.index')}
-                                        active={route().current(
-                                            'admin.employees.*',
-                                        )}
-                                    >
-                                        Employees
+                                        Personnel
                                     </NavLink>
                                 )}
                                 {isAdmin && (
@@ -84,24 +79,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                         Balances
                                     </NavLink>
                                 )}
-                                {isAdmin && (
-                                    <NavLink
-                                        href={route('admin.holidays.index')}
-                                        active={route().current(
-                                            'admin.holidays.*',
-                                        )}
-                                    >
-                                        Holidays
-                                    </NavLink>
-                                )}
-                                {isSuperadmin && (
-                                    <NavLink
-                                        href={route('admin.audit.index')}
-                                        active={route().current('admin.audit.*')}
-                                    >
-                                        Audit
-                                    </NavLink>
-                                )}
+                                {/* Holidays and Audit are now quick buttons on
+                                    the dashboard, not top-level nav. */}
                             </div>
                         </div>
 
@@ -252,17 +231,12 @@ export default function AuthenticatedLayout({ header, children }) {
                         {isAdmin && (
                             <ResponsiveNavLink
                                 href={route('admin.users.index')}
-                                active={route().current('admin.users.*')}
+                                active={
+                                    route().current('admin.users.*') ||
+                                    route().current('admin.employees.*')
+                                }
                             >
-                                Users
-                            </ResponsiveNavLink>
-                        )}
-                        {isAdmin && (
-                            <ResponsiveNavLink
-                                href={route('admin.employees.index')}
-                                active={route().current('admin.employees.*')}
-                            >
-                                Employees
+                                Personnel
                             </ResponsiveNavLink>
                         )}
                         {isAdmin && (
@@ -273,22 +247,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                 Balances
                             </ResponsiveNavLink>
                         )}
-                        {isAdmin && (
-                            <ResponsiveNavLink
-                                href={route('admin.holidays.index')}
-                                active={route().current('admin.holidays.*')}
-                            >
-                                Holidays
-                            </ResponsiveNavLink>
-                        )}
-                        {isSuperadmin && (
-                            <ResponsiveNavLink
-                                href={route('admin.audit.index')}
-                                active={route().current('admin.audit.*')}
-                            >
-                                Audit
-                            </ResponsiveNavLink>
-                        )}
+                        {/* Holidays and Audit are quick buttons on the
+                            dashboard, not top-level nav. */}
                     </div>
 
                     <div className="border-t border-gray-200 pb-1 pt-4">

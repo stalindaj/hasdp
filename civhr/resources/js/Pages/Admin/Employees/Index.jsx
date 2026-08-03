@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
+import PersonnelTabs from '@/Components/PersonnelTabs';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
@@ -159,12 +160,15 @@ export default function Index({ employees, showArchived, archivedCount }) {
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Employees
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                        Personnel
+                    </h2>
+                    <PersonnelTabs active="records" />
+                </div>
             }
         >
-            <Head title="Employees" />
+            <Head title="Personnel — Records" />
 
             <div className="py-8">
                 <div className="mx-auto max-w-7xl space-y-4 sm:px-6 lg:px-8">

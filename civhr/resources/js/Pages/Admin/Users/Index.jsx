@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
 import SignatureUploader from '@/Components/SignatureUploader';
+import PersonnelTabs from '@/Components/PersonnelTabs';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
@@ -132,12 +133,15 @@ export default function Index({ users, roles, employees }) {
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold text-slate-800">
-                    User accounts
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-slate-800">
+                        Personnel
+                    </h2>
+                    <PersonnelTabs active="accounts" />
+                </div>
             }
         >
-            <Head title="Users" />
+            <Head title="Personnel — Accounts" />
 
             <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
                 {flash?.success && (

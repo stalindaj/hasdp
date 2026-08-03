@@ -29,10 +29,10 @@
 | 19 | IPCR compliance toggles | Per-semester done flags | 🟢 done | `DashboardController@toggleIpcr`, `IpcrRecord` | 16 |
 | 20 | Learning & Development | Submit training w/ proof; admin approves; hours toward target | 🟢 done | `LdController`, `LdEntry` | 1 |
 | 21 | E-signatures (account) | Upload your own (or anyone's, if admin) e-signature | 🟢 done | `SignatureController`, `users.signature_path` | 1 |
-| 22 | Admin: users/employees | Manage accounts and HR records | 🟢 done | `Admin/{UserController,EmployeeController}` | 1 |
+| 22 | Admin: Personnel (Accounts + Records) | Manage logins/roles/signatures and plantilla HR records under one nav item with two tabs | 🟢 done | `Admin/{UserController,EmployeeController}`, `Components/PersonnelTabs.jsx` | 1 |
 | 23 | Admin: balances grid | All-employee balance grid, editable | 🟢 done | `Admin/BalanceController` | 9 |
-| 24 | Admin: holidays | Non-working days for 6.C | 🟢 done | `Admin/HolidayController`, `Holiday` | — |
-| 25 | Audit trail (superadmin) | Every act logged + export | 🟢 done | `Admin/AuditController`, `LeaveApplicationAction` | 1 |
+| 24 | Admin: holidays | Non-working days for 6.C; reached via a dashboard quick-button | 🟢 done | `Admin/HolidayController`, `Holiday`, `Dashboard.jsx` | — |
+| 25 | Audit trail (superadmin) | Every act logged + export; reached via a dashboard quick-button | 🟢 done | `Admin/AuditController`, `LeaveApplicationAction`, `Dashboard.jsx` | 1 |
 
 ## Feature detail notes
 

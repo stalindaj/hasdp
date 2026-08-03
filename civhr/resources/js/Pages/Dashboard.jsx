@@ -629,14 +629,42 @@ function EmployeeDashboard({ year, ldTarget, me }) {
 /* ── Page ─────────────────────────────────────────────────────────────── */
 
 export default function Dashboard(props) {
-    const flash = usePage().props.flash;
+    const page = usePage().props;
+    const flash = page.flash;
+    const { isAdmin, isSuperadmin } = page.auth;
+
+    // Holidays (admin) and Audit (superadmin) used to be top-level nav; they
+    // now live here as quiet quick-buttons beside the title.
+    const quickLinks = props.mode === 'admin' && (
+        <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+                <Link
+                    href={route('admin.holidays.index')}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                    📅 Holidays
+                </Link>
+            )}
+            {isSuperadmin && (
+                <Link
+                    href={route('admin.audit.index')}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                    🧾 Audit trail
+                </Link>
+            )}
+        </div>
+    );
 
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold text-slate-800">
-                    Dashboard
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-slate-800">
+                        Dashboard
+                    </h2>
+                    {quickLinks}
+                </div>
             }
         >
             <Head title="Dashboard" />
