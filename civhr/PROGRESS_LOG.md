@@ -22,6 +22,27 @@
 
 ## Log
 
+### 2026-08-03 — Applicant can view/print their own CS Form 6 at any stage
+- **Commit:** pending
+- **Summary:** `canPrint` only allowed APPROVED-or-admin, so an applicant could
+  not read back the form they were filing — and the earlier view-mode-aware
+  `isAdmin` made it worse (an admin in employee mode also lost preview of their
+  own pending leave). Now anyone who can see the application can print it at
+  any stage: `isAdmin || owner`, cancelled still blocked. It is the same sheet
+  the admin previews; an undecided form simply prints with 7.C/7.D blank. The
+  My Leave list also offers the form on every non-cancelled row ("View form"
+  while pending, "Print form" once approved) instead of only after approval.
+- **Files touched:** `app/Support/LeaveWorkflow.php`,
+  `resources/js/Pages/Leave/Index.jsx`, tests `LeaveTest.php`.
+- **Features affected:** 6.
+- **Verified:** `php artisan test` green (165). Browser-checked end to end as a
+  real non-admin (logged in as employee 5797 with a pending leave): My Leave
+  row shows "View form", the print route renders the CS Form 6, the print
+  button is there, and the only signing control is `pickSig('applicant')` —
+  6.D only, 7.x still admin-only. Detail page shows the print button and the
+  signatory "change" editors while pending.
+- **Next step:** Commit + push. No migration; routine pull.
+
 ### 2026-08-03 — Applicant may name signatories while pending
 - **Commit:** pending
 - **Summary:** Restored (and tightened) the applicant's ability to edit the

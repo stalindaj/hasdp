@@ -75,41 +75,40 @@ export default function Index({ applications }) {
                                                 />
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                                                {a.status === 'approved' ? (
-                                                    <span className="space-x-3">
+                                                <span className="space-x-3">
+                                                    {/* The form is readable at
+                                                        every stage, not only
+                                                        once approved. */}
+                                                    {a.status !== 'cancelled' && (
                                                         <a
                                                             href={route('leave.print', a.id)}
                                                             target="_blank"
                                                             rel="noopener"
                                                             className="font-medium text-indigo-600 hover:text-indigo-500"
                                                         >
-                                                            Print form
+                                                            {a.status === 'approved'
+                                                                ? 'Print form'
+                                                                : 'View form'}
                                                         </a>
-                                                        <Link
-                                                            href={route('leave.show', a.id)}
-                                                            className="font-medium text-indigo-600 hover:text-indigo-500"
-                                                        >
-                                                            {a.signed_form
-                                                                ? 'View'
-                                                                : 'Upload signed copy'}
-                                                        </Link>
-                                                        {a.signed_form && (
-                                                            <span
-                                                                className="text-emerald-600"
-                                                                title="Signed form on file"
-                                                            >
-                                                                ✓
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                ) : (
+                                                    )}
                                                     <Link
                                                         href={route('leave.show', a.id)}
                                                         className="font-medium text-indigo-600 hover:text-indigo-500"
                                                     >
-                                                        View
+                                                        {a.status === 'approved' &&
+                                                        !a.signed_form
+                                                            ? 'Upload signed copy'
+                                                            : 'View'}
                                                     </Link>
-                                                )}
+                                                    {a.signed_form && (
+                                                        <span
+                                                            className="text-emerald-600"
+                                                            title="Signed form on file"
+                                                        >
+                                                            ✓
+                                                        </span>
+                                                    )}
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}

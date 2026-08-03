@@ -116,8 +116,12 @@ class LeaveWorkflow
     }
 
     /**
-     * The printable form is meant for wet signing after approval. Admins may
-     * open it any time (to preview); the applicant only once approved.
+     * The printable CS Form No. 6. Anyone who can see the application can open
+     * it at any stage: the applicant needs to read back and check the form they
+     * are filing — not merely be handed one after approval — and an admin
+     * previews anyone's. It is the same sheet either way; an undecided form
+     * simply prints with 7.C/7.D still blank. Only a cancelled application has
+     * nothing worth printing.
      */
     public static function canPrint(LeaveApplication $app, User $user): bool
     {
@@ -125,7 +129,7 @@ class LeaveWorkflow
             return false;
         }
 
-        return $app->status === self::APPROVED || self::isAdmin($user);
+        return self::isAdmin($user) || (int) $app->user_id === (int) $user->id;
     }
 
     public static function log(

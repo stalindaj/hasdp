@@ -470,23 +470,27 @@ class LeaveTest extends TestCase
 
     // ── Print gating ──────────────────────────────────────────────────
 
-    public function test_the_form_prints_only_after_approval_for_the_employee(): void
+    public function test_the_applicant_reads_their_own_form_at_every_stage(): void
     {
         $this->marie();
         $this->mission();
         [$applicant, $leave] = $this->fileAsEmployee();
         $marie = $this->marie();
 
-        // Pending → employee cannot print yet.
-        $this->actingAs($applicant)->get(route('leave.print', $leave))->assertForbidden();
-        // …but an admin may preview.
+        // Pending → the applicant can already open the form to check it, the
+        // same sheet the admin previews (7.C/7.D simply still blank).
+        $this->actingAs($applicant)->get(route('leave.print', $leave))
+            ->assertOk()
+            ->assertSee('APPLICATION FOR LEAVE')
+            ->assertSee('Montejo');
         $this->actingAs($marie)->get(route('leave.print', $leave))->assertOk();
 
         $this->actingAs($marie)->post(route('leave.decide', $leave), [
             'decision' => 'approved', 'days_with_pay' => 3,
         ]);
 
-        // Approved → employee can print; Marie on 7.A and Mission on 7.C/7.D.
+        // Approved → the signatories are filled in: Marie on 7.A, Mission on
+        // 7.C/7.D, ready for wet signing.
         $this->actingAs($applicant->fresh())->get(route('leave.print', $leave->fresh()))
             ->assertOk()
             ->assertSee('APPLICATION FOR LEAVE')
