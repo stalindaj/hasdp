@@ -64,8 +64,10 @@ export default function Form({ form, personnel, signatories, isManager, currentU
 
     const { data, setData, post, patch, processing, errors } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
-        reviewer_id: form?.reviewer_id ?? '',
-        approver_id: form?.approver_id ?? '',
+        reviewer_name: form?.reviewer_sig?.name ?? '',
+        reviewer_designation: form?.reviewer_sig?.designation ?? '',
+        approver_name: form?.approver_sig?.name ?? '',
+        approver_designation: form?.approver_sig?.designation ?? '',
         rating_period: form?.rating_period ?? '',
         position_title: form?.position_title ?? '',
         office_unit: form?.office_unit ?? '',
@@ -404,74 +406,60 @@ export default function Form({ form, personnel, signatories, isManager, currentU
                             Final evaluation &amp; signatories
                         </h3>
 
-                        {/* The two named signatories from the CSC IPCR form. The
-                            ratee signs their own blocks (Commitment / Discussed with). */}
-                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div>
-                                <label className={label}>
-                                    Reviewed / Assessed by (NCOIC · Immediate Supervisor)
-                                </label>
-                                <select
-                                    className={input}
-                                    value={data.reviewer_id}
-                                    onChange={(e) => setData('reviewer_id', e.target.value)}
-                                >
-                                    <option value="">— select signatory —</option>
-                                    {signatories.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.label || s.name}
-                                        </option>
-                                    ))}
-                                </select>
+                        {/* The two named signatories from the CSC IPCR form —
+                            typed by hand (they are usually military supervisors,
+                            not civilian accounts). The ratee signs their own
+                            blocks (Commitment / Discussed with) automatically. */}
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
+                                    Reviewed / Assessed by — NCOIC · Immediate Supervisor
+                                </p>
+                                <div>
+                                    <label className={label}>Name</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. TSg Ronnie R Doble PAF"
+                                        value={data.reviewer_name}
+                                        onChange={(e) => setData('reviewer_name', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={label}>Designation</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. Pneudraulics Shop Supervisor · NCOIC"
+                                        value={data.reviewer_designation}
+                                        onChange={(e) => setData('reviewer_designation', e.target.value)}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className={label}>
-                                    Approved / Final Rating by (Supervisor&apos;s Rater · CO)
-                                </label>
-                                <select
-                                    className={input}
-                                    value={data.approver_id}
-                                    onChange={(e) => setData('approver_id', e.target.value)}
-                                >
-                                    <option value="">— select signatory —</option>
-                                    {signatories.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.label || s.name}
-                                        </option>
-                                    ))}
-                                </select>
+
+                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
+                                    Approved / Final Rating by — Supervisor&apos;s Rater · CO
+                                </p>
+                                <div>
+                                    <label className={label}>Name</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. MAJ ARIEL DICKSON C ALMEDA PAF"
+                                        value={data.approver_name}
+                                        onChange={(e) => setData('approver_name', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={label}>Designation</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. 461st FWFMS Commanding Officer"
+                                        value={data.approver_designation}
+                                        onChange={(e) => setData('approver_designation', e.target.value)}
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {[
-                                ['prepared_by', 'Prepared by'],
-                                ['approved_by', 'Approved by'],
-                                ['discussed_with', 'Discussed with'],
-                                ['fe_reviewed_by', 'Reviewed by'],
-                                ['fe_approved_by', 'Final evaluation approved by'],
-                                ['fe_assessed_by', 'Assessed by'],
-                                ['fe_final_rating_by', 'Final rating by'],
-                            ].map(([k, lbl]) => (
-                                <div key={k}>
-                                    <label className={label}>{lbl}</label>
-                                    <input
-                                        className={input}
-                                        value={data[k]}
-                                        onChange={(e) => setData(k, e.target.value)}
-                                    />
-                                </div>
-                            ))}
-                            <div>
-                                <label className={label}>Discussed date</label>
-                                <input
-                                    type="date"
-                                    className={input}
-                                    value={data.discussed_date ?? ''}
-                                    onChange={(e) => setData('discussed_date', e.target.value)}
-                                />
-                            </div>
-                        </div>
                         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
                                 <label className={label}>Comments</label>

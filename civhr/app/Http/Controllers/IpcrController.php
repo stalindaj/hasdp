@@ -134,7 +134,9 @@ class IpcrController extends Controller
     {
         abort_unless(IpcrAccess::canSubmit($request->user(), $ipcr), 403);
 
-        $ipcr->freezeSignatories();
+        // Signatory snapshots were frozen at save; just refresh the ratee's in
+        // case their account details changed.
+        $ipcr->ratee_sig = $ipcr->ratee?->signatoryBlock();
         $ipcr->status = IpcrForm::SUBMITTED;
         $ipcr->submitted_at = now();
         $ipcr->save();
@@ -224,8 +226,10 @@ class IpcrController extends Controller
     {
         return $request->validate([
             'user_id' => ['required', 'exists:users,id'],
-            'reviewer_id' => ['nullable', 'exists:users,id'],
-            'approver_id' => ['nullable', 'exists:users,id'],
+            'reviewer_name' => ['nullable', 'string', 'max:191'],
+            'reviewer_designation' => ['nullable', 'string', 'max:191'],
+            'approver_name' => ['nullable', 'string', 'max:191'],
+            'approver_designation' => ['nullable', 'string', 'max:191'],
             'rating_period' => ['required', 'string', 'max:191'],
             'position_title' => ['nullable', 'string', 'max:191'],
             'office_unit' => ['nullable', 'string', 'max:191'],
@@ -279,8 +283,20 @@ class IpcrController extends Controller
         $groups = $data['groups'] ?? [];
         unset($data['groups']);
 
-        return DB::transaction(function () use ($form, $data, $groups) {
+        // Typed signatories -> frozen {name, designation} snapshots (these are
+        // usually military supervisors, not accounts in the system).
+        $reviewerSig = $this->sig($data['reviewer_name'] ?? null, $data['reviewer_designation'] ?? null);
+        $approverSig = $this->sig($data['approver_name'] ?? null, $data['approver_designation'] ?? null);
+        unset($data['reviewer_name'], $data['reviewer_designation'], $data['approver_name'], $data['approver_designation']);
+
+        return DB::transaction(function () use ($form, $data, $groups, $reviewerSig, $approverSig) {
             $form->fill($data)->save();
+
+            // Ratee signs from their own account; the two supervisors are typed.
+            $form->ratee_sig = $form->ratee?->signatoryBlock();
+            $form->reviewer_sig = $reviewerSig;
+            $form->approver_sig = $approverSig;
+            $form->save();
 
             // Rebuild children (mirrors the original delete-then-insert).
             $form->groups()->delete();
@@ -337,6 +353,23 @@ class IpcrController extends Controller
     private function num($v): ?float
     {
         return is_numeric($v) ? (float) $v : null;
+    }
+
+    /** A typed signatory -> a frozen block matching User::signatoryBlock() keys. */
+    private function sig(?string $name, ?string $designation): ?array
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return null;
+        }
+
+        return [
+            'rank' => '',
+            'name' => $name,
+            'branch' => '',
+            'position' => trim((string) $designation),
+            'designation' => trim((string) $designation),
+        ];
     }
 
     /** Full nested payload for the editor / viewer. */

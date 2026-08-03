@@ -125,26 +125,30 @@ class IpcrTest extends TestCase
         $this->assertDatabaseHas('ipcr_forms', ['id' => $form->id]);
     }
 
-    public function test_submit_then_approve_workflow_and_signatory_freeze(): void
+    public function test_typed_signatories_and_submit_approve_workflow(): void
     {
         $manager = $this->manager();
         $ratee = $this->employee();
-        $reviewer = $this->employee();
 
-        $form = IpcrForm::create([
+        // Ratee files with typed (hand-entered) supervisors.
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'reviewer_id' => $reviewer->id,
             'rating_period' => 'A',
             'status' => 'draft',
-        ]);
+            'reviewer_name' => 'TSg Ronnie R Doble PAF',
+            'reviewer_designation' => 'Pneudraulics Shop Supervisor / NCOIC',
+            'approver_name' => 'MAJ Ariel Dickson C Almeda PAF',
+            'approver_designation' => '461st FWFMS Commanding Officer',
+            'groups' => [],
+        ])->assertRedirect();
 
-        // Ratee submits — status flips and signatories freeze.
+        $form = IpcrForm::first();
+        $this->assertSame('TSg Ronnie R Doble PAF', $form->reviewer_sig['name']);
+        $this->assertSame('461st FWFMS Commanding Officer', $form->approver_sig['designation']);
+
+        // Ratee submits.
         $this->actingAs($ratee)->post(route('ipcr.submit', $form))->assertRedirect();
-        $form->refresh();
-        $this->assertSame('submitted', $form->status);
-        $this->assertNotNull($form->submitted_at);
-        // Signatory name is frozen (uppercased by signatoryBlock()).
-        $this->assertSame(strtoupper($reviewer->name), $form->reviewer_sig['name']);
+        $this->assertSame('submitted', $form->fresh()->status);
 
         // Ratee cannot approve their own.
         $this->actingAs($ratee)->post(route('ipcr.decide', $form), ['decision' => 'approve'])->assertForbidden();
