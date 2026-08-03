@@ -596,9 +596,9 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
 
 /* ── The three signature blocks on the printed form ──────────────────── */
 function SignatoriesCard({ application, signatories, canEditFixed, canEditRecommender }) {
-    // Naming the signatories is an admin act — the applicant sees the blocks
-    // read-only. 7.A and 7.C/7.D come from the role holders and rarely change,
-    // so their editors stay collapsed behind a quiet link.
+    // The applicant may name the signatories while pending; after a decision
+    // only an admin can. 7.A and 7.C/7.D come from the role holders and rarely
+    // change, so their editors stay collapsed behind a quiet link.
     const [editing, setEditing] = useState(null);
 
     const fixed = [
@@ -1270,8 +1270,8 @@ export default function Show({
                         <SignatoriesCard
                             application={a}
                             signatories={signatories}
-                            canEditFixed={can.decide}
-                            canEditRecommender={can.decide}
+                            canEditFixed={can.edit_signatories}
+                            canEditRecommender={can.edit_signatories}
                         />
                     )}
 

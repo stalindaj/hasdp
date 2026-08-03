@@ -67,13 +67,31 @@ class LeaveWorkflow
     }
 
     /**
-     * The admin half of the form: the 7.A credit certification, the 7.B/7.C
-     * signatories, and the 7.C/7.D decision. Admin-only — an applicant may
-     * never certify or decide their own leave.
+     * The 7.A credit certification and the 7.C/7.D decision. Admin-only — an
+     * applicant may never certify or decide their own leave.
      */
     public static function canDecide(LeaveApplication $app, User $user): bool
     {
         return $app->status !== self::CANCELLED && self::isAdmin($user);
+    }
+
+    /**
+     * Naming who signs the form (7.A / 7.B / 7.C-D). This is not deciding the
+     * leave — it just fills in the blocks — so the applicant may set them while
+     * their application is still pending, in case the admin asks for changes
+     * before approving. Once a decision is made only an admin may adjust them.
+     */
+    public static function canEditSignatories(LeaveApplication $app, User $user): bool
+    {
+        if ($app->status === self::CANCELLED) {
+            return false;
+        }
+
+        if (self::isAdmin($user)) {
+            return true;
+        }
+
+        return $app->status === self::PENDING && (int) $app->user_id === (int) $user->id;
     }
 
     /**

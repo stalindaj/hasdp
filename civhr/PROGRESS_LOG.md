@@ -22,6 +22,30 @@
 
 ## Log
 
+### 2026-08-03 — Applicant may name signatories while pending
+- **Commit:** pending
+- **Summary:** Restored (and tightened) the applicant's ability to edit the
+  7.A/7.B/7.C-D signatory blocks. Earlier the admin/employee split made naming
+  signatories admin-only; but naming who signs is not deciding the leave, and
+  the applicant needs it so the admin can suggest changes before approving. New
+  `LeaveWorkflow::canEditSignatories`: admin any time (not cancelled); owner
+  only while PENDING. After a decision the blocks lock for the applicant and
+  only an admin may adjust them. `setSignatory` now gates on this; Show.jsx
+  drives the SignatoriesCard editors off a new `can.edit_signatories` prop.
+  `canDecide` (7.A certification + 7.C/7.D decision) stays admin-only.
+- **Files touched:** `app/Support/LeaveWorkflow.php`,
+  `app/Http/Controllers/LeaveController.php`,
+  `resources/js/Pages/Leave/Show.jsx`, tests `ApplicantEditsLeaveTest.php`.
+- **Features affected:** 2, 4.
+- **Verified:** `php artisan test` green (165). New tests: applicant names all
+  three blocks while pending; applicant blocked after approval while admin
+  still edits. UI edit affordances are the same boolean-driven SignatoriesCard
+  already in use; the employee-mode toggle was uncooperative under the
+  automated browser this run, so the applicant-pending case is covered by the
+  HTTP-level tests rather than a click-through.
+- **Next step:** Commit + push. No migration; routine pull deploy (the pending
+  `/setup` is still owed from the earlier forfeiture migration + DP re-seed).
+
 ### 2026-08-03 — Nav slim-down, Personnel merge, new Director for Personnel
 - **Commit:** pending
 - **Summary:** (1) Merged the Users and Employees admin pages under a single

@@ -280,8 +280,11 @@ class LeaveController extends Controller
                 'commutation'    => $application->commutation,
             ] : null,
             'can' => [
-                // 7.A / 7.B / 7.C-D — the admin half of the form.
+                // 7.A certification + 7.C/7.D decision — the admin half.
                 'decide'  => $canDecide,
+                // Naming the signatory blocks: the applicant may while pending,
+                // an admin any time before cancellation.
+                'edit_signatories' => LeaveWorkflow::canEditSignatories($application, $user),
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
                 'print'   => LeaveWorkflow::canPrint($application, $user),
                 // The applicant files the wet-signed copy once approved.
@@ -456,13 +459,13 @@ class LeaveController extends Controller
     }
 
     /**
-     * Type in any of the three signature blocks, any time. Admin-only — who
-     * certifies, recommends and approves a leave is never the applicant's to
-     * choose.
+     * Type in any of the three signature blocks. The applicant may set them
+     * while their leave is still pending (the admin often asks for changes
+     * before approving); once decided, only an admin may adjust them.
      *
      * 7.A and 7.C/7.D normally come from the HR-officer / approver roles and
-     * rarely change; 7.B is chosen per application. Either way the admin
-     * types the person, because a stand-in may not have a user account.
+     * rarely change; 7.B is chosen per application. Either way the person is
+     * typed, because a stand-in may not have a user account.
      *
      * Military signatories print rank at the left with the service branch
      * opposite; civilians print neither, and may carry two title lines
@@ -474,7 +477,11 @@ class LeaveController extends Controller
     {
         $user = $request->user();
 
-        abort_unless(LeaveWorkflow::canDecide($application, $user), 403, 'Only an admin can name the signatories.');
+        abort_unless(
+            LeaveWorkflow::canEditSignatories($application, $user),
+            403,
+            'The signatories can no longer be changed on this application.'
+        );
 
         $data = $request->validate([
             'slot'     => ['required', Rule::in(['certifier', 'recommender', 'approver'])],

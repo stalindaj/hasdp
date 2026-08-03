@@ -136,18 +136,42 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertSame('PAF', $sig['branch']);
     }
 
-    public function test_the_applicant_cannot_name_any_signatory(): void
+    public function test_the_applicant_names_the_signatories_while_pending(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
 
-        // Naming who certifies, recommends and approves is the admin's job —
-        // an applicant is turned away from all three blocks.
-        foreach (['certifier', 'recommender', 'approver'] as $slot) {
+        // While the leave is still pending the applicant fills in all three
+        // signature blocks themselves (the admin may then suggest changes).
+        foreach (['certifier' => 'hr_officer_sig', 'recommender' => 'recommender_sig', 'approver' => 'approver_sig'] as $slot => $column) {
             $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
-                'slot' => $slot, 'type' => 'civilian', 'name' => 'Self Serve',
-            ])->assertForbidden();
+                'slot' => $slot, 'type' => 'civilian', 'name' => "Self {$slot}",
+            ])->assertRedirect();
+
+            $this->assertSame(strtoupper("Self {$slot}"), $leave->fresh()->{$column}['name']);
         }
+    }
+
+    public function test_the_applicant_cannot_change_signatories_after_approval(): void
+    {
+        $applicant = $this->applicant();
+        $admin = $this->admin();
+        $leave = $this->file($applicant);
+
+        $this->actingAs($admin)->post(route('leave.decide', $leave), [
+            'decision' => 'approved', 'days_with_pay' => 3,
+        ])->assertRedirect();
+
+        // Once approved the blocks lock for the applicant…
+        $this->actingAs($applicant)->patch(route('leave.signatory', $leave->fresh()), [
+            'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Too Late',
+        ])->assertForbidden();
+
+        // …but the admin may still adjust them.
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave->fresh()), [
+            'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Admin Edit',
+        ])->assertRedirect();
+        $this->assertSame('ADMIN EDIT', $leave->fresh()->recommender_sig['name']);
     }
 
     public function test_nobody_else_can_edit_someone_elses_application(): void
@@ -323,10 +347,10 @@ class ApplicantEditsLeaveTest extends TestCase
 
     public function test_signatory_changes_land_on_the_audit_trail(): void
     {
-        $admin = $this->admin();
-        $leave = $this->file($this->applicant());
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
 
-        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+        $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
             'slot' => 'recommender', 'type' => 'civilian',
             'name' => 'Dianne R Relato', 'position' => 'Admin Officer V',
             'office' => 'Supply Accountable Officer',
@@ -334,7 +358,7 @@ class ApplicantEditsLeaveTest extends TestCase
 
         $action = $leave->actions()->where('action', 'set 7.B')->first();
         $this->assertNotNull($action);
-        $this->assertSame($admin->id, $action->user_id);
+        $this->assertSame($applicant->id, $action->user_id);
         $this->assertStringContainsString('DIANNE R RELATO', $action->remarks);
 
         // The superadmin audit page picks it up.
