@@ -596,8 +596,9 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
 
 /* ── The three signature blocks on the printed form ──────────────────── */
 function SignatoriesCard({ application, signatories, canEditFixed, canEditRecommender }) {
-    // 7.A and 7.C/7.D come from the role holders and rarely change, so their
-    // editors stay collapsed behind a quiet link — and only for an admin.
+    // Naming the signatories is an admin act — the applicant sees the blocks
+    // read-only. 7.A and 7.C/7.D come from the role holders and rarely change,
+    // so their editors stay collapsed behind a quiet link.
     const [editing, setEditing] = useState(null);
 
     const fixed = [
@@ -1258,7 +1259,7 @@ export default function Show({
                     )}
 
                     {(can.upload_form ||
-                        (a.status === 'approved' && can.process)) && (
+                        (a.status === 'approved' && can.decide)) && (
                         <SignedFormCard
                             application={a}
                             canUpload={can.upload_form}
@@ -1269,21 +1270,21 @@ export default function Show({
                         <SignatoriesCard
                             application={a}
                             signatories={signatories}
-                            canEditFixed={can.process}
-                            canEditRecommender={can.edit}
+                            canEditFixed={can.decide}
+                            canEditRecommender={can.decide}
                         />
                     )}
 
                     {/* The applicant sees what 7.A will certify; the admin
                         gets the editable version in the processing card. */}
-                    {!can.process && (
+                    {!can.decide && (
                         <CreditSummaryCard
                             application={a}
                             balanceCheck={balanceCheck}
                         />
                     )}
 
-                    {can.process && (
+                    {can.decide && (
                         <ProcessForm
                             application={a}
                             prefill={creditPrefill}
@@ -1291,7 +1292,7 @@ export default function Show({
                         />
                     )}
 
-                    {a.decision.at && !can.process && (
+                    {a.decision.at && !can.decide && (
                         <Card title="Action taken">
                             <dl className="grid gap-4 sm:grid-cols-2">
                                 <Field label="Decision">

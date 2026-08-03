@@ -15,10 +15,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The applicant self-serves the whole CS Form 6 — boxes 1–6, all three
- * signature blocks, the 7.A credits and the 7.C/7.D decision — at every stage
- * except cancellation, so a mistake can always be corrected. An admin may step
- * in on the same fields, including on an already-approved leave.
+ * The applicant owns their half of CS Form 6 — boxes 1–6 — and may correct it
+ * at every stage except cancellation, including on an already-approved leave.
+ * The 7.x half (naming the signatories, the 7.A credits, the 7.C/7.D decision)
+ * is the admin's alone: an applicant may never certify or decide their own
+ * leave. An admin who wants to file switches to employee mode first.
  */
 class ApplicantEditsLeaveTest extends TestCase
 {
@@ -119,12 +120,12 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertEquals(2.0, (float) $leave->fresh()->working_days);
     }
 
-    public function test_the_applicant_names_their_own_7b(): void
+    public function test_the_admin_names_the_7b_recommender(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
 
-        $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
+        $this->actingAs($this->admin())->patch(route('leave.signatory', $leave), [
             'slot' => 'recommender', 'type' => 'military',
             'name' => 'Juan P Dela Cruz', 'rank' => 'MAJ', 'office' => 'Chief, MPMBR',
         ])->assertRedirect();
@@ -135,19 +136,17 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertSame('PAF', $sig['branch']);
     }
 
-    public function test_the_applicant_may_type_7a_and_7cd_themselves(): void
+    public function test_the_applicant_cannot_name_any_signatory(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
 
-        // The applicant self-serves the whole form, so all three signature
-        // blocks are theirs to type.
-        foreach (['certifier' => 'hr_officer_sig', 'approver' => 'approver_sig'] as $slot => $column) {
+        // Naming who certifies, recommends and approves is the admin's job —
+        // an applicant is turned away from all three blocks.
+        foreach (['certifier', 'recommender', 'approver'] as $slot) {
             $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
-                'slot' => $slot, 'type' => 'civilian', 'name' => "Self {$slot}",
-            ])->assertRedirect();
-
-            $this->assertSame(strtoupper("Self {$slot}"), $leave->fresh()->{$column}['name']);
+                'slot' => $slot, 'type' => 'civilian', 'name' => 'Self Serve',
+            ])->assertForbidden();
         }
     }
 
@@ -179,9 +178,10 @@ class ApplicantEditsLeaveTest extends TestCase
     public function test_editing_stays_open_after_a_decision(): void
     {
         $applicant = $this->applicant();
+        $admin = $this->admin();
         $leave = $this->file($applicant);
 
-        $this->actingAs($this->admin())->post(route('leave.decide', $leave), [
+        $this->actingAs($admin)->post(route('leave.decide', $leave), [
             'decision' => 'approved', 'days_with_pay' => 3,
         ])->assertRedirect();
 
@@ -199,8 +199,8 @@ class ApplicantEditsLeaveTest extends TestCase
             ->assertRedirect();
         $this->assertEquals(5.0, (float) $leave->fresh()->working_days);
 
-        // …and the signatories remain editable too.
-        $this->actingAs($applicant)->patch(route('leave.signatory', $leave->fresh()), [
+        // …and the admin can still adjust the signatories on it.
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave->fresh()), [
             'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Still Editable',
         ])->assertRedirect();
         $this->assertSame('STILL EDITABLE', $leave->fresh()->recommender_sig['name']);
@@ -266,15 +266,18 @@ class ApplicantEditsLeaveTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($p) => $p
                 ->where('can.edit', true)
+                // …but never the admin half — they cannot decide their own leave.
+                ->where('can.decide', false)
                 ->has('leaveTypes')
                 ->has('form')
                 ->where('form.commutation', 'not_requested'));
 
-        // An admin may also edit, to finalise rather than bounce it back.
+        // An admin may also edit (to finalise rather than bounce it back) and
+        // is the one who decides.
         $this->actingAs($this->admin())->get(route('leave.show', $leave))
             ->assertInertia(fn ($p) => $p
                 ->where('can.edit', true)
-                ->where('can.process', true));
+                ->where('can.decide', true));
     }
 
     public function test_an_admin_can_correct_the_form_while_finalising(): void
@@ -312,18 +315,18 @@ class ApplicantEditsLeaveTest extends TestCase
                 ->where('signatories.recommender.label', 'MAJ JUAN P DELA CRUZ PAF')
                 ->has('signatories.certifier')
                 ->has('signatories.approver')
-                // …and their own credit balances.
+                // …and their own credit balances (read-only)…
                 ->has('balanceCheck.balances')
-                // …and can process the leave themselves.
-                ->where('can.process', true));
+                // …but cannot decide the leave themselves.
+                ->where('can.decide', false));
     }
 
     public function test_signatory_changes_land_on_the_audit_trail(): void
     {
-        $applicant = $this->applicant();
-        $leave = $this->file($applicant);
+        $admin = $this->admin();
+        $leave = $this->file($this->applicant());
 
-        $this->actingAs($applicant)->patch(route('leave.signatory', $leave), [
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
             'slot' => 'recommender', 'type' => 'civilian',
             'name' => 'Dianne R Relato', 'position' => 'Admin Officer V',
             'office' => 'Supply Accountable Officer',
@@ -331,7 +334,7 @@ class ApplicantEditsLeaveTest extends TestCase
 
         $action = $leave->actions()->where('action', 'set 7.B')->first();
         $this->assertNotNull($action);
-        $this->assertSame($applicant->id, $action->user_id);
+        $this->assertSame($admin->id, $action->user_id);
         $this->assertStringContainsString('DIANNE R RELATO', $action->remarks);
 
         // The superadmin audit page picks it up.

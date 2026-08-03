@@ -16,6 +16,11 @@ use App\Models\User;
  *
  * There is no multi-step routing and no recommender — 7.B is left blank on the
  * printout for optional pen signing.
+ *
+ * Applicant and admin are strictly separate roles here: the applicant owns
+ * boxes 1–6 and signs 6.D; the admin owns 7.A, 7.B and 7.C/7.D. Nobody
+ * certifies or decides their own leave. An admin who wants to file switches to
+ * employee mode (see {@see ViewMode}), which strips their admin powers first.
  */
 class LeaveWorkflow
 {
@@ -35,24 +40,55 @@ class LeaveWorkflow
         };
     }
 
+    /**
+     * Acting as an admin *right now* — the admin role plus the admin hat. An
+     * admin who has switched to employee mode is treated as a plain employee
+     * everywhere, which is what makes the two roles genuinely separate.
+     */
     public static function isAdmin(User $user): bool
+    {
+        return self::hasAdminRole($user) && ! ViewMode::isEmployee();
+    }
+
+    /** The role itself, regardless of which hat is on. */
+    public static function hasAdminRole(User $user): bool
     {
         return $user->hasRole('superadmin') || $user->hasRole('admin');
     }
 
     /**
-     * The applicant and any admin may process a leave — fill the 7.A credit
-     * certification, name the signatories, and record the 7.C/7.D decision —
-     * and revise it all afterwards, for as long as it is not cancelled. The
-     * applicant self-serves the whole CS Form 6; an admin can step in on any.
+     * Filing a CS Form No. 6 is an employee act. An admin must switch to
+     * employee mode first, so an application is never both filed and decided
+     * by the same hat.
      */
-    public static function canProcess(LeaveApplication $app, User $user): bool
+    public static function canFile(User $user): bool
+    {
+        return ! self::isAdmin($user);
+    }
+
+    /**
+     * The admin half of the form: the 7.A credit certification, the 7.B/7.C
+     * signatories, and the 7.C/7.D decision. Admin-only — an applicant may
+     * never certify or decide their own leave.
+     */
+    public static function canDecide(LeaveApplication $app, User $user): bool
+    {
+        return $app->status !== self::CANCELLED && self::isAdmin($user);
+    }
+
+    /**
+     * Who may drop a signature image onto a block of the printed form. The
+     * applicant signs 6.D and nothing else; an admin signs (or pastes in) any
+     * of the four blocks.
+     */
+    public static function canSignBlock(LeaveApplication $app, User $user, string $slot): bool
     {
         if ($app->status === self::CANCELLED) {
             return false;
         }
 
-        return self::isAdmin($user) || (int) $app->user_id === (int) $user->id;
+        return self::isAdmin($user)
+            || ($slot === 'applicant' && (int) $app->user_id === (int) $user->id);
     }
 
     /** The applicant may withdraw while it is still pending. */

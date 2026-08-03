@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import StatusBadge from '@/Components/StatusBadge';
 import { Head, Link } from '@inertiajs/react';
 
-export default function Index({ applications, isAdmin, pendingCount }) {
+export default function Index({ applications }) {
     return (
         <AuthenticatedLayout
             header={
@@ -10,27 +10,12 @@ export default function Index({ applications, isAdmin, pendingCount }) {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         My Leave
                     </h2>
-                    <div className="flex flex-wrap items-center gap-3">
-                        {isAdmin && (
-                            <Link
-                                href={route('leave.requests')}
-                                className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                            >
-                                Leave requests
-                                {pendingCount > 0 && (
-                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-xs font-semibold text-white">
-                                        {pendingCount}
-                                    </span>
-                                )}
-                            </Link>
-                        )}
-                        <Link
-                            href={route('leave.create')}
-                            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-                        >
-                            File leave (CS Form No. 6)
-                        </Link>
-                    </div>
+                    <Link
+                        href={route('leave.create')}
+                        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                    >
+                        File leave (CS Form No. 6)
+                    </Link>
                 </div>
             }
         >

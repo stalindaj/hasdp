@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import StatusBadge from '@/Components/StatusBadge';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 
 export default function Requests({ applications }) {
     const pending = applications.filter((a) => a.status === 'pending');
@@ -92,12 +92,16 @@ export default function Requests({ applications }) {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         Leave requests
                     </h2>
-                    <Link
-                        href={route('leave.index')}
+                    {/* Filing your own leave is an employee act — switching
+                        hats drops admin access until you switch back. */}
+                    <button
+                        type="button"
+                        onClick={() => router.post(route('view-mode.toggle'))}
                         className="text-sm text-gray-600 underline hover:text-gray-900"
+                        title="Switch to employee mode to file your own leave"
                     >
-                        My leave
-                    </Link>
+                        File my own leave →
+                    </button>
                 </div>
             }
         >

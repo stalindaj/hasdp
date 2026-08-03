@@ -18,10 +18,18 @@ use Inertia\Inertia;
 
 class LeaveController extends Controller
 {
-    /** The employee's own applications. */
+    /**
+     * The employee's own applications. An admin has no "my leave" — Leave
+     * means the requests queue for them, and they switch to employee mode if
+     * they want to file for themselves.
+     */
     public function index(Request $request)
     {
         $user = $request->user();
+
+        if (LeaveWorkflow::isAdmin($user)) {
+            return redirect()->route('leave.requests');
+        }
 
         return Inertia::render('Leave/Index', [
             'applications' => LeaveApplication::with('leaveType:id,name,code')
@@ -31,10 +39,6 @@ class LeaveController extends Controller
                 ->map(fn ($a) => $this->summary($a) + [
                     'signed_form' => (bool) $a->signed_form_path,
                 ]),
-            'isAdmin'      => LeaveWorkflow::isAdmin($user),
-            'pendingCount' => LeaveWorkflow::isAdmin($user)
-                ? LeaveApplication::where('status', LeaveWorkflow::PENDING)->count()
-                : 0,
         ]);
     }
 
@@ -239,8 +243,9 @@ class LeaveController extends Controller
 
         $application->load(['leaveType', 'user:id,name', 'actions.user:id,name']);
 
-        $canProcess = LeaveWorkflow::canProcess($application, $user);
-        $canEdit    = $this->canEdit($application, $user);
+        $canDecide = LeaveWorkflow::canDecide($application, $user);
+        $canEdit   = $this->canEdit($application, $user);
+        $isOwner   = (int) $application->user_id === (int) $user->id;
 
         return Inertia::render('Leave/Show', [
             'application' => $this->detail($application),
@@ -275,31 +280,31 @@ class LeaveController extends Controller
                 'commutation'    => $application->commutation,
             ] : null,
             'can' => [
-                'process' => $canProcess,
+                // 7.A / 7.B / 7.C-D — the admin half of the form.
+                'decide'  => $canDecide,
                 'cancel'  => LeaveWorkflow::canCancel($application, $user),
                 'print'   => LeaveWorkflow::canPrint($application, $user),
                 // The applicant files the wet-signed copy once approved.
-                'upload_form' => (int) $application->user_id === (int) $user->id
-                    && $application->status === LeaveWorkflow::APPROVED,
+                'upload_form' => $isOwner && $application->status === LeaveWorkflow::APPROVED,
                 'edit' => $canEdit,
-                // Owns this leave — drives the applicant-facing guidance banners,
-                // which stay useful now that the owner also sees the full panel.
-                'own' => (int) $application->user_id === (int) $user->id,
+                // Owns this leave — drives the applicant-facing guidance banners.
+                'own' => $isOwner,
             ],
             // CSC rules: credits are certified and checked BEFORE approval; if
-            // the balance is short, the excess may be granted without pay.
-            'balanceCheck' => ($canProcess || (int) $application->user_id === (int) $user->id)
+            // the balance is short, the excess may be granted without pay. The
+            // applicant sees the same figures read-only.
+            'balanceCheck' => ($canDecide || $isOwner)
                 ? $this->balanceCheck($application)
                 : null,
             // Everyone who can see the leave sees who signs it; the page only
-            // offers the 7.A / 7.C-D editors to an admin. 7.A / 7.C-D fall
-            // back to the role holders until something is typed for them.
+            // offers the editors to an admin. 7.A / 7.C-D fall back to the role
+            // holders until something is typed for them.
             'signatories' => [
                 'certifier'   => $this->signatoryFields($application->hr_officer_sig, $this->defaultCertifier()),
                 'recommender' => $this->signatoryFields($application->recommender_sig, null),
                 'approver'    => $this->signatoryFields($application->approver_sig, $this->defaultApprover()),
             ],
-            'creditPrefill' => $canProcess ? $this->creditPrefill($application) : null,
+            'creditPrefill' => $canDecide ? $this->creditPrefill($application) : null,
         ]);
     }
 
@@ -310,7 +315,7 @@ class LeaveController extends Controller
     {
         $user = $request->user();
 
-        abort_unless(LeaveWorkflow::canProcess($application, $user), 403, 'This application is not awaiting your action.');
+        abort_unless(LeaveWorkflow::canDecide($application, $user), 403, 'Only an admin can decide a leave application.');
 
         $approved = $request->input('decision') === 'approved';
 
@@ -393,7 +398,7 @@ class LeaveController extends Controller
     public function saveDraft(Request $request, LeaveApplication $application)
     {
         $user = $request->user();
-        abort_unless(LeaveWorkflow::canProcess($application, $user), 403, 'This application is not awaiting your action.');
+        abort_unless(LeaveWorkflow::canDecide($application, $user), 403, 'Only an admin can certify leave credits.');
 
         $data = $request->validate([
             // Which way the admin is leaning, so the draft printout shows the
@@ -451,7 +456,9 @@ class LeaveController extends Controller
     }
 
     /**
-     * Type in any of the three signature blocks, any time.
+     * Type in any of the three signature blocks, any time. Admin-only — who
+     * certifies, recommends and approves a leave is never the applicant's to
+     * choose.
      *
      * 7.A and 7.C/7.D normally come from the HR-officer / approver roles and
      * rarely change; 7.B is chosen per application. Either way the admin
@@ -467,10 +474,7 @@ class LeaveController extends Controller
     {
         $user = $request->user();
 
-        // The applicant self-serves the whole form, so they may type any of the
-        // three signature blocks (7.A, 7.B, 7.C/7.D) — as can an admin — for as
-        // long as the leave is not cancelled.
-        abort_unless(LeaveWorkflow::canProcess($application, $user), 403);
+        abort_unless(LeaveWorkflow::canDecide($application, $user), 403, 'Only an admin can name the signatories.');
 
         $data = $request->validate([
             'slot'     => ['required', Rule::in(['certifier', 'recommender', 'approver'])],
@@ -563,11 +567,18 @@ class LeaveController extends Controller
      * printed form. Unlike an account e-signature this is tied to this one
      * leave, so it also covers signatories with no account (e.g. the 7.B
      * recommending officer). Replaces any image already on that block.
+     *
+     * The applicant may only sign their own 6.D block; the 7.x blocks belong
+     * to the admin.
      */
     public function storeBlockSignature(Request $request, LeaveApplication $application, string $slot)
     {
         abort_unless(in_array($slot, self::SIGNATURE_SLOTS, true), 404);
-        abort_unless(LeaveWorkflow::canProcess($application, $request->user()), 403);
+        abort_unless(
+            LeaveWorkflow::canSignBlock($application, $request->user(), $slot),
+            403,
+            'That signature block is not yours to sign.'
+        );
 
         $request->validate([
             'signature' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:8192'],
@@ -599,7 +610,11 @@ class LeaveController extends Controller
     public function destroyBlockSignature(Request $request, LeaveApplication $application, string $slot)
     {
         abort_unless(in_array($slot, self::SIGNATURE_SLOTS, true), 404);
-        abort_unless(LeaveWorkflow::canProcess($application, $request->user()), 403);
+        abort_unless(
+            LeaveWorkflow::canSignBlock($application, $request->user(), $slot),
+            403,
+            'That signature block is not yours to sign.'
+        );
 
         $uploads = $application->signature_uploads ?? [];
         if (! empty($uploads[$slot])) {
@@ -660,11 +675,18 @@ class LeaveController extends Controller
 
         $asset = fn (?string $path) => $path && file_exists(public_path($path)) ? asset($path) : null;
 
+        // Which blocks this viewer may sign on-screen: the applicant gets 6.D
+        // alone, an admin gets all four.
+        $signable = collect(self::SIGNATURE_SLOTS)
+            ->mapWithKeys(fn ($slot) => [
+                $slot => LeaveWorkflow::canSignBlock($application, $user, $slot),
+            ])
+            ->all();
+
         return view('leave.print', [
             'app'            => $application,
-            // Whoever may process the leave may also sign the blocks directly
-            // on the form; drives the on-screen upload controls.
-            'canSign'        => LeaveWorkflow::canProcess($application, $user),
+            'signable'       => $signable,
+            'canSign'        => in_array(true, $signable, true),
             // Only the official CSC checkboxes render in 6.A; unofficial types
             // (e.g. Wellness Leave) print on the "Others:" blank instead.
             'types'          => LeaveType::active()->where('is_official', true)->get(),

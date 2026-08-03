@@ -51,8 +51,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::middleware('auth')->group(function () {
     // Admins may preview the app as a plain employee and switch back.
     Route::post('/view-mode', function () {
-        $mode = session('view_mode') === 'employee' ? 'admin' : 'employee';
-        session(['view_mode' => $mode]);
+        \App\Support\ViewMode::toggle();
 
         return redirect()->route('dashboard');
     })->name('view-mode.toggle');
@@ -90,8 +89,11 @@ Route::middleware('auth')->group(function () {
     // Leave — CS Form No. 6
     Route::get('/leave', [LeaveController::class, 'index'])->name('leave.index');
     Route::get('/leave/requests', [LeaveController::class, 'requests'])->name('leave.requests');
-    Route::get('/leave/create', [LeaveController::class, 'create'])->name('leave.create');
-    Route::post('/leave', [LeaveController::class, 'store'])->name('leave.store');
+    // Filing is employee-only: an admin switches to employee mode to file.
+    Route::get('/leave/create', [LeaveController::class, 'create'])
+        ->middleware('employee')->name('leave.create');
+    Route::post('/leave', [LeaveController::class, 'store'])
+        ->middleware('employee')->name('leave.store');
     Route::get('/leave/{application}', [LeaveController::class, 'show'])->name('leave.show');
     // The applicant revises their own pending application.
     Route::patch('/leave/{application}', [LeaveController::class, 'update'])->name('leave.update');

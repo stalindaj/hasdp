@@ -75,7 +75,18 @@ php artisan migrate:fresh --seed
   form. Civilians print no rank/branch (`employees.is_civilian`).
 - **Credit ledger is append-only** (`App\Support\CreditLedger`): VL/SL accrue
   +1.25/month lazily on read (no cron), approvals deduct, edits to an approved
-  leave re-apply the ledger. Never edit balances in place.
+  leave re-apply the ledger. Never edit balances in place. **At year-end the
+  unused part of the 5 mandatory/forced VL days is forfeited** (also lazy on
+  read, one `event_key='forfeit-fl-<year>'` row per closed year, recomputed so
+  back-recording a leave into a closed year gives the days back). A full year
+  therefore carries forward **10 VL and 15 SL**, not 15/15; SL never forfeits.
+- **Admin ≠ employee, one hat at a time** (`App\Support\ViewMode`,
+  `LeaveWorkflow`): an admin processes others' leave and **cannot file their
+  own** — they switch to employee mode (top-bar toggle) first, which drops all
+  admin access while on. Filing is `employee`-middleware-guarded; certifying
+  (7.A), naming signatories (7.B/C/D) and deciding are `canDecide` (admin-only);
+  the applicant owns boxes 1–6 and signs only their own 6.D block
+  (`canSignBlock`). Nobody certifies or decides their own leave.
 - Follow Laravel/Pint style; match the surrounding code's comment density.
 - **Do not add the Claude `Co-Authored-By` trailer to commits** (project
   preference).

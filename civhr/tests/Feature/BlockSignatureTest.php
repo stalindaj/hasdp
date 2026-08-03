@@ -19,6 +19,9 @@ use Tests\TestCase;
  * A signature image dropped straight onto the printed CS Form 6, per block —
  * including 7.B, which has no account. It prints over the name, ahead of any
  * account e-signature.
+ *
+ * The applicant may sign only their own 6.D block; the 7.x blocks (7.A, 7.B,
+ * 7.C/7.D) belong to the admin.
  */
 class BlockSignatureTest extends TestCase
 {
@@ -65,40 +68,47 @@ class BlockSignatureTest extends TestCase
         return LeaveApplication::firstOrFail();
     }
 
-    public function test_the_applicant_uploads_a_signature_onto_any_block(): void
+    public function test_the_applicant_signs_only_their_own_6d_block(): void
     {
         $applicant = $this->applicant();
         $leave = $this->file($applicant);
 
-        // Even the 7.B recommender block — which has no linked account — takes
-        // a signature this way.
+        // Their own 6.D block takes a signature…
         $this->actingAs($applicant)
-            ->post(route('leave.block-signature.store', [$leave, 'recommender']), [
+            ->post(route('leave.block-signature.store', [$leave, 'applicant']), [
                 'signature' => UploadedFile::fake()->image('sig.png'),
             ])->assertRedirect();
 
-        $path = $leave->fresh()->signature_uploads['recommender'];
+        $path = $leave->fresh()->signature_uploads['applicant'];
         $this->assertNotNull($path);
         Storage::assertExists($path);
 
         // …and it is served through the guarded route.
         $this->actingAs($applicant)
-            ->get(route('leave.block-signature', [$leave, 'recommender']))
+            ->get(route('leave.block-signature', [$leave, 'applicant']))
             ->assertOk();
+
+        // …but the 7.x blocks are the admin's — the applicant is turned away.
+        foreach (['certifier', 'recommender', 'approver'] as $slot) {
+            $this->actingAs($applicant)
+                ->post(route('leave.block-signature.store', [$leave, $slot]), [
+                    'signature' => UploadedFile::fake()->image('nope.png'),
+                ])->assertForbidden();
+        }
     }
 
     public function test_uploading_replaces_the_previous_image(): void
     {
-        $applicant = $this->applicant();
-        $leave = $this->file($applicant);
+        $admin = $this->admin();
+        $leave = $this->file($this->applicant());
 
-        $this->actingAs($applicant)->post(
+        $this->actingAs($admin)->post(
             route('leave.block-signature.store', [$leave, 'approver']),
             ['signature' => UploadedFile::fake()->image('first.png')]
         );
         $first = $leave->fresh()->signature_uploads['approver'];
 
-        $this->actingAs($applicant)->post(
+        $this->actingAs($admin)->post(
             route('leave.block-signature.store', [$leave, 'approver']),
             ['signature' => UploadedFile::fake()->image('second.png')]
         );
@@ -135,16 +145,16 @@ class BlockSignatureTest extends TestCase
      */
     public function test_the_7a_signature_sits_above_the_name_and_clears_the_grid(): void
     {
-        $applicant = $this->applicant();
-        $leave = $this->file($applicant);
+        $admin = $this->admin();
+        $leave = $this->file($this->applicant());
 
-        $this->actingAs($applicant)->post(
+        $this->actingAs($admin)->post(
             route('leave.block-signature.store', [$leave, 'certifier']),
             ['signature' => UploadedFile::fake()->image('sig.png')]
         );
 
         $path = parse_url(route('leave.block-signature', [$leave, 'certifier']), PHP_URL_PATH);
-        $html = $this->actingAs($this->admin())->get(route('leave.print', $leave))
+        $html = $this->actingAs($admin)->get(route('leave.print', $leave))
             ->assertOk()->getContent();
 
         $img = substr($html, strpos($html, $path));
@@ -166,16 +176,16 @@ class BlockSignatureTest extends TestCase
 
     public function test_removing_a_signature_clears_it(): void
     {
-        $applicant = $this->applicant();
-        $leave = $this->file($applicant);
+        $admin = $this->admin();
+        $leave = $this->file($this->applicant());
 
-        $this->actingAs($applicant)->post(
+        $this->actingAs($admin)->post(
             route('leave.block-signature.store', [$leave, 'certifier']),
             ['signature' => UploadedFile::fake()->image('sig.png')]
         );
         $path = $leave->fresh()->signature_uploads['certifier'];
 
-        $this->actingAs($applicant)
+        $this->actingAs($admin)
             ->delete(route('leave.block-signature.destroy', [$leave, 'certifier']))
             ->assertRedirect();
 

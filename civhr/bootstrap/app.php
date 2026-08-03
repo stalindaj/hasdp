@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin'      => \App\Http\Middleware\EnsureAdmin::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperadmin::class,
+            // Filing a leave is an employee act; admins must switch hats.
+            'employee'   => \App\Http\Middleware\EnsureEmployeeMode::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

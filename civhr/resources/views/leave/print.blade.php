@@ -581,6 +581,7 @@
             ];
         @endphp
         @foreach ($sigButtons as $b)
+            @continue (! ($signable[$b['slot']] ?? false))
             @php $has = ! empty(($app->signature_uploads ?? [])[$b['slot']]); @endphp
             <button type="button" class="sigup"
                     style="left:{{ $b['left'] }}pt; top:{{ $b['top'] }}pt;"

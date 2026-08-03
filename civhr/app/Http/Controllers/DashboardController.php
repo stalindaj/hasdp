@@ -18,11 +18,9 @@ class DashboardController extends Controller
         $user = $request->user();
         $year = now()->year;
 
-        // Admins see everyone — unless they've switched to employee view.
-        $actsAsAdmin = LeaveWorkflow::isAdmin($user)
-            && $request->session()->get('view_mode') !== 'employee';
-
-        return $actsAsAdmin
+        // Admins see everyone — unless they've switched to employee view,
+        // which LeaveWorkflow::isAdmin already accounts for.
+        return LeaveWorkflow::isAdmin($user)
             ? $this->adminDashboard($year)
             : $this->employeeDashboard($user, $year);
     }
@@ -168,11 +166,7 @@ class DashboardController extends Controller
     /** Admin: one employee's full card — IPCR, balances + ledger, L&D, leaves. */
     public function showEmployee(Request $request, Employee $employee)
     {
-        abort_unless(
-            LeaveWorkflow::isAdmin($request->user())
-            && $request->session()->get('view_mode') !== 'employee',
-            403
-        );
+        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
 
         $year = now()->year;
         $target = (float) config('agency.ld_target_hours');

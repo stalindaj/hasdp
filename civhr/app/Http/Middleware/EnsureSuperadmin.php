@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\ViewMode;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +19,7 @@ class EnsureSuperadmin
 
         abort_unless($user && $user->hasRole('superadmin'), 403, 'You do not have access to this area.');
 
-        if (session('view_mode') === 'employee') {
+        if (ViewMode::isEmployee()) {
             abort(403, 'You are viewing as an employee. Switch back to admin to access this area.');
         }
 

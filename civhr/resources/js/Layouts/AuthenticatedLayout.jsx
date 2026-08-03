@@ -41,11 +41,15 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     My Profile
                                 </NavLink>
+                                {/* Admins have no "my leave" — Leave is the
+                                    requests queue until they switch hats. */}
                                 <NavLink
-                                    href={route('leave.index')}
+                                    href={route(
+                                        isAdmin ? 'leave.requests' : 'leave.index',
+                                    )}
                                     active={route().current('leave.*')}
                                 >
-                                    Leave
+                                    {isAdmin ? 'Leave requests' : 'My Leave'}
                                 </NavLink>
 
                                 {isAdmin && (
@@ -231,10 +235,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             My Profile
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
-                            href={route('leave.index')}
+                            href={route(
+                                isAdmin ? 'leave.requests' : 'leave.index',
+                            )}
                             active={route().current('leave.*')}
                         >
-                            Leave
+                            {isAdmin ? 'Leave requests' : 'My Leave'}
                         </ResponsiveNavLink>
 
                         {isAdmin && (
@@ -317,6 +323,22 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                 </div>
             </nav>
+
+            {/* Which hat is on, said plainly — an admin in employee mode has
+                no admin powers at all, so it must never be a guess. */}
+            {canSwitchView && viewMode === 'employee' && (
+                <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+                    You are in{' '}
+                    <span className="font-semibold">employee mode</span> — filing
+                    and viewing your own records only.{' '}
+                    <button
+                        onClick={switchView}
+                        className="font-semibold underline hover:text-amber-950"
+                    >
+                        Back to admin
+                    </button>
+                </div>
+            )}
 
             {header && (
                 <header className="bg-white shadow">

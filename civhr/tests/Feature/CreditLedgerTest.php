@@ -54,6 +54,58 @@ class CreditLedgerTest extends TestCase
         $this->assertEquals(6.25, CreditLedger::balances($e)['vl']);
     }
 
+    public function test_a_closed_year_forfeits_unused_mandatory_leave(): void
+    {
+        // Accrual ran the whole of 2025 (a closed year) and into 2026. 2025
+        // earned 15 VL; nothing was availed, so 5 mandatory days are forfeited
+        // and the year carries forward 10 VL, not 15.
+        $e = $this->employee(['credits_accrual_start' => '2025-01-01']);
+
+        $balances = CreditLedger::balances($e);
+
+        // 2025: 15 − 5 forfeited = 10. 2026 (Jan–Aug, current year): 8 × 1.25.
+        $this->assertEquals(10 + 8 * 1.25, $balances['vl']);
+        // SL never forfeits: a full 2025 plus 2026 to date.
+        $this->assertEquals((12 + 8) * 1.25, $balances['sl']);
+
+        // The forfeiture is one auditable ledger row, and re-reading is idempotent.
+        $this->assertEquals($balances['vl'], CreditLedger::balances($e)['vl']);
+        $this->assertEquals(
+            1,
+            $e->creditEntries()->where('event_key', 'forfeit-fl-2025')->count()
+        );
+    }
+
+    public function test_mandatory_leave_availed_in_a_year_is_not_forfeited(): void
+    {
+        $e = $this->employee(['credits_accrual_start' => '2025-01-01']);
+        $applicant = User::factory()->create(['employee_id' => $e->id]);
+        $applicant->roles()->sync(Role::where('name', 'employee')->pluck('id'));
+        $admin = $this->admin();
+
+        // A 5-day vacation taken within 2025 uses the mandatory allotment in
+        // full, so nothing is forfeited for that year.
+        $this->actingAs($applicant)->post(route('leave.store'), [
+            'leave_type_id' => LeaveType::where('code', 'vacation')->value('id'),
+            'office_department' => 'DP', 'applicant_last_name' => 'Bercades',
+            'applicant_first_name' => 'Justin', 'date_filing' => '2025-07-03',
+            'position' => 'Clerk', 'detail_vacation' => 'within_philippines',
+            // Mon–Fri Jul 21–25, 2025 → 5 working days.
+            'date_from' => '2025-07-21', 'date_to' => '2025-07-25',
+            'commutation' => 'not_requested',
+        ]);
+        $this->actingAs($admin)->post(route('leave.decide', LeaveApplication::firstOrFail()), [
+            'decision' => 'approved', 'days_with_pay' => 5,
+        ]);
+
+        // 2025: 15 earned − 5 availed − 0 forfeited = 10. Plus 2026 to date.
+        $this->assertEquals(10 + 8 * 1.25, CreditLedger::balances($e->fresh())['vl']);
+        $this->assertEquals(
+            0,
+            $e->creditEntries()->where('event_key', 'forfeit-fl-2025')->count()
+        );
+    }
+
     public function test_wellness_and_spl_are_annual_entitlements(): void
     {
         $e = $this->employee();

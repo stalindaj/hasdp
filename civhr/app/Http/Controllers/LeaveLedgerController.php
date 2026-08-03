@@ -70,9 +70,22 @@ class LeaveLedgerController extends Controller
                 continue;
             }
             $year = (int) substr($e->period, 0, 4);
-            $accruals[$year] ??= ['vl' => 0.0, 'sl' => 0.0, 'months' => []];
+            $accruals[$year] ??= ['vl' => 0.0, 'sl' => 0.0, 'months' => [], 'forfeit' => 0.0];
             $accruals[$year][$e->kind] += (float) $e->amount;
             $accruals[$year]['months'][substr($e->period, 5, 2)] = true;
+        }
+
+        // Year-end forfeiture of unused mandatory leave is netted off the year
+        // it belongs to rather than printed as its own line, so a closed year
+        // reads "10 earned" on the VL side and 15 on the SL side.
+        foreach ($entries as $e) {
+            if (! str_starts_with((string) $e->event_key, 'forfeit-fl-')) {
+                continue;
+            }
+            $year = (int) substr($e->event_key, -4);
+            if (isset($accruals[$year])) {
+                $accruals[$year]['forfeit'] += abs((float) $e->amount);
+            }
         }
 
         $events = [];
@@ -84,8 +97,10 @@ class LeaveLedgerController extends Controller
             $events[] = [
                 'sort'      => $first->timestamp,
                 'period'    => $this->periodLabel($first, $last),
-                'particulars' => '',
-                'vl_earned' => round($a['vl'], 3),
+                'particulars' => $a['forfeit'] > 0
+                    ? 'less '.rtrim(rtrim(number_format($a['forfeit'], 2, '.', ''), '0'), '.').' mandatory leave not availed'
+                    : '',
+                'vl_earned' => round($a['vl'] - $a['forfeit'], 3),
                 'sl_earned' => round($a['sl'], 3),
                 'vl_wpay'   => null, 'vl_wopay' => null,
                 'sl_wpay'   => null, 'sl_wopay' => null,
@@ -116,9 +131,10 @@ class LeaveLedgerController extends Controller
             ];
         }
 
-        // 3) Manual adjustments (opening balances, corrections, forfeitures).
+        // 3) Manual adjustments (opening balances, corrections). The automatic
+        // year-end forfeiture is already netted into its year's row above.
         foreach ($entries as $e) {
-            if ($e->period !== null || $e->leave_application_id !== null) {
+            if ($e->period !== null || $e->leave_application_id !== null || $e->event_key !== null) {
                 continue;
             }
             $amt = (float) $e->amount;

@@ -23,6 +23,10 @@ use Illuminate\Support\Carbon;
  * Wellness Leave (5/yr) and Special Privilege Leave (3/yr) are annual
  * entitlements that reset each year: remaining = entitlement + this year's
  * adjustments − this year's approved days.
+ *
+ * At the turn of each year the unused part of the 5 mandatory/forced VL days
+ * is forfeited, so a full year carries forward 10 VL and 15 SL rather than
+ * 15 and 15. See {@see ensureForfeitures()}.
  */
 class CreditLedger
 {
@@ -31,8 +35,21 @@ class CreditLedger
     /** Kinds that live fully in the ledger (accrue + carry over). */
     public const ACCRUING = ['vl', 'sl'];
 
-    /** Post any missing monthly VL/SL accruals up to the current month. */
+    /** Prefix of the event_key used for the year-end forfeiture rows. */
+    private const FORFEIT_KEY = 'forfeit-fl-';
+
+    /**
+     * Bring the ledger up to today: post any missing monthly VL/SL accruals,
+     * then forfeit unused mandatory leave for every year that has closed.
+     */
     public static function ensureUpToDate(Employee $employee): void
+    {
+        self::ensureAccruals($employee);
+        self::ensureForfeitures($employee);
+    }
+
+    /** Post any missing monthly VL/SL accruals up to the current month. */
+    private static function ensureAccruals(Employee $employee): void
     {
         if (! $employee->credits_accrual_start) {
             // Accrual begins the month the employee first enters the ledger.
@@ -73,6 +90,62 @@ class CreditLedger
         LeaveCreditEntry::insertOrIgnore($rows);
     }
 
+    /**
+     * Year-end forfeiture of unused mandatory/forced leave (CSC Sec. 25,
+     * Rule XVI): five of the year's VL days must be availed within that year
+     * and whatever is left of them does not carry over. So a full year that
+     * saw no VL taken carries forward 10 VL (and 15 SL, which never forfeits).
+     *
+     * Any VL availed during the year counts toward the five, and a part year
+     * can only forfeit what it actually earned — someone who joined in
+     * November never had five days to lose.
+     *
+     * Only closed years are touched; the running year is still live. The row
+     * is recomputed on every read rather than written once, so back-recording
+     * a paper leave into a closed year correctly gives the days back.
+     */
+    private static function ensureForfeitures(Employee $employee): void
+    {
+        $required = (float) config('agency.forced_days');
+        $thisYear = now()->year;
+
+        if ($required <= 0) {
+            return;
+        }
+
+        // VL actually accrued per year, from the monthly rows.
+        $accrued = LeaveCreditEntry::where('employee_id', $employee->id)
+            ->where('kind', 'vl')
+            ->whereNotNull('period')
+            ->get()
+            ->groupBy(fn ($e) => (int) substr($e->period, 0, 4))
+            ->map(fn ($rows) => (float) $rows->sum('amount'));
+
+        foreach ($accrued as $year => $earned) {
+            if ((int) $year >= $thisYear) {
+                continue;
+            }
+
+            $forfeit = round(max(0, min($required, $earned) - self::approvedDaysInYear($employee, 'vl', (int) $year)), 2);
+            $key = self::FORFEIT_KEY.$year;
+            $match = ['employee_id' => $employee->id, 'event_key' => $key];
+
+            if ($forfeit <= 0) {
+                // The mandatory days were fully availed — nothing to forfeit.
+                LeaveCreditEntry::where($match)->delete();
+
+                continue;
+            }
+
+            LeaveCreditEntry::updateOrCreate($match, [
+                'kind'   => 'vl',
+                'amount' => -$forfeit,
+                'period' => null,
+                'note'   => 'Mandatory leave not availed in '.$year.' — forfeited',
+            ]);
+        }
+    }
+
     /** Current balances for all four kinds. */
     public static function balances(Employee $employee): array
     {
@@ -91,13 +164,13 @@ class CreditLedger
             'wellness' => round(
                 (float) config('agency.wellness_days')
                 + self::adjustmentsThisYear($employee, 'wellness')
-                - self::approvedDaysThisYear($employee, 'wellness', $year),
+                - self::approvedDaysInYear($employee, 'wellness', $year),
                 2
             ),
             'spl' => round(
                 (float) config('agency.spl_days')
                 + self::adjustmentsThisYear($employee, 'spl')
-                - self::approvedDaysThisYear($employee, 'spl', $year),
+                - self::approvedDaysInYear($employee, 'spl', $year),
                 2
             ),
         ];
@@ -166,7 +239,7 @@ class CreditLedger
     public static function forcedLeaveStatus(Employee $employee): array
     {
         $required = (float) config('agency.forced_days');
-        $used = self::approvedDaysThisYear($employee, 'vl', now()->year);
+        $used = self::approvedDaysInYear($employee, 'vl', now()->year);
 
         return [
             'required'  => $required,
@@ -200,7 +273,7 @@ class CreditLedger
             ->sum('amount');
     }
 
-    private static function approvedDaysThisYear(Employee $employee, string $kind, int $year): float
+    private static function approvedDaysInYear(Employee $employee, string $kind, int $year): float
     {
         return (float) LeaveApplication::where('employee_id', $employee->id)
             ->where('status', LeaveWorkflow::APPROVED)

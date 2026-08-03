@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\ViewMode;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -38,9 +39,10 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
         $roles = $user ? $user->roles()->pluck('name') : collect();
         $hasAdminRole = $roles->contains('admin') || $roles->contains('superadmin');
-        // Admins can preview the app as a plain employee; while they do, their
-        // admin access is off (EnsureAdmin also enforces this server-side).
-        $asEmployee = $hasAdminRole && $request->session()->get('view_mode') === 'employee';
+        // An admin wears one hat at a time: in employee mode their admin
+        // access is off, on screen and server-side alike (EnsureAdmin and
+        // LeaveWorkflow::isAdmin enforce the same rule).
+        $asEmployee = $hasAdminRole && ViewMode::isEmployee();
 
         return [
             ...parent::share($request),
@@ -51,11 +53,12 @@ class HandleInertiaRequests extends Middleware
                 // The audit trail is superadmin-only, so the nav link is too.
                 'isSuperadmin' => $roles->contains('superadmin') && ! $asEmployee,
                 'canSwitchView' => $hasAdminRole,
-                'viewMode' => $asEmployee ? 'employee' : 'admin',
+                'viewMode' => $asEmployee ? ViewMode::EMPLOYEE : ViewMode::ADMIN,
             ],
             // added: one-off flash messages (used by the create-user form)
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'error'   => fn () => $request->session()->get('error'),
             ],
         ];
     }
