@@ -35,12 +35,16 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Dashboard
                                 </NavLink>
-                                <NavLink
-                                    href={route('my-profile.edit')}
-                                    active={route().current('my-profile.*')}
-                                >
-                                    My Profile
-                                </NavLink>
+                                {/* My Profile is employee self-service; an
+                                    admin edits records under Employees. */}
+                                {!isAdmin && (
+                                    <NavLink
+                                        href={route('my-profile.edit')}
+                                        active={route().current('my-profile.*')}
+                                    >
+                                        My Profile
+                                    </NavLink>
+                                )}
                                 {/* Admins have no "my leave" — Leave is the
                                     requests queue until they switch hats. */}
                                 <NavLink
@@ -228,12 +232,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                     : 'View as employee'}
                             </button>
                         )}
-                        <ResponsiveNavLink
-                            href={route('my-profile.edit')}
-                            active={route().current('my-profile.*')}
-                        >
-                            My Profile
-                        </ResponsiveNavLink>
+                        {!isAdmin && (
+                            <ResponsiveNavLink
+                                href={route('my-profile.edit')}
+                                active={route().current('my-profile.*')}
+                            >
+                                My Profile
+                            </ResponsiveNavLink>
+                        )}
                         <ResponsiveNavLink
                             href={route(
                                 isAdmin ? 'leave.requests' : 'leave.index',

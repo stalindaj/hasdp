@@ -65,13 +65,27 @@ class AdminEmployeeSeparationTest extends TestCase
     {
         $admin = $this->admin();
 
-        // The create form and the store action both bounce to the queue.
+        // The create form and the store action both bounce to the dashboard.
         $this->actingAs($admin)->get(route('leave.create'))
-            ->assertRedirect(route('leave.requests'));
+            ->assertRedirect(route('dashboard'));
         $this->actingAs($admin)->post(route('leave.store'), $this->payload())
-            ->assertRedirect(route('leave.requests'));
+            ->assertRedirect(route('dashboard'));
 
         $this->assertSame(0, LeaveApplication::count());
+    }
+
+    public function test_an_admin_cannot_reach_the_employee_self_service_profile(): void
+    {
+        $admin = $this->admin();
+
+        // My Profile is employee self-service; an admin is bounced until they
+        // switch hats.
+        $this->actingAs($admin)->get(route('my-profile.edit'))
+            ->assertRedirect(route('dashboard'));
+
+        // In employee mode the same account reaches it.
+        $this->actingAs($admin)->post(route('view-mode.toggle'));
+        $this->actingAs($admin)->get(route('my-profile.edit'))->assertOk();
     }
 
     public function test_leave_index_sends_an_admin_to_the_requests_queue(): void

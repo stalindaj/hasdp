@@ -82,9 +82,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/signature/{user}', [SignatureController::class, 'destroy'])->name('signature.destroy');
     Route::get('/signature/{user}', [SignatureController::class, 'show'])->name('signature.show');
 
-    // Employee self-service profile (HR record)
-    Route::get('/my-profile', [EmployeeProfileController::class, 'edit'])->name('my-profile.edit');
-    Route::patch('/my-profile', [EmployeeProfileController::class, 'update'])->name('my-profile.update');
+    // Employee self-service profile (HR record) — employee-only; an admin
+    // edits records under Admin → Employees, and switches to employee mode to
+    // reach their own.
+    Route::middleware('employee')->group(function () {
+        Route::get('/my-profile', [EmployeeProfileController::class, 'edit'])->name('my-profile.edit');
+        Route::patch('/my-profile', [EmployeeProfileController::class, 'update'])->name('my-profile.update');
+    });
 
     // Leave — CS Form No. 6
     Route::get('/leave', [LeaveController::class, 'index'])->name('leave.index');
