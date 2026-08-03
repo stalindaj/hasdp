@@ -37,7 +37,7 @@ class SecurityTest extends TestCase
     {
         config(['app.force_https' => true]);
 
-        $this->get('https://civdir.test/')
+        $this->get('https://civdir.test/login')
             ->assertOk()
             ->assertHeader('Strict-Transport-Security', 'max-age=15552000');
     }
@@ -46,7 +46,7 @@ class SecurityTest extends TestCase
     {
         config(['app.force_https' => false]);
 
-        $this->get('/')->assertOk();
+        $this->get('/login')->assertOk();
     }
 
     public function test_weak_passwords_are_rejected_on_update(): void

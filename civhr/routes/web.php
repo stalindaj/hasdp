@@ -39,24 +39,10 @@ Route::get('/setup/{token}', function (string $token) {
 });
 
 Route::get('/', function () {
-    // Signed-in users go straight to the app; guests see the landing page.
-    if (auth()->check()) {
-        return redirect()->route('dashboard');
-    }
-
-    $asset = fn (?string $p) => $p && file_exists(public_path($p)) ? asset($p) : null;
-
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'agency' => [
-            'unit'      => config('agency.unit'),
-            'name'      => config('agency.name'),
-            'address'   => config('agency.address'),
-            'address2'  => config('agency.address2'),
-            'logoLeft'  => $asset(config('agency.logo_left')),
-            'logoRight' => $asset(config('agency.logo_right')),
-        ],
-    ]);
+    // Signed-in users go straight to the app; guests go to the login page.
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
