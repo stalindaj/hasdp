@@ -124,4 +124,54 @@ class IpcrTest extends TestCase
         $this->actingAs($ratee)->delete(route('ipcr.destroy', $form))->assertForbidden();
         $this->assertDatabaseHas('ipcr_forms', ['id' => $form->id]);
     }
+
+    public function test_submit_then_approve_workflow_and_signatory_freeze(): void
+    {
+        $manager = $this->manager();
+        $ratee = $this->employee();
+        $reviewer = $this->employee();
+
+        $form = IpcrForm::create([
+            'user_id' => $ratee->id,
+            'reviewer_id' => $reviewer->id,
+            'rating_period' => 'A',
+            'status' => 'draft',
+        ]);
+
+        // Ratee submits — status flips and signatories freeze.
+        $this->actingAs($ratee)->post(route('ipcr.submit', $form))->assertRedirect();
+        $form->refresh();
+        $this->assertSame('submitted', $form->status);
+        $this->assertNotNull($form->submitted_at);
+        // Signatory name is frozen (uppercased by signatoryBlock()).
+        $this->assertSame(strtoupper($reviewer->name), $form->reviewer_sig['name']);
+
+        // Ratee cannot approve their own.
+        $this->actingAs($ratee)->post(route('ipcr.decide', $form), ['decision' => 'approve'])->assertForbidden();
+
+        // Manager approves.
+        $this->actingAs($manager)->post(route('ipcr.decide', $form), ['decision' => 'approve'])->assertRedirect();
+        $form->refresh();
+        $this->assertSame('approved', $form->status);
+        $this->assertSame($manager->id, $form->approved_by_id);
+    }
+
+    public function test_scanned_copy_only_after_approval(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $ratee = $this->employee();
+        $form = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $file = \Illuminate\Http\UploadedFile::fake()->create('ipcr.pdf', 100, 'application/pdf');
+
+        // Not yet approved → blocked.
+        $this->actingAs($ratee)->post(route('ipcr.scan.store', $form), ['scan' => $file])->assertForbidden();
+
+        $form->update(['status' => 'approved']);
+        $this->actingAs($ratee)->post(route('ipcr.scan.store', $form), ['scan' => $file])->assertRedirect();
+
+        $form->refresh();
+        $this->assertNotNull($form->scanned_copy_path);
+        \Illuminate\Support\Facades\Storage::assertExists($form->scanned_copy_path);
+    }
 }

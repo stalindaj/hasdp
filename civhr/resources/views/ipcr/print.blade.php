@@ -1,90 +1,184 @@
+@php
+    // Resolve a signatory block from the frozen snapshot, falling back to the
+    // live user (so a draft prints before it is submitted/frozen).
+    $block = function ($frozen, $user) {
+        if (is_array($frozen) && ($frozen['name'] ?? '') !== '') {
+            return $frozen;
+        }
+        return $user?->signatoryBlock();
+    };
+
+    $ratee = $form->ratee;
+    $emp = $ratee?->employee;
+    $sg = $emp?->salary_grade;
+
+    $rateeSig = $block($form->ratee_sig, $ratee);
+    $reviewerSig = $block($form->reviewer_sig, $form->reviewer);
+    $approverSig = $block($form->approver_sig, $form->approver);
+
+    $sigName = fn ($b) => $b ? trim(implode(' ', array_filter([$b['rank'] ?? '', $b['name'] ?? '', $b['branch'] ?? '']))) : '';
+    $sigDesig = fn ($b) => $b ? (($b['designation'] ?? '') ?: ($b['position'] ?? '')) : '';
+
+    $submitted = optional($form->submitted_at)->format('d F Y');
+    $approved = optional($form->approved_at)->format('d F Y');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>IPCR — {{ $form->ratee->name ?? '' }}</title>
+    <title>IPCR (Form E) — {{ $ratee->name ?? '' }}</title>
     <style>
         * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 24px; font-size: 12px; }
-        .head { text-align: center; margin-bottom: 16px; }
-        .head h1 { font-size: 16px; margin: 0; color: #0b2a52; }
-        .head .sub { font-size: 11px; color: #555; }
-        .meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-        .meta td { padding: 3px 6px; }
-        .meta .k { font-size: 9px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
-        table.grid { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-        table.grid th, table.grid td { border: 1px solid #999; padding: 5px 6px; vertical-align: top; }
-        table.grid th { background: #0b2a52; color: #fff; font-size: 10px; text-transform: uppercase; }
-        .rate { text-align: center; width: 48px; }
-        .overall { background: #0b2a52; color: #fff; padding: 8px 12px; display: flex;
-                   justify-content: space-between; font-weight: 700; }
-        .overall .adj { color: #c9a341; }
-        .sigs { display: flex; gap: 24px; margin-top: 28px; }
-        .sig { flex: 1; text-align: center; font-size: 11px; }
-        .sig .line { border-top: 1px solid #333; margin-top: 34px; padding-top: 4px; }
-        @media print { body { margin: 12mm; } .noprint { display: none; } }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #000; margin: 14mm 10mm; font-size: 10px; }
+        .title { display: flex; justify-content: space-between; font-weight: 700; font-size: 12px; }
+        .commit { border: 1px solid #000; border-top: 0; padding: 6px 8px; display: flex; }
+        .commit .txt { flex: 1; padding-right: 10px; }
+        .commit .sign { width: 200px; text-align: center; font-size: 9px; }
+        .commit .sign .nm { margin-top: 22px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { border: 1px solid #000; padding: 3px 5px; vertical-align: top; }
+        .sig-head { background: #f0a868; font-weight: 700; }
+        .sig-cell { height: 62px; vertical-align: bottom; text-align: center; font-size: 9px; }
+        .sig-cell .nm { font-weight: 600; }
+        .sig-cell .role { font-style: italic; }
+        .date-col { width: 90px; text-align: center; font-size: 9px; }
+        thead.grid th { background: #6fb2d6; font-weight: 700; text-align: center; }
+        .rate { width: 26px; text-align: center; }
+        .sec { background: #eee; font-weight: 700; }
+        .sum td { font-weight: 600; }
+        .legend { border: 1px solid #000; border-top: 0; padding: 4px 6px; font-size: 8px; }
+        @media print { body { margin: 10mm; } .noprint { display: none; } }
     </style>
 </head>
 <body>
-    <div class="head">
-        <h1>Individual Performance Commitment and Review (IPCR)</h1>
-        <div class="sub">15th Strike Wing — Civilian Personnel Management System</div>
+    <div class="title" style="border:1px solid #000;border-bottom:0;padding:4px 8px;">
+        <span>INDIVIDUAL PERFORMANCE COMMITMENT AND REVIEW (IPCR)</span>
+        <span>(FORM E)</span>
     </div>
 
-    <table class="meta">
+    {{-- Commitment statement + ratee signature --}}
+    <div class="commit">
+        <div class="txt">
+            <strong>I, {{ $ratee->name ?? '________' }},
+                {{ $form->position_title ?: '________' }}{{ $sg ? " (SG-{$sg})" : '' }}
+                of {{ $form->office_unit ?: '________' }}</strong>
+            commit to deliver and agree to be rated on the following targets in
+            accordance with indicated measures for the period
+            <strong>{{ $form->rating_period }}</strong>.
+        </div>
+        <div class="sign">
+            <div class="nm">{{ $sigName($rateeSig) ?: ($ratee->name ?? '') }}</div>
+            <div>Employee</div>
+            <div>Date: {{ $submitted ?: '__________' }}</div>
+        </div>
+    </div>
+
+    {{-- Top signatory block --}}
+    <table>
         <tr>
-            <td class="k">Ratee</td><td>{{ $form->ratee->name ?? '—' }}</td>
-            <td class="k">Rating period</td><td>{{ $form->rating_period }}</td>
+            <td class="sig-head" style="width:35%">Reviewed by:</td>
+            <td class="sig-head date-col">Date:</td>
+            <td class="sig-head" style="width:35%">Approved by:</td>
+            <td class="sig-head date-col">Date:</td>
         </tr>
         <tr>
-            <td class="k">Position</td><td>{{ $form->position_title ?: '—' }}</td>
-            <td class="k">Office / Unit</td><td>{{ $form->office_unit ?: '—' }}</td>
+            <td class="sig-cell">
+                <div class="nm">{{ $sigName($reviewerSig) ?: '________' }}</div>
+                <div>{{ $sigDesig($reviewerSig) }}</div>
+                <div class="role">Immediate Supervisor</div>
+            </td>
+            <td class="date-col" style="vertical-align:middle">{{ $submitted }}</td>
+            <td class="sig-cell">
+                <div class="nm">{{ $sigName($approverSig) ?: '________' }}</div>
+                <div>{{ $sigDesig($approverSig) }}</div>
+                <div class="role">Supervisor's Rater</div>
+            </td>
+            <td class="date-col" style="vertical-align:middle">{{ $approved }}</td>
         </tr>
     </table>
 
-    <table class="grid">
-        <thead>
+    {{-- Main rating table --}}
+    <table>
+        <thead class="grid">
             <tr>
-                <th style="width:26%">Major Final Output</th>
-                <th style="width:24%">Success Indicator</th>
-                <th style="width:26%">Actual Accomplishment</th>
+                <th rowspan="2" style="width:20%">Output</th>
+                <th rowspan="2" style="width:24%">Success Indicator (Target + Measure)</th>
+                <th rowspan="2" style="width:24%">Actual Accomplishment</th>
+                <th colspan="4">Rating</th>
+                <th rowspan="2" style="width:10%">Remarks</th>
+            </tr>
+            <tr>
                 <th class="rate">Q</th>
-                <th class="rate">T</th>
                 <th class="rate">Qn</th>
-                <th class="rate">Ave</th>
+                <th class="rate">T3</th>
+                <th class="rate">A4</th>
             </tr>
         </thead>
         <tbody>
+            <tr><td colspan="8" class="sec">Strategic Priority No.: {{ $form->strategic_priority }}</td></tr>
+            <tr><td colspan="8" class="sec">Core Function: {{ $form->core_function }}</td></tr>
+
             @forelse ($form->groups as $g)
                 <tr>
                     <td>{{ $g->major_final_output }}</td>
                     <td>{{ $g->success_indicator }}</td>
                     <td>{{ $g->actual_accomplishment }}</td>
-                    <td class="rate">{{ $g->quality_rating ?? '' }}</td>
-                    <td class="rate">{{ $g->timeliness_rating ?? '' }}</td>
-                    <td class="rate">{{ $g->quantity_rating ?? '' }}</td>
-                    <td class="rate"><strong>{{ $g->average_rating ?? '' }}</strong></td>
+                    <td class="rate">{{ $g->quality_rating ? rtrim(rtrim(number_format($g->quality_rating,0),'0'),'.') : '' }}</td>
+                    <td class="rate">{{ $g->quantity_rating ? rtrim(rtrim(number_format($g->quantity_rating,0),'0'),'.') : '' }}</td>
+                    <td class="rate">{{ $g->timeliness_rating ? rtrim(rtrim(number_format($g->timeliness_rating,0),'0'),'.') : '' }}</td>
+                    <td class="rate">{{ $g->average_rating !== null ? number_format($g->average_rating,2) : '' }}</td>
+                    <td>{{ $g->remarks }}</td>
                 </tr>
             @empty
-                <tr><td colspan="7" style="text-align:center;color:#777">No entries.</td></tr>
+                <tr><td colspan="8" style="text-align:center;color:#777">No outputs.</td></tr>
             @endforelse
+
+            <tr class="sum"><td colspan="6">Average point score</td><td class="rate">{{ $form->fe_average_point_score !== null ? number_format($form->fe_average_point_score,2) : '' }}</td><td></td></tr>
+            <tr class="sum"><td colspan="8">Add: Intervening Activity: {{ $form->fe_intervening_activity }}</td></tr>
+            <tr class="sum"><td colspan="6">Overall point score</td><td class="rate">{{ $form->fe_overall_point_score !== null ? number_format($form->fe_overall_point_score,2) : '' }}</td><td></td></tr>
+            <tr class="sum"><td colspan="6">Overall Equivalent Numerical Rating</td><td class="rate">{{ $form->fe_overall_numerical_rating !== null ? number_format($form->fe_overall_numerical_rating,2) : '' }}</td><td></td></tr>
+            <tr class="sum"><td colspan="6">Overall Equivalent Adjective Rating</td><td colspan="2" style="text-align:center;font-weight:700">{{ $form->fe_overall_adjectival_rating }}</td></tr>
         </tbody>
     </table>
 
-    <div class="overall">
-        <span>OVERALL RATING</span>
-        <span>{{ $form->overall_rating ?? '—' }}
-            <span class="adj">{{ $form->fe_overall_adjectival_rating }}</span>
-        </span>
+    {{-- Bottom signatory block --}}
+    <table>
+        <tr><td colspan="6" class="sig-head">From Rater's and Recommendations for Development Purpose</td></tr>
+        <tr>
+            <td class="sig-head" style="width:24%">Discussed with:</td>
+            <td class="sig-head date-col">Date:</td>
+            <td class="sig-head" style="width:24%">Assessed by:</td>
+            <td class="sig-head date-col">Date:</td>
+            <td class="sig-head" style="width:24%">Final Rating by:</td>
+            <td class="sig-head date-col">Date:</td>
+        </tr>
+        <tr>
+            <td class="sig-cell">
+                <div class="nm">{{ $sigName($rateeSig) ?: ($ratee->name ?? '') }}</div>
+                <div>{{ $form->position_title }}{{ $sg ? " (SG-{$sg})" : '' }}</div>
+                <div class="role">Employee</div>
+            </td>
+            <td class="date-col" style="vertical-align:middle">{{ $approved }}</td>
+            <td class="sig-cell">
+                <div class="nm">{{ $sigName($reviewerSig) ?: '________' }}</div>
+                <div>{{ $sigDesig($reviewerSig) }}</div>
+                <div class="role">Supervisor</div>
+            </td>
+            <td class="date-col" style="vertical-align:middle">{{ $approved }}</td>
+            <td class="sig-cell">
+                <div class="nm">{{ $sigName($approverSig) ?: '________' }}</div>
+                <div>{{ $sigDesig($approverSig) }}</div>
+                <div class="role">Supervisor's Rater</div>
+            </td>
+            <td class="date-col" style="vertical-align:middle">{{ $approved }}</td>
+        </tr>
+    </table>
+
+    <div class="legend">
+        Legend: 1 - Quality (Ql) &nbsp; 2 - Quantity (Qn) &nbsp; 3 - Timeliness (T) &nbsp; 4 - Average (A)
     </div>
 
-    <div class="sigs">
-        <div class="sig"><div class="line">{{ $form->prepared_by ?: '&nbsp;' }}<br>Prepared / Ratee</div></div>
-        <div class="sig"><div class="line">{{ $form->fe_reviewed_by ?: '&nbsp;' }}<br>Reviewed by</div></div>
-        <div class="sig"><div class="line">{{ $form->approved_by ?: '&nbsp;' }}<br>Approved by</div></div>
-    </div>
-
-    <div class="noprint" style="margin-top:24px;text-align:center">
+    <div class="noprint" style="margin-top:16px;text-align:center">
         <button onclick="window.print()"
             style="background:#0b2a52;color:#fff;border:0;padding:8px 18px;border-radius:6px;cursor:pointer">
             Print

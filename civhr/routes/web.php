@@ -135,6 +135,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('/ipcr/{ipcr}', [IpcrController::class, 'update'])->name('ipcr.update');
     Route::get('/ipcr/{ipcr}/print', [IpcrController::class, 'print'])->name('ipcr.print');
     Route::delete('/ipcr/{ipcr}', [IpcrController::class, 'destroy'])->name('ipcr.destroy');
+    // Workflow: ratee submits, manager/approver decides, scanned copy after approval.
+    Route::post('/ipcr/{ipcr}/submit', [IpcrController::class, 'submit'])->name('ipcr.submit');
+    Route::post('/ipcr/{ipcr}/decide', [IpcrController::class, 'decide'])->name('ipcr.decide');
+    Route::post('/ipcr/{ipcr}/scan', [IpcrController::class, 'storeScan'])->name('ipcr.scan.store');
+    Route::get('/ipcr/{ipcr}/scan', [IpcrController::class, 'scan'])->name('ipcr.scan');
 });
 
 // Admin area (superadmin + admin only)

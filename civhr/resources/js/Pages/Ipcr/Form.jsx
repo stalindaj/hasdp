@@ -59,14 +59,18 @@ const label = 'block text-xs font-semibold uppercase tracking-wide text-gray-500
 const input =
     'mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-[#0b2a52] focus:ring-[#0b2a52]';
 
-export default function Form({ form, personnel, isManager, currentUserId }) {
+export default function Form({ form, personnel, signatories, isManager, currentUserId }) {
     const editing = Boolean(form?.id);
 
     const { data, setData, post, patch, processing, errors } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
+        reviewer_id: form?.reviewer_id ?? '',
+        approver_id: form?.approver_id ?? '',
         rating_period: form?.rating_period ?? '',
         position_title: form?.position_title ?? '',
         office_unit: form?.office_unit ?? '',
+        strategic_priority: form?.strategic_priority ?? '',
+        core_function: form?.core_function ?? '',
         status: form?.status ?? 'draft',
         prepared_by: form?.prepared_by ?? '',
         approved_by: form?.approved_by ?? '',
@@ -181,6 +185,24 @@ export default function Form({ form, personnel, isManager, currentUserId }) {
                                     className={input}
                                     value={data.office_unit}
                                     onChange={(e) => setData('office_unit', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className={label}>Strategic Priority</label>
+                                <input
+                                    className={input}
+                                    placeholder="e.g. Territorial defense, security and stability services"
+                                    value={data.strategic_priority}
+                                    onChange={(e) => setData('strategic_priority', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className={label}>Core Function</label>
+                                <input
+                                    className={input}
+                                    placeholder="e.g. Maintain, repair, restore and recovery of aircraft"
+                                    value={data.core_function}
+                                    onChange={(e) => setData('core_function', e.target.value)}
                                 />
                             </div>
                             <div>
@@ -381,6 +403,46 @@ export default function Form({ form, personnel, isManager, currentUserId }) {
                         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
                             Final evaluation &amp; signatories
                         </h3>
+
+                        {/* The two named signatories from the CSC IPCR form. The
+                            ratee signs their own blocks (Commitment / Discussed with). */}
+                        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label className={label}>
+                                    Reviewed / Assessed by (NCOIC · Immediate Supervisor)
+                                </label>
+                                <select
+                                    className={input}
+                                    value={data.reviewer_id}
+                                    onChange={(e) => setData('reviewer_id', e.target.value)}
+                                >
+                                    <option value="">— select signatory —</option>
+                                    {signatories.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.label || s.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className={label}>
+                                    Approved / Final Rating by (Supervisor&apos;s Rater · CO)
+                                </label>
+                                <select
+                                    className={input}
+                                    value={data.approver_id}
+                                    onChange={(e) => setData('approver_id', e.target.value)}
+                                >
+                                    <option value="">— select signatory —</option>
+                                    {signatories.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.label || s.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             {[
                                 ['prepared_by', 'Prepared by'],

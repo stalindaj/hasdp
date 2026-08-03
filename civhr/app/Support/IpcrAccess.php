@@ -43,4 +43,31 @@ class IpcrAccess
     {
         return self::isManager($user);
     }
+
+    /** The ratee (or a manager) submits a draft for approval. */
+    public static function canSubmit(User $user, IpcrForm $form): bool
+    {
+        if (! in_array($form->status, [IpcrForm::DRAFT, IpcrForm::RETURNED], true)) {
+            return false;
+        }
+
+        return self::isManager($user) || $form->user_id === $user->id;
+    }
+
+    /** A manager (or the named approver) approves / returns a submitted form. */
+    public static function canDecide(User $user, IpcrForm $form): bool
+    {
+        if ($form->status !== IpcrForm::SUBMITTED) {
+            return false;
+        }
+
+        return self::isManager($user) || $form->approver_id === $user->id;
+    }
+
+    /** Once approved, the ratee or a manager uploads the scanned wet-signed copy. */
+    public static function canUploadScan(User $user, IpcrForm $form): bool
+    {
+        return $form->status === IpcrForm::APPROVED
+            && (self::isManager($user) || $form->user_id === $user->id);
+    }
 }

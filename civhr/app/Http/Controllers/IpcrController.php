@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\IpcrAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 /**
@@ -47,6 +48,7 @@ class IpcrController extends Controller
         return Inertia::render('Ipcr/Form', [
             'form' => null,
             'personnel' => $this->personnel(),
+            'signatories' => $this->signatories(),
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
         ]);
@@ -73,6 +75,7 @@ class IpcrController extends Controller
         return Inertia::render('Ipcr/Form', [
             'form' => $this->payload($ipcr),
             'personnel' => $this->personnel(),
+            'signatories' => $this->signatories(),
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
         ]);
@@ -101,6 +104,10 @@ class IpcrController extends Controller
             'form' => $this->payload($ipcr),
             'canEdit' => IpcrAccess::canEdit($request->user(), $ipcr),
             'canDelete' => IpcrAccess::canDelete($request->user(), $ipcr),
+            'canSubmit' => IpcrAccess::canSubmit($request->user(), $ipcr),
+            'canDecide' => IpcrAccess::canDecide($request->user(), $ipcr),
+            'canUploadScan' => IpcrAccess::canUploadScan($request->user(), $ipcr),
+            'hasScan' => (bool) $ipcr->scanned_copy_path,
         ]);
     }
 
@@ -108,7 +115,7 @@ class IpcrController extends Controller
     {
         abort_unless(IpcrAccess::canView($request->user(), $ipcr), 403);
 
-        $ipcr->load(['ratee', 'groups.rows']);
+        $ipcr->load(['ratee.employee', 'reviewer.employee', 'approver.employee', 'groups.rows']);
 
         return view('ipcr.print', ['form' => $ipcr]);
     }
@@ -122,7 +129,87 @@ class IpcrController extends Controller
         return redirect()->route('ipcr.index')->with('success', 'IPCR deleted.');
     }
 
+    /** The ratee (or a manager) submits a draft for approval. */
+    public function submit(Request $request, IpcrForm $ipcr)
+    {
+        abort_unless(IpcrAccess::canSubmit($request->user(), $ipcr), 403);
+
+        $ipcr->freezeSignatories();
+        $ipcr->status = IpcrForm::SUBMITTED;
+        $ipcr->submitted_at = now();
+        $ipcr->save();
+
+        return back()->with('success', 'IPCR submitted for approval.');
+    }
+
+    /** A manager / the named approver approves or returns a submitted form. */
+    public function decide(Request $request, IpcrForm $ipcr)
+    {
+        abort_unless(IpcrAccess::canDecide($request->user(), $ipcr), 403);
+
+        $decision = $request->validate([
+            'decision' => ['required', 'in:approve,return'],
+        ])['decision'];
+
+        if ($decision === 'approve') {
+            $ipcr->status = IpcrForm::APPROVED;
+            $ipcr->approved_at = now();
+            $ipcr->approved_by_id = $request->user()->id;
+            $ipcr->save();
+
+            return back()->with('success', 'IPCR approved.');
+        }
+
+        $ipcr->status = IpcrForm::RETURNED;
+        $ipcr->submitted_at = null;
+        $ipcr->save();
+
+        return back()->with('success', 'IPCR returned to the ratee.');
+    }
+
+    /** Upload the scanned, wet-signed copy (after approval). */
+    public function storeScan(Request $request, IpcrForm $ipcr)
+    {
+        abort_unless(IpcrAccess::canUploadScan($request->user(), $ipcr), 403);
+
+        $request->validate([
+            'scan' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:12288'],
+        ]);
+
+        if ($ipcr->scanned_copy_path) {
+            Storage::delete($ipcr->scanned_copy_path);
+        }
+
+        $ipcr->scanned_copy_path = $request->file('scan')->store("ipcr-forms/{$ipcr->id}");
+        $ipcr->save();
+
+        return back()->with('success', 'Scanned copy uploaded.');
+    }
+
+    /** Serve the scanned copy to the ratee or a manager. */
+    public function scan(Request $request, IpcrForm $ipcr)
+    {
+        abort_unless(IpcrAccess::canView($request->user(), $ipcr), 403);
+        abort_unless($ipcr->scanned_copy_path && Storage::exists($ipcr->scanned_copy_path), 404);
+
+        return response()->file(Storage::path($ipcr->scanned_copy_path));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
+
+    /** Anyone who can be named as a signatory (active accounts, with a label). */
+    private function signatories()
+    {
+        return User::where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'label' => $u->signatoryLabel(),
+            ])
+            ->values();
+    }
 
     /** Employees who can be rated (managers pick the ratee). */
     private function personnel()
@@ -137,10 +224,14 @@ class IpcrController extends Controller
     {
         return $request->validate([
             'user_id' => ['required', 'exists:users,id'],
+            'reviewer_id' => ['nullable', 'exists:users,id'],
+            'approver_id' => ['nullable', 'exists:users,id'],
             'rating_period' => ['required', 'string', 'max:191'],
             'position_title' => ['nullable', 'string', 'max:191'],
             'office_unit' => ['nullable', 'string', 'max:191'],
-            'status' => ['required', 'in:draft,submitted,reviewed,approved,rejected'],
+            'strategic_priority' => ['nullable', 'string', 'max:191'],
+            'core_function' => ['nullable', 'string', 'max:191'],
+            'status' => ['required', 'in:draft,submitted,reviewed,approved,rejected,returned'],
 
             'prepared_by' => ['nullable', 'string', 'max:191'],
             'approved_by' => ['nullable', 'string', 'max:191'],
@@ -257,9 +348,18 @@ class IpcrController extends Controller
             'id' => $ipcr->id,
             'user_id' => $ipcr->user_id,
             'ratee' => $ipcr->ratee?->name,
+            'reviewer_id' => $ipcr->reviewer_id,
+            'approver_id' => $ipcr->approver_id,
+            'ratee_sig' => $ipcr->ratee_sig,
+            'reviewer_sig' => $ipcr->reviewer_sig,
+            'approver_sig' => $ipcr->approver_sig,
+            'submitted_at' => optional($ipcr->submitted_at)->toDateString(),
+            'approved_at' => optional($ipcr->approved_at)->toDateString(),
             'rating_period' => $ipcr->rating_period,
             'position_title' => $ipcr->position_title,
             'office_unit' => $ipcr->office_unit,
+            'strategic_priority' => $ipcr->strategic_priority,
+            'core_function' => $ipcr->core_function,
             'status' => $ipcr->status,
             'prepared_by' => $ipcr->prepared_by,
             'approved_by' => $ipcr->approved_by,

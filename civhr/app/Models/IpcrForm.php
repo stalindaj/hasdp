@@ -25,11 +25,42 @@ class IpcrForm extends Model
         'fe_overall_point_score' => 'decimal:2',
         'fe_overall_numerical_rating' => 'decimal:2',
         'overall_rating' => 'decimal:2',
+        'ratee_sig' => 'array',
+        'reviewer_sig' => 'array',
+        'approver_sig' => 'array',
+        'submitted_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
+
+    public const DRAFT = 'draft';
+    public const SUBMITTED = 'submitted';
+    public const APPROVED = 'approved';
+    public const RETURNED = 'returned';
 
     public function ratee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approver_id');
+    }
+
+    /**
+     * Freeze the name/designation of the ratee and chosen signatories into the
+     * form (mirrors the leave *_sig blocks). Called when the ratee submits.
+     */
+    public function freezeSignatories(): void
+    {
+        $this->ratee_sig = $this->ratee?->signatoryBlock();
+        $this->reviewer_sig = $this->reviewer?->signatoryBlock();
+        $this->approver_sig = $this->approver?->signatoryBlock();
     }
 
     public function groups(): HasMany
