@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\BalanceController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\LdController;
+use App\Http\Controllers\IpcrController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -124,6 +125,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/ld/{entry}/decide', [LdController::class, 'decide'])->name('ld.decide');
     Route::get('/ld/{entry}/file/{kind}', [LdController::class, 'file'])
         ->whereIn('kind', ['certificate', 'photo'])->name('ld.file');
+
+    // IPCR — Individual Performance Commitment & Review (native port).
+    Route::get('/ipcr', [IpcrController::class, 'index'])->name('ipcr.index');
+    Route::get('/ipcr/create', [IpcrController::class, 'create'])->name('ipcr.create');
+    Route::post('/ipcr', [IpcrController::class, 'store'])->name('ipcr.store');
+    Route::get('/ipcr/{ipcr}', [IpcrController::class, 'show'])->name('ipcr.show');
+    Route::get('/ipcr/{ipcr}/edit', [IpcrController::class, 'edit'])->name('ipcr.edit');
+    Route::patch('/ipcr/{ipcr}', [IpcrController::class, 'update'])->name('ipcr.update');
+    Route::get('/ipcr/{ipcr}/print', [IpcrController::class, 'print'])->name('ipcr.print');
+    Route::delete('/ipcr/{ipcr}', [IpcrController::class, 'destroy'])->name('ipcr.destroy');
 });
 
 // Admin area (superadmin + admin only)

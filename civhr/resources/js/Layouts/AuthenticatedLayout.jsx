@@ -56,6 +56,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                     {isAdmin ? 'Leave requests' : 'My Leave'}
                                 </NavLink>
 
+                                <NavLink
+                                    href={route('ipcr.index')}
+                                    active={route().current('ipcr.*')}
+                                >
+                                    IPCR
+                                </NavLink>
+
                                 {/* Users + Employees live behind one
                                     "Personnel" tab (Accounts / Records). */}
                                 {isAdmin && (
@@ -226,6 +233,13 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('leave.*')}
                         >
                             {isAdmin ? 'Leave requests' : 'My Leave'}
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink
+                            href={route('ipcr.index')}
+                            active={route().current('ipcr.*')}
+                        >
+                            IPCR
                         </ResponsiveNavLink>
 
                         {isAdmin && (

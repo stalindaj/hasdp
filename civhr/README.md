@@ -1,3 +1,9 @@
+> **Civilian Personnel Management System.** This is the whole app — Leave
+> (CS Form No. 6), **IPCR** (converted natively into Laravel; routes `ipcr.*`,
+> pages under `resources/js/Pages/Ipcr`), and L&D — on one login and one
+> database. See the [root README](../README.md) for the overview and rollback,
+> and [`CLAUDE.md`](CLAUDE.md) for stack pins and deploy notes.
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

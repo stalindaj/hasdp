@@ -1,11 +1,10 @@
-import Checkbox from '@/Components/Checkbox';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
+/**
+ * Sign in — ported from the IPCR app's "scanning radar" design so the whole
+ * Civilian Personnel Management System shares one front door. Auth wiring is
+ * unchanged (posts `login` + `password` to the Breeze route).
+ */
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         login: '',
@@ -15,89 +14,130 @@ export default function Login({ status, canResetPassword }) {
 
     const submit = (e) => {
         e.preventDefault();
-
-        post(route('login'), {
-            onFinish: () => reset('password'),
-        });
+        post(route('login'), { onFinish: () => reset('password') });
     };
 
     return (
-        <GuestLayout>
-            <Head title="Log in" />
+        <>
+            <Head title="Sign in" />
 
-            {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
+            <style>{`
+                .cpms-login { --navy:#0b2a52; --navy-dark:#071b35; --gold:#c9a341;
+                    min-height:100vh; font-family:'Segoe UI',Arial,sans-serif; overflow:hidden; }
+                .bg-military { position:fixed; inset:0; z-index:0;
+                    background:radial-gradient(ellipse at center,#0a1628 0%,#02060d 100%); overflow:hidden; }
+                .grid-bg { position:absolute; inset:0; pointer-events:none;
+                    background-image:linear-gradient(rgba(0,255,120,.03) 1px,transparent 1px),
+                        linear-gradient(90deg,rgba(0,255,120,.03) 1px,transparent 1px);
+                    background-size:60px 60px; animation:gpulse 3s ease-in-out infinite; }
+                @keyframes gpulse {0%,100%{opacity:.3}50%{opacity:.8}}
+                .radar-line { position:absolute; top:0; left:-2px; width:4px; height:100%;
+                    background:linear-gradient(180deg,transparent,rgba(0,255,120,.9) 50%,transparent);
+                    box-shadow:0 0 20px rgba(0,255,120,.3); animation:sweep 4s ease-in-out infinite; }
+                @keyframes sweep {0%{transform:translateX(-100%);opacity:0}5%{opacity:1}
+                    45%,55%{transform:translateX(50vw);opacity:1}95%{opacity:1}100%{transform:translateX(100vw);opacity:0}}
+                .scanlines { position:absolute; inset:0; pointer-events:none;
+                    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,120,.02) 3px,rgba(0,255,120,.02) 4px); }
+                .blip { position:absolute; border-radius:50%; pointer-events:none;
+                    background:rgba(0,255,120,.9); box-shadow:0 0 18px rgba(0,255,120,.5); animation:blip 4s ease-in-out infinite; }
+                @keyframes blip {0%{opacity:0;transform:translateX(0) scale(0)}20%{opacity:1;transform:translateX(40vw) scale(1.1)}
+                    60%{opacity:1;transform:translateX(75vw) scale(1)}100%{opacity:0;transform:translateX(110vw) scale(.4)}}
+                .login-wrap { position:relative; z-index:1; min-height:100vh; display:flex;
+                    align-items:center; justify-content:center; padding:20px; }
+                .login-card { max-width:430px; width:100%; border-top:5px solid var(--gold); border-radius:10px;
+                    background:rgba(11,42,82,.92); backdrop-filter:blur(15px); color:#fff; padding:2rem;
+                    box-shadow:0 25px 60px rgba(0,0,0,.6),0 0 0 1px rgba(201,163,65,.15); }
+                .brand-badge { width:72px; height:72px; border-radius:50%; background:var(--gold);
+                    display:flex; align-items:center; justify-content:center; margin:0 auto 12px;
+                    box-shadow:0 0 30px rgba(201,163,65,.3); overflow:hidden; }
+                .brand-badge img { height:60px; width:60px; object-fit:contain; }
+                .cpms-login h1 { font-size:1.05rem; font-weight:700; text-align:center; margin:0; }
+                .cpms-login .sub { display:block; text-align:center; font-size:.72rem; color:rgba(255,255,255,.6); margin-bottom:1.25rem; }
+                .cpms-login label { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:rgba(255,255,255,.8); }
+                .cpms-login input[type=text],.cpms-login input[type=password] { width:100%; margin-top:.3rem; padding:.6rem .75rem;
+                    border-radius:6px; background:rgba(255,255,255,.08); border:1px solid rgba(201,163,65,.25); color:#fff; outline:none; }
+                .cpms-login input:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,163,65,.15); background:rgba(255,255,255,.12); }
+                .cpms-login .field { margin-bottom:1rem; }
+                .cpms-login .err { color:#f8b7bd; font-size:.72rem; margin-top:.25rem; }
+                .cpms-login .row { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; font-size:.8rem; }
+                .cpms-login .row a { color:var(--gold); text-decoration:none; }
+                .btn-gold { width:100%; padding:.65rem; border:0; border-radius:6px; font-weight:700;
+                    background:var(--gold); color:var(--navy-dark); cursor:pointer; }
+                .btn-gold:hover { background:#b8922f; } .btn-gold:disabled { opacity:.6; cursor:not-allowed; }
+                .status-ok { background:rgba(40,167,69,.2); color:#c8f7d4; padding:.5rem .75rem; border-radius:6px; font-size:.8rem; margin-bottom:1rem; }
+            `}</style>
 
-            <form onSubmit={submit}>
-                <div>
-                    <InputLabel
-                        htmlFor="login"
-                        value="Employee number or email"
-                    />
-
-                    <TextInput
-                        id="login"
-                        type="text"
-                        name="login"
-                        value={data.login}
-                        className="mt-1 block w-full"
-                        autoComplete="username"
-                        isFocused={true}
-                        onChange={(e) => setData('login', e.target.value)}
-                    />
-
-                    <InputError message={errors.login} className="mt-2" />
-                </div>
-
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={data.password}
-                        className="mt-1 block w-full"
-                        autoComplete="current-password"
-                        onChange={(e) => setData('password', e.target.value)}
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4 block">
-                    <label className="flex items-center">
-                        <Checkbox
-                            name="remember"
-                            checked={data.remember}
-                            onChange={(e) =>
-                                setData('remember', e.target.checked)
-                            }
-                        />
-                        <span className="ms-2 text-sm text-gray-600">
-                            Remember me
-                        </span>
-                    </label>
+            <div className="cpms-login">
+                <div className="bg-military">
+                    <div className="grid-bg" />
+                    <div className="scanlines" />
+                    <div className="radar-line" />
+                    <div className="blip" style={{ top: '20%', left: '-10%', width: 6, height: 6, animationDelay: '.4s' }} />
+                    <div className="blip" style={{ top: '45%', left: '-10%', width: 5, height: 5, animationDelay: '1.6s' }} />
+                    <div className="blip" style={{ top: '70%', left: '-10%', width: 7, height: 7, animationDelay: '2.6s' }} />
                 </div>
 
-                <div className="mt-4 flex items-center justify-end">
-                    {canResetPassword && (
-                        <Link
-                            href={route('password.request')}
-                            className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                        >
-                            Forgot your password?
-                        </Link>
-                    )}
+                <div className="login-wrap">
+                    <div className="login-card">
+                        <div className="brand-badge">
+                            <img src="/images/agency-logo.png" alt="15th Strike Wing"
+                                onError={(e) => (e.currentTarget.style.display = 'none')} />
+                        </div>
+                        <h1>15TH STRIKE WING</h1>
+                        <span className="sub">Civilian Personnel Management System</span>
 
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Log in
-                    </PrimaryButton>
+                        {status && <div className="status-ok">{status}</div>}
+
+                        <form onSubmit={submit}>
+                            <div className="field">
+                                <label htmlFor="login">Employee number or email</label>
+                                <input
+                                    id="login"
+                                    type="text"
+                                    name="login"
+                                    value={data.login}
+                                    autoComplete="username"
+                                    autoFocus
+                                    onChange={(e) => setData('login', e.target.value)}
+                                />
+                                {errors.login && <div className="err">{errors.login}</div>}
+                            </div>
+
+                            <div className="field">
+                                <label htmlFor="password">Password</label>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    name="password"
+                                    value={data.password}
+                                    autoComplete="current-password"
+                                    onChange={(e) => setData('password', e.target.value)}
+                                />
+                                {errors.password && <div className="err">{errors.password}</div>}
+                            </div>
+
+                            <div className="row">
+                                <label style={{ textTransform: 'none', fontWeight: 400, color: 'rgba(255,255,255,.8)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={data.remember}
+                                        onChange={(e) => setData('remember', e.target.checked)}
+                                        style={{ marginRight: 6 }}
+                                    />
+                                    Remember me
+                                </label>
+                                {canResetPassword && (
+                                    <Link href={route('password.request')}>Forgot password?</Link>
+                                )}
+                            </div>
+
+                            <button type="submit" className="btn-gold" disabled={processing}>
+                                Sign in
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </form>
-        </GuestLayout>
+            </div>
+        </>
     );
 }

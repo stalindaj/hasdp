@@ -1,6 +1,6 @@
 /**
- * The CivDir brand block: the unit seal beside the wordmark.
- * `compact` renders the seal alone (e.g. tight mobile headers).
+ * The Civilian Personnel Management System brand block: the unit seal beside
+ * the wordmark. `compact` renders the seal alone (e.g. tight mobile headers).
  */
 export default function ApplicationLogo({ compact = false, className = '' }) {
     return (
@@ -14,10 +14,10 @@ export default function ApplicationLogo({ compact = false, className = '' }) {
             {!compact && (
                 <span className="leading-tight">
                     <span className="block text-base font-bold tracking-tight text-slate-900">
-                        CivDir
+                        CPMS
                     </span>
                     <span className="block text-[10px] font-medium uppercase tracking-widest text-slate-500">
-                        Civilian's Directory
+                        Civilian Personnel Management System
                     </span>
                 </span>
             )}
