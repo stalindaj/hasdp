@@ -423,7 +423,7 @@
 
     <div class="row" style="left:156pt; top:538pt; width:130pt; height:13pt;">
         <span class="lbl f75">As of</span>
-        <span class="fill v">{{ $d($app->cert_as_of, 'j F Y') }}</span>
+        <span class="fill v">{{ $d($cert['cert_as_of'], 'j F Y') }}</span>
     </div>
 
     {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8.
@@ -448,16 +448,17 @@
     <div class="t f7 c" style="left:256.5pt; top:{{ $gTop + 1.6 }}pt; width:{{ 323.8 - 256.5 }}pt;">Sick Leave</div>
 
     @php
-        // "Less this application" prints a dash on the side this leave does
-        // not draw from — but only once the block has been certified at all,
-        // so an untouched form still prints blank.
-        $certified = $app->cert_as_of || $app->vl_earned !== null || $app->sl_earned !== null;
-        $less = fn ($v) => $v !== null ? $num($v) : ($certified ? '—' : '');
+        // The figures come from the ledger (an admin's saved ones win), so the
+        // block is filled in from the moment the leave is filed rather than
+        // waiting to be retyped. "Less this application" prints a dash on the
+        // side this leave does not draw from — a dash means "not charged here",
+        // which is not the same as a zero.
+        $less = fn ($v) => $v !== null ? $num($v) : '—';
 
         $rows = [
-            ['Total Earned',          $num($app->vl_earned),  $num($app->sl_earned)],
-            ['Less this application', $less($app->vl_less),   $less($app->sl_less)],
-            ['Balance',               $num($app->vl_balance), $num($app->sl_balance)],
+            ['Total Earned',          $num($cert['vl_earned']),  $num($cert['sl_earned'])],
+            ['Less this application', $less($cert['vl_less']),   $less($cert['sl_less'])],
+            ['Balance',               $num($cert['vl_balance']), $num($cert['sl_balance'])],
         ];
     @endphp
     @foreach ($rows as $r => [$label, $vl, $sl])

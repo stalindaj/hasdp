@@ -22,6 +22,35 @@
 
 ## Log
 
+### 2026-08-03 — 7.A is computed from the ledger, not retyped
+- **Commit:** pending
+- **Summary:** 7.A only ever showed figures once an admin typed/drafted them:
+  the printed grid was blank and the applicant's card showed raw balances plus
+  "HR certifies these figures…". The arithmetic was already implemented for the
+  admin prefill, just not shared. Extracted it into
+  `App\Support\LeaveCertification` (`computed()` from the ledger, `merged()`
+  = admin's saved figures win, computed elsewhere) and used it in three places:
+  the print blade's 7.A grid + "As of", the applicant's `CreditSummaryCard`,
+  and `LeaveController::creditPrefill` (which now delegates). `creditPrefill`
+  is sent to the owner as well as the admin. The side the leave draws on shows
+  the days deducted; the other side prints "—" (null "less" ≠ zero).
+  **Deliberately unchanged:** the strict `$certified` flag still gates the HR
+  officer's name/signature on the printout — the numbers are computed facts,
+  but certifying stays a human act, so an uncertified form shows figures over a
+  blank signature line.
+- **Files touched:** `app/Support/LeaveCertification.php` (new),
+  `app/Http/Controllers/LeaveController.php`,
+  `resources/views/leave/print.blade.php`,
+  `resources/js/Pages/Leave/Show.jsx`, tests `CivilianAndDraftTest.php`.
+- **Features affected:** 4, 6, 9.
+- **Verified:** `php artisan test` green (167; +2 new — 7.A computed before
+  certification, and a certified 7.A still winning). Browser-checked as the
+  non-admin applicant on a pending 2-day vacation leave: card reads
+  `VL 2.5 / 2 / 0.5` and `SL 2.5 / — / 2.5`; the printed grid reads Total
+  Earned 2.5/2.5, Less 2/—, Balance 0.5/2.5, "As of 3 August 2026", with the
+  HR name + signature still blank.
+- **Next step:** Commit + push. No migration; routine pull.
+
 ### 2026-08-03 — Applicant can view/print their own CS Form 6 at any stage
 - **Commit:** pending
 - **Summary:** `canPrint` only allowed APPROVED-or-admin, so an applicant could

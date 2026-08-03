@@ -6,6 +6,7 @@ use App\Models\Holiday;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
 use App\Models\User;
+use App\Support\LeaveCertification;
 use App\Support\LeaveCredits;
 use App\Support\LeaveWorkflow;
 use App\Support\SignatureImage;
@@ -307,7 +308,11 @@ class LeaveController extends Controller
                 'recommender' => $this->signatoryFields($application->recommender_sig, null),
                 'approver'    => $this->signatoryFields($application->approver_sig, $this->defaultApprover()),
             ],
-            'creditPrefill' => $canDecide ? $this->creditPrefill($application) : null,
+            // 7.A is computed from the ledger, not typed — the applicant sees
+            // the same figures the admin will certify.
+            'creditPrefill' => ($canDecide || $isOwner)
+                ? $this->creditPrefill($application)
+                : null,
         ]);
     }
 
@@ -692,6 +697,9 @@ class LeaveController extends Controller
 
         return view('leave.print', [
             'app'            => $application,
+            // 7.A comes from the ledger unless an admin has saved their own
+            // figures, so the block is filled in from the moment it is filed.
+            'cert'           => LeaveCertification::merged($application),
             'signable'       => $signable,
             'canSign'        => in_array(true, $signable, true),
             // Only the official CSC checkboxes render in 6.A; unofficial types
@@ -815,37 +823,10 @@ class LeaveController extends Controller
         ];
     }
 
+    /** 7.A, computed from the ledger — see App\Support\LeaveCertification. */
     private function creditPrefill(LeaveApplication $a): array
     {
-        // The ledger is the source of truth for VL/SL balances; the days
-        // applied for come off whichever balance this leave type draws on.
-        if ($a->employee) {
-            $balances = \App\Support\CreditLedger::balances($a->employee);
-            $kind = $a->leaveType->credit_kind;
-            $days = (float) $a->working_days;
-
-            // A leave draws on one balance at most. The side it does not touch
-            // gets no "less" figure at all (printed as "—"), and its balance
-            // simply carries the total earned down.
-            $vlLess = $kind === 'vl' ? $days : null;
-            $slLess = $kind === 'sl' ? $days : null;
-
-            return [
-                'cert_as_of' => now()->toDateString(),
-                'vl_earned'  => $balances['vl'],
-                'vl_less'    => $vlLess,
-                'vl_balance' => round($balances['vl'] - (float) $vlLess, 2),
-                'sl_earned'  => $balances['sl'],
-                'sl_less'    => $slLess,
-                'sl_balance' => round($balances['sl'] - (float) $slLess, 2),
-            ];
-        }
-
-        return LeaveCredits::certificationFor(
-            $a->employee,
-            $a->leaveType->code ?? '',
-            (float) $a->working_days
-        );
+        return LeaveCertification::computed($a);
     }
 
     private function authorizeView(LeaveApplication $application, User $user): void

@@ -125,6 +125,48 @@ class CivilianAndDraftTest extends TestCase
         $this->assertStringContainsString('—', $html);   // the SL dash
     }
 
+    public function test_7a_is_computed_on_the_form_before_anyone_certifies_it(): void
+    {
+        $applicant = $this->civilianApplicant();
+        $leave = $this->fileAs($applicant);
+
+        // Nothing has been certified — the block is untouched in the database…
+        $this->assertNull($leave->fresh()->cert_as_of);
+        $this->assertNull($leave->fresh()->vl_earned);
+
+        // …yet the applicant's own printout already carries the figures, with
+        // the days charged to VL and a dash on the SL side.
+        $balances = \App\Support\CreditLedger::balances($applicant->employee);
+        $html = $this->actingAs($applicant)->get(route('leave.print', $leave))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString((string) round($balances['vl'], 2), $html);
+        $this->assertStringContainsString('—', $html);
+
+        // The same figures reach the applicant's on-screen 7.A summary.
+        $this->actingAs($applicant)->get(route('leave.show', $leave))
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->where('creditPrefill.vl_less', fn ($v) => (float) $v === 2.0)
+                ->where('creditPrefill.sl_less', null)
+                ->where('creditPrefill.vl_balance', fn ($v) => (float) $v === round($balances['vl'] - 2, 2)));
+    }
+
+    public function test_a_certified_7a_still_wins_over_the_computed_figures(): void
+    {
+        $marie = $this->marie();
+        $leave = $this->fileAs($this->civilianApplicant());
+
+        // HR corrects the block by hand; the printout must show their numbers.
+        $this->actingAs($marie)->patch(route('leave.save', $leave), [
+            'vl_earned' => 99, 'vl_less' => 1, 'vl_balance' => 98,
+        ])->assertRedirect();
+
+        $html = $this->actingAs($marie)->get(route('leave.print', $leave->fresh()))->getContent();
+        $this->assertStringContainsString('99', $html);
+        $this->assertStringContainsString('98', $html);
+    }
+
     public function test_the_admin_can_switch_an_employee_between_civilian_and_military(): void
     {
         $marie = $this->marie();

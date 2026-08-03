@@ -677,13 +677,21 @@ function SignatoriesCard({ application, signatories, canEditFixed, canEditRecomm
 }
 
 /* ── What 7.A will certify — read-only, for the applicant ────────────── */
-function CreditSummaryCard({ application, balanceCheck }) {
+function CreditSummaryCard({ application, balanceCheck, prefill }) {
     const c = application.certification ?? {};
     const d = application.decision ?? {};
     const certified = c.as_of || c.vl_earned !== null;
     // Figures the admin has drafted but not yet committed to a decision.
     const hasDraftPay =
         d.days_with_pay != null || d.days_without_pay != null || d.days_others != null;
+
+    // 7.A is computed from the ledger, so it is filled in from the moment the
+    // leave is filed; anything HR has actually saved wins. A null "less" means
+    // this leave does not draw on that balance and shows as a dash.
+    const cert = certified ? c : prefill ?? {};
+    const as_of = certified ? c.as_of_display || c.as_of : prefill?.cert_as_of;
+    const trio = (earned, less, balance) =>
+        `${earned ?? '—'} / ${less ?? '—'} / ${balance ?? '—'}`;
 
     return (
         <Card title="7.A — Certification of leave credits">
@@ -708,22 +716,20 @@ function CreditSummaryCard({ application, balanceCheck }) {
                 </table>
             )}
 
-            {certified ? (
-                <dl className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
-                    <Field label="As of">{c.as_of_display || c.as_of}</Field>
-                    <Field label="VL — earned / less / balance">
-                        {`${c.vl_earned ?? '—'} / ${c.vl_less ?? '—'} / ${c.vl_balance ?? '—'}`}
-                    </Field>
-                    <Field label="SL — earned / less / balance">
-                        {`${c.sl_earned ?? '—'} / ${c.sl_less ?? '—'} / ${c.sl_balance ?? '—'}`}
-                    </Field>
-                </dl>
-            ) : (
-                <p className="mt-3 text-xs text-gray-500">
-                    HR certifies these figures on the printed form when they
-                    process your application.
-                </p>
-            )}
+            <dl className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
+                <Field label="As of">{as_of}</Field>
+                <Field label="VL — earned / less / balance">
+                    {trio(cert.vl_earned, cert.vl_less, cert.vl_balance)}
+                </Field>
+                <Field label="SL — earned / less / balance">
+                    {trio(cert.sl_earned, cert.sl_less, cert.sl_balance)}
+                </Field>
+            </dl>
+            <p className="mt-3 text-xs text-gray-500">
+                {certified
+                    ? 'Certified by HR on the printed form.'
+                    : 'Computed from your leave ledger — this is what prints on 7.A. HR checks and signs it when they process your application.'}
+            </p>
 
             {/* 7.C / 7.D — the bottom of the form, so nothing is a surprise. */}
             <div className="mt-5 border-t border-gray-100 pt-4">
@@ -1281,6 +1287,7 @@ export default function Show({
                         <CreditSummaryCard
                             application={a}
                             balanceCheck={balanceCheck}
+                            prefill={creditPrefill}
                         />
                     )}
 
