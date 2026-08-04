@@ -114,7 +114,7 @@ class IwotTest extends TestCase
             ->assertSee('Beyond 28th Day of the Month');
     }
 
-    public function test_employee_signs_prepared_by_but_not_the_ncoic_block(): void
+    public function test_employee_and_manager_can_both_sign_either_block(): void
     {
         Storage::fake('local');
 
@@ -132,14 +132,23 @@ class IwotTest extends TestCase
         $this->assertNotEmpty($form->signature_uploads['prepared']);
         Storage::assertExists($form->signature_uploads['prepared']);
 
-        // The NCOIC block is a manager's to sign.
+        // The NCOIC signs on paper, so the employee uploads the scan of it —
+        // and a manager can do the same.
         $this->actingAs($employee)
             ->post(route('iwot.signature.store', [$form, 'approved']), ['signature' => $ink])
-            ->assertForbidden();
+            ->assertRedirect();
+
+        $form->refresh();
+        $this->assertNotEmpty($form->signature_uploads['approved']);
 
         $this->actingAs($this->manager())
             ->post(route('iwot.signature.store', [$form, 'approved']), ['signature' => $ink])
             ->assertRedirect();
+
+        // Somebody else's IWOT is still off limits.
+        $this->actingAs($this->employee())
+            ->post(route('iwot.signature.store', [$form, 'approved']), ['signature' => $ink])
+            ->assertForbidden();
 
         // …and it prints over the name.
         $this->actingAs($employee)->get(route('iwot.print', $form))

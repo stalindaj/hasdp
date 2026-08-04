@@ -57,15 +57,16 @@ class IwotAccess
     }
 
     /**
-     * Who may put ink on which block. The employee signs "Prepared by" — their
-     * own commitment; the NCOIC block belongs to a manager.
+     * Who may put ink on which block.
+     *
+     * Both blocks take the same rule: the employee whose IWOT it is, or a
+     * manager. The NCOIC named under "Approved by" is typed in by hand rather
+     * than picked from an account, so they cannot sign for themselves — in
+     * practice the employee carries the paper copy their NCOIC signed and
+     * uploads the scan of it, and HR can do the same.
      */
     public static function canSignBlock(User $user, IwotForm $form, string $slot): bool
     {
-        if ($slot === 'prepared') {
-            return self::isManager($user) || $form->user_id === $user->id;
-        }
-
-        return self::isManager($user);
+        return self::isManager($user) || $form->user_id === $user->id;
     }
 }
