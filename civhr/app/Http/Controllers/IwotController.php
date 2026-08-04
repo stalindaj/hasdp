@@ -7,9 +7,11 @@ use App\Models\IwotFormGroup;
 use App\Models\User;
 use App\Support\FormSignatures;
 use App\Support\IwotAccess;
+use App\Support\RatingPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -27,8 +29,14 @@ class IwotController extends Controller
         $user = $request->user();
         $isManager = IwotAccess::isManager($user);
 
+        // A manager lands on the queue — what is waiting on them.
+        $filter = $request->query('filter') === 'all' || ! $isManager ? 'all' : 'pending';
+
+        $mine = fn ($q) => $q->when(! $isManager, fn ($qq) => $qq->where('user_id', $user->id));
+
         $forms = IwotForm::with('employee:id,name')
-            ->when(! $isManager, fn ($q) => $q->where('user_id', $user->id))
+            ->tap($mine)
+            ->when($filter === 'pending', fn ($q) => $q->where('status', IwotForm::SUBMITTED))
             ->withCount('groups')
             ->latest('updated_at')
             ->get()
@@ -36,15 +44,22 @@ class IwotController extends Controller
                 'id' => $f->id,
                 'employee' => $f->employee?->name ?? '—',
                 'position_title' => $f->position_title,
+                'period' => RatingPeriod::short($f->year, $f->semester),
                 'rating_period' => $f->rating_period,
                 'outputs' => $f->groups_count,
                 'status' => $f->status,
+                'submitted_at' => optional($f->submitted_at)->toDateString(),
                 'updated_at' => $f->updated_at?->toDateString(),
             ]);
 
         return Inertia::render('Iwot/Index', [
             'forms' => $forms,
             'isManager' => $isManager,
+            'filter' => $filter,
+            'pendingCount' => IwotForm::query()
+                ->tap($mine)
+                ->where('status', IwotForm::SUBMITTED)
+                ->count(),
         ]);
     }
 
@@ -59,6 +74,12 @@ class IwotController extends Controller
                 'name' => $request->user()->name,
                 'position' => $request->user()->employee?->position ?? '',
             ],
+            'periods' => [
+                'years' => RatingPeriod::years(),
+                'semesters' => RatingPeriod::SEMESTERS,
+                'currentYear' => (int) now()->year,
+                'currentSemester' => RatingPeriod::currentSemester(),
+            ],
         ]);
     }
 
@@ -72,6 +93,8 @@ class IwotController extends Controller
             $data['user_id'] = $request->user()->id;
             $data['status'] = $this->ownerStatus($data['status']);
         }
+
+        $this->assertPeriodFree($data);
 
         $form = $this->persist(new IwotForm(), $data);
 
@@ -91,6 +114,12 @@ class IwotController extends Controller
                 'name' => $request->user()->name,
                 'position' => $request->user()->employee?->position ?? '',
             ],
+            'periods' => [
+                'years' => RatingPeriod::years(),
+                'semesters' => RatingPeriod::SEMESTERS,
+                'currentYear' => (int) now()->year,
+                'currentSemester' => RatingPeriod::currentSemester(),
+            ],
         ]);
     }
 
@@ -104,6 +133,8 @@ class IwotController extends Controller
             $data['user_id'] = $iwot->user_id;
             $data['status'] = $this->ownerStatus($data['status']);
         }
+
+        $this->assertPeriodFree($data, $iwot);
 
         $this->persist($iwot, $data);
 
@@ -251,12 +282,36 @@ class IwotController extends Controller
             : IwotForm::DRAFT;
     }
 
+    /**
+     * One IWOT per person per semester — two a year, never more. The unique
+     * index is the real guard; this makes the refusal a sentence.
+     */
+    private function assertPeriodFree(array $data, ?IwotForm $except = null): void
+    {
+        $clash = IwotForm::where('user_id', $data['user_id'])
+            ->where('year', $data['year'])
+            ->where('semester', $data['semester'])
+            ->when($except?->exists, fn ($q) => $q->whereKeyNot($except->id))
+            ->exists();
+
+        if ($clash) {
+            throw ValidationException::withMessages([
+                'semester' => 'There is already an IWOT for '
+                    .RatingPeriod::label($data['year'], $data['semester'])
+                    .' — open that one instead of starting a second.',
+            ]);
+        }
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'position_title' => ['nullable', 'string', 'max:191'],
             'office_unit' => ['nullable', 'string', 'max:191'],
+            // The period is the semester; the text line is what gets printed.
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'semester' => ['required', 'integer', 'in:1,2'],
             'rating_period' => ['nullable', 'string', 'max:191'],
             'status' => ['required', 'in:draft,submitted,approved,returned'],
 
@@ -284,6 +339,11 @@ class IwotController extends Controller
     {
         $groups = $data['groups'] ?? [];
         unset($data['groups']);
+
+        // The printed line follows the semester unless someone typed their own.
+        if (trim((string) ($data['rating_period'] ?? '')) === '') {
+            $data['rating_period'] = RatingPeriod::label($data['year'], $data['semester']);
+        }
 
         return DB::transaction(function () use ($form, $data, $groups) {
             $form->fill($data)->save();
@@ -333,6 +393,8 @@ class IwotController extends Controller
             'employee' => $form->employee?->name,
             'position_title' => $form->position_title,
             'office_unit' => $form->office_unit,
+            'year' => $form->year,
+            'semester' => $form->semester,
             'rating_period' => $form->rating_period,
             'status' => $form->status,
             'prepared_by' => $form->prepared_by,

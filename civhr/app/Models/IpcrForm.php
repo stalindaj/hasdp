@@ -18,6 +18,8 @@ class IpcrForm extends Model
     // The Form E date cells are free text ("January", "June 2026" — filled from
     // the rating period), so they are deliberately not cast to dates.
     protected $casts = [
+        'year' => 'integer',
+        'semester' => 'integer',
         'fe_average_point_score' => 'decimal:2',
         'fe_overall_point_score' => 'decimal:2',
         'fe_overall_numerical_rating' => 'decimal:2',
@@ -36,6 +38,20 @@ class IpcrForm extends Model
      * commitment and review halves are signed separately, exactly as on paper.
      */
     public const SIGNATURE_SLOTS = ['ratee', 'reviewer', 'approver', 'discussed', 'assessed', 'final'];
+
+    /**
+     * The period is the semester, so the printed line follows from it. Filling
+     * it here means every caller (controller, seeder, test) gets a consistent
+     * label without repeating it.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $form) {
+            if (blank($form->rating_period) && $form->year && $form->semester) {
+                $form->rating_period = \App\Support\RatingPeriod::label($form->year, $form->semester);
+            }
+        });
+    }
 
     public const DRAFT = 'draft';
     public const SUBMITTED = 'submitted';

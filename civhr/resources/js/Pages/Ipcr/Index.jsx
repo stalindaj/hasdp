@@ -18,7 +18,41 @@ function StatusPill({ status }) {
     );
 }
 
-export default function Index({ forms, isManager }) {
+/** Pending / All, for a manager working a queue. */
+function Tabs({ filter, pendingCount, routeName }) {
+    const tab = (key, label) => (
+        <Link
+            key={key}
+            href={route(routeName, key === 'all' ? { filter: 'all' } : {})}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                filter === key
+                    ? 'bg-[#0b2a52] text-white'
+                    : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+        >
+            {label}
+        </Link>
+    );
+
+    return (
+        <div className="mb-4 flex flex-wrap gap-2">
+            {tab(
+                'pending',
+                <>
+                    Pending approval
+                    {pendingCount > 0 && (
+                        <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-amber-950">
+                            {pendingCount}
+                        </span>
+                    )}
+                </>,
+            )}
+            {tab('all', 'All records')}
+        </div>
+    );
+}
+
+export default function Index({ forms, isManager, filter, pendingCount }) {
     return (
         <AuthenticatedLayout
             header={
@@ -38,16 +72,28 @@ export default function Index({ forms, isManager }) {
             <Head title="IPCR" />
 
             <div className="py-8">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    {isManager && (
+                        <Tabs filter={filter} pendingCount={pendingCount} routeName="ipcr.index" />
+                    )}
+
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         {forms.length === 0 ? (
                             <div className="px-6 py-16 text-center">
-                                <p className="text-sm text-gray-600">No IPCR records yet.</p>
+                                <p className="text-sm text-gray-600">
+                                    {filter === 'pending'
+                                        ? 'Nothing waiting for approval.'
+                                        : 'No IPCR records yet.'}
+                                </p>
                                 <Link
-                                    href={route('ipcr.create')}
+                                    href={
+                                        filter === 'pending'
+                                            ? route('ipcr.index', { filter: 'all' })
+                                            : route('ipcr.create')
+                                    }
                                     className="mt-4 inline-block rounded-md bg-[#0b2a52] px-4 py-2 text-sm font-medium text-white hover:bg-[#071b35]"
                                 >
-                                    Create the first one
+                                    {filter === 'pending' ? 'See all records' : 'Create the first one'}
                                 </Link>
                             </div>
                         ) : (
@@ -56,7 +102,7 @@ export default function Index({ forms, isManager }) {
                                     <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                                         <tr>
                                             {isManager && <th className="px-6 py-3">Ratee</th>}
-                                            <th className="px-6 py-3">Rating period</th>
+                                            <th className="px-6 py-3">Period</th>
                                             <th className="px-6 py-3">Status</th>
                                             <th className="px-6 py-3">Rating</th>
                                             <th className="px-6 py-3">Updated</th>
@@ -71,7 +117,12 @@ export default function Index({ forms, isManager }) {
                                                         {f.ratee}
                                                     </td>
                                                 )}
-                                                <td className="px-6 py-3 text-gray-700">{f.rating_period}</td>
+                                                <td className="px-6 py-3 text-gray-700">
+                                                    {f.period}
+                                                    <p className="text-xs text-gray-400">
+                                                        {f.rating_period}
+                                                    </p>
+                                                </td>
                                                 <td className="px-6 py-3">
                                                     <StatusPill status={f.status} />
                                                 </td>

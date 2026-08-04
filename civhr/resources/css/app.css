@@ -1,3 +1,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ | Filling the IPCR / IWOT sheets on a phone held sideways.
+ |
+ | The sheets are wide by nature — eleven columns on the matrix, ten on Form E
+ | — so on a small screen they scroll inside their own card rather than being
+ | squeezed into unreadable slivers. What actually makes them fillable is the
+ | cell sizing: below 16px iOS Safari zooms the whole page the moment you tap a
+ | field, which throws away your place in the table.
+ |
+ | Desktop and print are untouched: everything here is behind a width query.
+ */
+/* The swipe hint exists only on small screens (declared before the query so
+   the query wins). */
+.sheet-hint {
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    /* 16px minimum stops the zoom-on-focus jump; 38px gives a real tap target. */
+    .ipcr-sheet textarea,
+    .ipcr-sheet input[type='text'],
+    .ipcr-sheet input[type='number'] {
+        font-size: 16px;
+        min-height: 38px;
+        padding: 4px 6px;
+    }
+
+    /* Keep the columns usable instead of letting them collapse. */
+    .ipcr-sheet table {
+        min-width: 62rem;
+    }
+
+    /* The measure label column is only a word wide — don't let it eat space. */
+    .ipcr-matrix td.measure-cell {
+        min-width: 5.5rem;
+    }
+
+    /* A soft edge that hints there is more table to the right. */
+    .sheet-scroll {
+        position: relative;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sheet-hint {
+        display: block;
+    }
+}

@@ -26,7 +26,7 @@ function blankGroup() {
     };
 }
 
-function Card({ title, action, hint, children }) {
+function Card({ title, action, hint, scrolls = false, children }) {
     return (
         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
             <div
@@ -41,19 +41,28 @@ function Card({ title, action, hint, children }) {
                     {hint}
                 </p>
             )}
-            <div className="overflow-x-auto p-4 pt-0">{children}</div>
+            {scrolls && (
+                <p className="sheet-hint px-4 pb-2 text-xs text-gray-500">
+                    ↔ Swipe the sheet sideways to reach the rest of the columns.
+                </p>
+            )}
+            <div className="sheet-scroll overflow-x-auto p-4 pt-0">{children}</div>
         </section>
     );
 }
 
-export default function Form({ form, personnel, isManager, currentUserId, defaults }) {
+export default function Form({ form, personnel, isManager, currentUserId, defaults, periods }) {
     const editing = Boolean(form?.id);
 
     const { data, setData, post, patch, processing, errors } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
         position_title: form?.position_title ?? (isManager ? '' : (defaults?.position ?? '')),
         office_unit: form?.office_unit ?? '',
-        rating_period: form?.rating_period ?? '',
+        year: form?.year ?? periods.currentYear,
+        semester: form?.semester ?? periods.currentSemester,
+        rating_period:
+            form?.rating_period ??
+            `${periods.semesters[periods.currentSemester]} ${periods.currentYear}`,
         status: form?.status ?? 'draft',
         prepared_by: form?.prepared_by ?? (isManager ? '' : (defaults?.name ?? '')),
         prepared_designation: form?.prepared_designation ?? 'Employee',
@@ -83,6 +92,14 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
     const addGroup = () => setData((d) => ({ ...d, groups: [...d.groups, blankGroup()] }));
     const removeGroup = (gi) => setData((d) => ({ ...d, groups: d.groups.filter((_, i) => i !== gi) }));
+
+    // Picking the semester rewrites the printed line with it.
+    const setPeriod = (year, semester) =>
+        patchData({
+            year,
+            semester,
+            rating_period: `${periods.semesters[semester]} ${year}`,
+        });
 
     const setEmployee = (value) => {
         const person = personnel.find((p) => String(p.id) === String(value));
@@ -155,8 +172,44 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 />
                             </div>
 
+                            {/* One IWOT per semester — two a year, never more
+                                — so the period is picked, not typed. */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className={label}>Year *</label>
+                                    <select
+                                        className={input}
+                                        value={data.year}
+                                        onChange={(e) => setPeriod(Number(e.target.value), data.semester)}
+                                    >
+                                        {periods.years.map((y) => (
+                                            <option key={y} value={y}>
+                                                {y}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={label}>Semester *</label>
+                                    <select
+                                        className={input}
+                                        value={data.semester}
+                                        onChange={(e) => setPeriod(data.year, Number(e.target.value))}
+                                    >
+                                        {Object.entries(periods.semesters).map(([n, name]) => (
+                                            <option key={n} value={n}>
+                                                {n === '1' ? '1st' : '2nd'} · {name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {errors.semester && (
+                                    <p className="col-span-2 text-xs text-rose-600">{errors.semester}</p>
+                                )}
+                            </div>
+
                             <div>
-                                <label className={label}>Period covered</label>
+                                <label className={label}>Period covered (as printed)</label>
                                 <input
                                     className={input}
                                     placeholder="e.g. January - June 2026"
@@ -187,6 +240,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
                     <Card
                         title="IWOT Matrix"
+                        scrolls
                         action={
                             <button
                                 type="button"

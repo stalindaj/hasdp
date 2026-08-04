@@ -82,7 +82,7 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
         setData({ fe_intervening_activities: activities.filter((_, i) => i !== ai) });
 
     return (
-        <div className="border border-black bg-white p-[2px] font-sans">
+        <div className="ipcr-sheet ipcr-forme border border-black bg-white p-[2px] font-sans">
             <table className="w-full border-collapse text-[0.75rem] [&_td]:border [&_td]:border-black [&_td]:p-[5px_6px] [&_td]:align-middle">
                 <tbody>
                     <tr>

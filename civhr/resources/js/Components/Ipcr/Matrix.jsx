@@ -48,7 +48,7 @@ export default function Matrix({
     const groups = data.groups ?? [];
 
     return (
-        <div className="border border-black bg-white p-[2px]">
+        <div className="ipcr-sheet ipcr-matrix border border-black bg-white p-[2px]">
             <table className="w-full border-collapse text-[0.72rem] [&_td]:border [&_td]:border-black [&_td]:p-[3px] [&_th]:border [&_th]:border-black [&_th]:p-[6px_4px] [&_th]:text-center [&_th]:font-bold">
                 <tbody>
                     {/* Ratee header block, live from the fields above. */}
@@ -122,7 +122,9 @@ export default function Matrix({
                                     </>
                                 )}
 
-                                <td className="text-center align-middle font-semibold">{m.measure}</td>
+                                <td className="measure-cell text-center align-middle font-semibold">
+                                    {m.measure}
+                                </td>
                                 <td>
                                     <Cell
                                         readOnly={readOnly}

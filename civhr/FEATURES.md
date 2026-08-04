@@ -36,6 +36,7 @@
 | 26 | IPCR form (Matrix + FORM E) | Fill the performance-standards matrix and Form E on-screen, auto-rate from the % achieved, then print the official Form E | 🟢 done | `IpcrController`, `IpcrForm/Group/Row`, `Components/Ipcr/{rating.js,Matrix,FormE}`, `Pages/Ipcr/*`, `views/ipcr/print.blade.php` | 1 |
 | 27 | IWOT (work output targets) | Set the period's targets + performance standards on the same matrix, save a draft, print the official sheet | 🟢 done | `IwotController`, `IwotForm/Group/Row`, `IwotAccess`, `Pages/Iwot/*`, `views/iwot/print.blade.php` | 1,26 |
 | 28 | E-signatures on IPCR/IWOT | One signature image per named block, dropped onto the printed sheet (as CS Form 6 already does) | 🟢 done | `App\Support\FormSignatures`, `*_signatures` routes, `views/partials/signature-picker.blade.php` | 21,26,27 |
+| 29 | Portal dashboards | The 15SW personnel-portal look on both dashboards: status ticker, HUD hero, Quick Access, dark panels/roster. Forms stay white | 🟢 done | `Components/Portal.jsx`, `Pages/Dashboard.jsx`, `DashboardController` | 1,16,17 |
 
 ## Feature detail notes
 
@@ -98,3 +99,39 @@
 - A signatory with an account falls back to their account e-signature until an
   image is uploaded onto the form itself — the supervisors here rarely have
   accounts, which is why the image belongs to the form.
+
+### 29 — Portal dashboards
+- Ported from the standalone portal's `home.php`: status ticker (STATUS /
+  DATE / live TIME / CLEARANCE), the HUD hero card with bracket corners and a
+  rotating radar sweep behind the avatar, and the Quick Access modules.
+- `Components/Portal.jsx` is the whole kit — `Portal` (dark shell + the one
+  inline `<style>`), `PortalTicker`, `PortalHero`, `PortalModules`,
+  `PortalPanel`, `PortalStat`, `PortalFooter` — so both dashboards share it.
+- **Employee view:** hero → Quick Access (IPCR / IWOT / Leave) → My Status
+  panels (IPCR semesters, leave balances, L&D) → trainings list.
+- **Admin view:** the roster leads, because that is what an admin comes for.
+  Compact hero → **Personnel Status Board** (the three summary panels, then
+  the 17-row roster with its clickable IPCR semester chips and the pending
+  L&D / pending leave panels) → Quick Access (Personnel / Leave requests /
+  IWOT / IPCR).
+- **The nav bar is the portal's**, on every page: navy/gold, gold underline on
+  the active link, the hat switch as a gold pill, and a user chip (initials +
+  name + role) opening Account settings / Log Out. Under 1024px it collapses
+  to a burger drawer; under 480px the wordmark drops so the seal alone carries
+  the brand and the burger still fits.
+- **Page bodies stay white outside the dashboards.** Leave, IPCR and IWOT
+  sheets — and the white page-title strip above them — keep the light chrome:
+  they are data entry and they print. The L&D modals stay white too.
+- The dashboard passes no title strip at all, so the portal banner starts
+  directly under the nav. Holidays and the audit trail moved from that strip
+  into the admin Quick Access modules.
+- **Fillable on a phone held sideways.** Under 1024px (`resources/css/app.css`)
+  every cell on the IPCR/IWOT sheets goes to 16px with a 38px minimum height —
+  below 16px iOS Safari zooms the page the moment you tap a field, which throws
+  away your place in the table — and the sheets keep a 62rem minimum width so
+  they scroll inside their card instead of collapsing into slivers, with a
+  "swipe sideways" hint above. The roster and both sheets scroll in their own
+  box; the page itself never scrolls sideways at any width.
+- No webfont or external stylesheet — system fonts and one inline `<style>`,
+  because the production host is a closed .mil.ph box. The avatar falls back
+  to initials since accounts have no profile picture.

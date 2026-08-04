@@ -36,7 +36,7 @@ function blankGroup() {
     };
 }
 
-function Card({ title, action, hint, children }) {
+function Card({ title, action, hint, scrolls = false, children }) {
     return (
         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
             <div
@@ -51,21 +51,30 @@ function Card({ title, action, hint, children }) {
                     {hint}
                 </p>
             )}
-            <div className="overflow-x-auto p-4 pt-0">{children}</div>
+            {scrolls && (
+                <p className="sheet-hint px-4 pb-2 text-xs text-gray-500">
+                    ↔ Swipe the sheet sideways to reach the rest of the columns.
+                </p>
+            )}
+            <div className="sheet-scroll overflow-x-auto p-4 pt-0">{children}</div>
         </section>
     );
 }
 
-export default function Form({ form, personnel, isManager, currentUserId, defaults }) {
+export default function Form({ form, personnel, isManager, currentUserId, defaults, periods }) {
     const editing = Boolean(form?.id);
 
-    const period = form?.rating_period ?? 'January - June 2026';
+    const period =
+        form?.rating_period ??
+        `${periods.semesters[periods.currentSemester]} ${periods.currentYear}`;
     // The signature cells are dated from the rating period from the start, not
     // only once it is edited.
     const [periodStart, periodEnd] = splitRatingPeriod(period);
 
     const { data, setData, post, patch, processing, errors } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
+        year: form?.year ?? periods.currentYear,
+        semester: form?.semester ?? periods.currentSemester,
         rating_period: period,
         // A manager files for someone else, so their own position is not a
         // sensible default — it arrives when they pick the ratee.
@@ -129,6 +138,14 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
             const next = { ...g, rows, [MEASURES[mi].pct]: pct };
             return { ...next, [MEASURES[mi].rating]: autoRating(next, mi) ?? '' };
         });
+
+    // Picking the semester rewrites the printed line (and, through it, the
+    // signature dates) — unless someone has typed their own wording.
+    const setPeriod = (year, semester) => {
+        const printed = `${periods.semesters[semester]} ${year}`;
+        patchData({ year, semester });
+        setRatingPeriod(printed);
+    };
 
     // The rating period dates the signature cells: its first half for the
     // commitment (Reviewed / Approved), its second for the review.
@@ -206,8 +223,44 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 </div>
                             )}
 
+                            {/* One IPCR per semester — two a year, never
+                                more — so the period is picked, not typed. */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className={label}>Year *</label>
+                                    <select
+                                        className={input}
+                                        value={data.year}
+                                        onChange={(e) => setPeriod(Number(e.target.value), data.semester)}
+                                    >
+                                        {periods.years.map((y) => (
+                                            <option key={y} value={y}>
+                                                {y}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className={label}>Semester *</label>
+                                    <select
+                                        className={input}
+                                        value={data.semester}
+                                        onChange={(e) => setPeriod(data.year, Number(e.target.value))}
+                                    >
+                                        {Object.entries(periods.semesters).map(([n, name]) => (
+                                            <option key={n} value={n}>
+                                                {n === '1' ? '1st' : '2nd'} · {name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {errors.semester && (
+                                    <p className="col-span-2 text-xs text-rose-600">{errors.semester}</p>
+                                )}
+                            </div>
+
                             <div>
-                                <label className={label}>Rating period *</label>
+                                <label className={label}>Rating period (as printed)</label>
                                 <input
                                     className={input}
                                     placeholder="e.g. January - June 2026"
@@ -261,6 +314,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
                     <Card
                         title="IPCR Form Matrix"
+                        scrolls
                         action={
                             <button
                                 type="button"
@@ -290,6 +344,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
                     <Card
                         title="IPCR Form (FORM E)"
+                        scrolls
                         hint={
                             <>
                                 Enter the <strong>% accomplished</strong> for Quality, Timeliness, and Quantity of

@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\IpcrForm;
 use App\Models\IpcrFormGroup;
+use App\Models\IpcrRecord;
 use App\Models\User;
 use App\Support\FormSignatures;
 use App\Support\IpcrAccess;
+use App\Support\RatingPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -24,23 +27,37 @@ class IpcrController extends Controller
         $user = $request->user();
         $isManager = IpcrAccess::isManager($user);
 
+        // A manager lands on the queue — what is waiting on them; everyone
+        // else just sees their own.
+        $filter = $request->query('filter') === 'all' || ! $isManager ? 'all' : 'pending';
+
+        $mine = fn ($q) => $q->when(! $isManager, fn ($qq) => $qq->where('user_id', $user->id));
+
         $forms = IpcrForm::with('ratee:id,name,username')
-            ->when(! $isManager, fn ($q) => $q->where('user_id', $user->id))
+            ->tap($mine)
+            ->when($filter === 'pending', fn ($q) => $q->where('status', IpcrForm::SUBMITTED))
             ->latest('updated_at')
             ->get()
             ->map(fn (IpcrForm $f) => [
                 'id' => $f->id,
                 'ratee' => $f->ratee?->name ?? '—',
+                'period' => RatingPeriod::short($f->year, $f->semester),
                 'rating_period' => $f->rating_period,
                 'status' => $f->status,
                 'overall_rating' => $f->overall_rating,
                 'adjectival' => $f->fe_overall_adjectival_rating,
+                'submitted_at' => optional($f->submitted_at)->toDateString(),
                 'updated_at' => $f->updated_at?->toDateString(),
             ]);
 
         return Inertia::render('Ipcr/Index', [
             'forms' => $forms,
             'isManager' => $isManager,
+            'filter' => $filter,
+            'pendingCount' => IpcrForm::query()
+                ->tap($mine)
+                ->where('status', IpcrForm::SUBMITTED)
+                ->count(),
         ]);
     }
 
@@ -52,6 +69,12 @@ class IpcrController extends Controller
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
             'defaults' => $this->defaults($request),
+            'periods' => [
+                'years' => RatingPeriod::years(),
+                'semesters' => RatingPeriod::SEMESTERS,
+                'currentYear' => (int) now()->year,
+                'currentSemester' => RatingPeriod::currentSemester(),
+            ],
         ]);
     }
 
@@ -65,6 +88,8 @@ class IpcrController extends Controller
             $data['user_id'] = $request->user()->id;
             $data['status'] = $this->rateeStatus($data['status']);
         }
+
+        $this->assertPeriodFree($data);
 
         $form = $this->persist(new IpcrForm(), $data);
 
@@ -81,6 +106,12 @@ class IpcrController extends Controller
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
             'defaults' => $this->defaults($request),
+            'periods' => [
+                'years' => RatingPeriod::years(),
+                'semesters' => RatingPeriod::SEMESTERS,
+                'currentYear' => (int) now()->year,
+                'currentSemester' => RatingPeriod::currentSemester(),
+            ],
         ]);
     }
 
@@ -94,6 +125,8 @@ class IpcrController extends Controller
             $data['user_id'] = $ipcr->user_id; // ratee cannot reassign
             $data['status'] = $this->rateeStatus($data['status']);
         }
+
+        $this->assertPeriodFree($data, $ipcr);
 
         $this->persist($ipcr, $data);
 
@@ -190,6 +223,11 @@ class IpcrController extends Controller
     {
         abort_unless(IpcrAccess::canDelete($request->user(), $ipcr), 403);
 
+        // Deleting an approved IPCR takes its semester tick back with it.
+        if ($ipcr->status === IpcrForm::APPROVED) {
+            $this->markCompliance($ipcr, false);
+        }
+
         $ipcr->delete();
 
         return redirect()->route('ipcr.index')->with('success', 'IPCR deleted.');
@@ -225,7 +263,10 @@ class IpcrController extends Controller
             $ipcr->approved_by_id = $request->user()->id;
             $ipcr->save();
 
-            return back()->with('success', 'IPCR approved.');
+            $this->markCompliance($ipcr, true);
+
+            return back()->with('success', 'IPCR approved — '
+                .RatingPeriod::short($ipcr->year, $ipcr->semester).' is now marked done.');
         }
 
         $ipcr->status = IpcrForm::RETURNED;
@@ -304,7 +345,10 @@ class IpcrController extends Controller
             'reviewer_designation' => ['nullable', 'string', 'max:191'],
             'approver_name' => ['nullable', 'string', 'max:191'],
             'approver_designation' => ['nullable', 'string', 'max:191'],
-            'rating_period' => ['required', 'string', 'max:191'],
+            // The period is the semester; the text line is what gets printed.
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'semester' => ['required', 'integer', 'in:1,2'],
+            'rating_period' => ['nullable', 'string', 'max:191'],
             'position_title' => ['nullable', 'string', 'max:191'],
             'office_unit' => ['nullable', 'string', 'max:191'],
             'strategic_priority' => ['nullable', 'string', 'max:191'],
@@ -379,6 +423,11 @@ class IpcrController extends Controller
             $data['approver_designation'] ?? null,
         );
         unset($data['reviewer_name'], $data['reviewer_designation'], $data['approver_name'], $data['approver_designation']);
+
+        // The printed line follows the semester unless someone typed their own.
+        if (trim((string) ($data['rating_period'] ?? '')) === '') {
+            $data['rating_period'] = RatingPeriod::label($data['year'], $data['semester']);
+        }
 
         return DB::transaction(function () use ($form, $data, $groups, $reviewerSig, $approverSig) {
             $form->fill($data)->save();
@@ -459,6 +508,44 @@ class IpcrController extends Controller
     }
 
     /**
+     * One IPCR per person per semester — two a year, never more. The unique
+     * index is the real guard; this is here so the ratee gets a sentence
+     * instead of a database error.
+     */
+    private function assertPeriodFree(array $data, ?IpcrForm $except = null): void
+    {
+        $clash = IpcrForm::where('user_id', $data['user_id'])
+            ->where('year', $data['year'])
+            ->where('semester', $data['semester'])
+            ->when($except?->exists, fn ($q) => $q->whereKeyNot($except->id))
+            ->first();
+
+        if ($clash) {
+            throw ValidationException::withMessages([
+                'semester' => 'There is already an IPCR for '
+                    .RatingPeriod::label($data['year'], $data['semester'])
+                    .' — open that one instead of starting a second.',
+            ]);
+        }
+    }
+
+    /**
+     * An approved IPCR ticks that semester on the compliance tracker, which is
+     * what the admin dashboard counts. Deleting it unticks.
+     */
+    private function markCompliance(IpcrForm $ipcr, bool $done): void
+    {
+        $employeeId = $ipcr->ratee?->employee_id;
+
+        if (! $employeeId || ! $ipcr->year || ! $ipcr->semester) {
+            return;
+        }
+
+        IpcrRecord::firstOrCreate(['employee_id' => $employeeId, 'year' => $ipcr->year])
+            ->update(['sem'.$ipcr->semester.'_done' => $done]);
+    }
+
+    /**
      * One measure's rating. A rating typed into Form E wins (the ratee may
      * override); otherwise it is read off the achieved % against that
      * measure's five standard descriptors, so the score never depends on the
@@ -511,6 +598,8 @@ class IpcrController extends Controller
             'approver_sig' => $ipcr->approver_sig,
             'submitted_at' => optional($ipcr->submitted_at)->toDateString(),
             'approved_at' => optional($ipcr->approved_at)->toDateString(),
+            'year' => $ipcr->year,
+            'semester' => $ipcr->semester,
             'rating_period' => $ipcr->rating_period,
             'position_title' => $ipcr->position_title,
             'office_unit' => $ipcr->office_unit,

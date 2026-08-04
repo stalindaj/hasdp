@@ -17,7 +17,41 @@ function StatusPill({ status }) {
     );
 }
 
-export default function Index({ forms, isManager }) {
+/** Pending / All, for a manager working a queue. */
+function Tabs({ filter, pendingCount }) {
+    const tab = (key, label) => (
+        <Link
+            key={key}
+            href={route('iwot.index', key === 'all' ? { filter: 'all' } : {})}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                filter === key
+                    ? 'bg-[#0b2a52] text-white'
+                    : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+        >
+            {label}
+        </Link>
+    );
+
+    return (
+        <div className="mb-4 flex flex-wrap gap-2">
+            {tab(
+                'pending',
+                <>
+                    Pending approval
+                    {pendingCount > 0 && (
+                        <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-amber-950">
+                            {pendingCount}
+                        </span>
+                    )}
+                </>,
+            )}
+            {tab('all', 'All sheets')}
+        </div>
+    );
+}
+
+export default function Index({ forms, isManager, filter, pendingCount }) {
     return (
         <AuthenticatedLayout
             header={
@@ -37,21 +71,32 @@ export default function Index({ forms, isManager }) {
             <Head title="IWOT" />
 
             <div className="py-8">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <p className="mb-4 rounded-lg border-l-4 border-[#0b2a52] bg-white p-4 text-sm text-gray-600 shadow-sm">
                         The <strong>Individual Work Output Target</strong> sets the targets and performance
-                        standards for a rating period. The IPCR at the end of that period is rated against them.
+                        standards for a semester — one per semester, two a year. The IPCR at the end of that
+                        semester is rated against them.
                     </p>
+
+                    {isManager && <Tabs filter={filter} pendingCount={pendingCount} />}
 
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         {forms.length === 0 ? (
                             <div className="px-6 py-16 text-center">
-                                <p className="text-sm text-gray-600">No IWOT sheets yet.</p>
+                                <p className="text-sm text-gray-600">
+                                    {filter === 'pending'
+                                        ? 'Nothing waiting for approval.'
+                                        : 'No IWOT sheets yet.'}
+                                </p>
                                 <Link
-                                    href={route('iwot.create')}
+                                    href={
+                                        filter === 'pending'
+                                            ? route('iwot.index', { filter: 'all' })
+                                            : route('iwot.create')
+                                    }
                                     className="mt-4 inline-block rounded-md bg-[#0b2a52] px-4 py-2 text-sm font-medium text-white hover:bg-[#071b35]"
                                 >
-                                    Create the first one
+                                    {filter === 'pending' ? 'See all sheets' : 'Create the first one'}
                                 </Link>
                             </div>
                         ) : (

@@ -37,13 +37,14 @@ class IwotTest extends TestCase
         return $u;
     }
 
-    private function payload(int $userId): array
+    private function payload(int $userId, int $year = 2026, int $semester = 1): array
     {
         return [
             'user_id' => $userId,
             'position_title' => 'Administrative Aide III (Clerk I)',
             'office_unit' => '15th Strike Wing, PAF / Office of Directorate for Personnel',
-            'rating_period' => 'January - June 2026',
+            'year' => $year,
+            'semester' => $semester,
             'status' => 'draft',
             'prepared_by' => 'Jean Marie B Tubat',
             'prepared_designation' => 'Employee',
@@ -253,5 +254,46 @@ class IwotTest extends TestCase
         $this->assertSame($employee->id, IwotForm::first()->user_id);
 
         $this->actingAs($employee)->delete(route('iwot.destroy', IwotForm::first()))->assertForbidden();
+    }
+
+    public function test_only_one_iwot_per_person_per_semester(): void
+    {
+        $employee = $this->employee();
+
+        $this->actingAs($employee)
+            ->post(route('iwot.store'), $this->payload($employee->id, 2026, 1))
+            ->assertRedirect();
+
+        $this->actingAs($employee)
+            ->post(route('iwot.store'), $this->payload($employee->id, 2026, 1))
+            ->assertSessionHasErrors('semester');
+
+        // The other semester is fine — two a year, never more.
+        $this->actingAs($employee)
+            ->post(route('iwot.store'), $this->payload($employee->id, 2026, 2))
+            ->assertRedirect();
+
+        $this->assertSame(2, IwotForm::where('user_id', $employee->id)->count());
+    }
+
+    public function test_submitted_iwots_land_in_the_pending_queue(): void
+    {
+        $manager = $this->manager();
+        $employee = $this->employee();
+
+        IwotForm::create(['user_id' => $employee->id, 'year' => 2026, 'semester' => 1, 'status' => 'draft']);
+        $waiting = IwotForm::create([
+            'user_id' => $employee->id, 'year' => 2026, 'semester' => 2, 'status' => IwotForm::SUBMITTED,
+        ]);
+
+        $this->actingAs($manager)->get(route('iwot.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('filter', 'pending')
+                ->where('pendingCount', 1)
+                ->has('forms', 1)
+                ->where('forms.0.id', $waiting->id));
+
+        $this->actingAs($manager)->get(route('iwot.index', ['filter' => 'all']))
+            ->assertInertia(fn ($page) => $page->has('forms', 2));
     }
 }

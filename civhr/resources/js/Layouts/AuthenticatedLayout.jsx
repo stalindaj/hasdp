@@ -1,344 +1,266 @@
 import { useState } from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
-import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, router, usePage } from '@inertiajs/react';
 
+/**
+ * The 15SW personnel-portal chrome: the dark navy/gold bar from the
+ * standalone portal, worn by every page.
+ *
+ * Page CONTENT is free to be light — the leave / IPCR / IWOT sheets stay on
+ * white because they are data entry and they print. Only the frame is dark.
+ */
+
+const NAV_CSS = `
+.navbar-15sw {
+    --navy-deep:#050d18; --navy:#0a1a2f; --gold:#f0c94e; --gold-dim:#c9a030;
+    --steel:#8ba3bf; --steel-dim:#5c7995;
+    --mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+    background:rgba(10,26,47,.96); border-bottom:2px solid var(--gold);
+    box-shadow:0 4px 30px rgba(0,0,0,.5); position:relative; z-index:30;
+}
+.navbar-15sw a { text-decoration:none; }
+.navbar-15sw .bar { display:flex; align-items:center; gap:1rem; padding:.55rem 1.25rem; max-width:1400px; margin:0 auto; }
+
+.navbar-15sw .brand { display:flex; align-items:center; gap:.65rem; flex-shrink:0; }
+.navbar-15sw .brand .wm { line-height:1.15; }
+.navbar-15sw .brand .wm b {
+    display:block; font-size:1.15rem; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; color:var(--gold); text-shadow:0 0 12px rgba(240,201,78,.3);
+}
+.navbar-15sw .brand .wm span {
+    display:block; font-family:var(--mono); font-size:.58rem; letter-spacing:2px;
+    text-transform:uppercase; color:var(--steel-dim);
+}
+/* On a phone the seal alone carries the brand — the wordmark would push the
+   menu button off the screen. */
+@media (max-width:479px) {
+    .navbar-15sw .brand .wm { display:none; }
+    .navbar-15sw .bar { padding:.5rem .75rem; }
+}
+@media (min-width:480px) and (max-width:1023px) {
+    .navbar-15sw .brand .wm b { font-size:.95rem; letter-spacing:1px; }
+    .navbar-15sw .brand .wm span { font-size:.5rem; letter-spacing:1px; }
+}
+
+.navbar-15sw .links { display:none; gap:.15rem; flex:1; }
+@media (min-width:1024px) { .navbar-15sw .links { display:flex; } }
+.navbar-15sw .links a {
+    position:relative; color:rgba(255,255,255,.75); font-weight:600; font-size:.86rem;
+    padding:.5rem .85rem; border-radius:6px; transition:all .2s ease; white-space:nowrap;
+}
+.navbar-15sw .links a:hover, .navbar-15sw .links a.on { color:#fff; background:rgba(240,201,78,.15); }
+.navbar-15sw .links a.on::after {
+    content:''; position:absolute; bottom:2px; left:50%; transform:translateX(-50%);
+    width:60%; height:2px; background:var(--gold); border-radius:4px;
+}
+
+.navbar-15sw .right { display:none; align-items:center; gap:.6rem; margin-left:auto; }
+@media (min-width:1024px) { .navbar-15sw .right { display:flex; } }
+
+.navbar-15sw .hat {
+    font-family:var(--mono); font-size:.66rem; letter-spacing:1px; text-transform:uppercase;
+    padding:.35rem .8rem; border-radius:999px; cursor:pointer;
+    background:transparent; border:1px solid rgba(240,201,78,.45); color:var(--gold);
+    transition:all .2s ease; white-space:nowrap;
+}
+.navbar-15sw .hat:hover { background:rgba(240,201,78,.15); }
+
+.navbar-15sw .chip {
+    display:flex; align-items:center; gap:9px; background:rgba(255,255,255,.07);
+    border:1.5px solid rgba(240,201,78,.3); border-radius:8px; padding:3px 12px 3px 3px;
+    color:#fff; font-weight:600; font-size:.85rem; cursor:pointer; transition:border-color .2s;
+}
+.navbar-15sw .chip:hover { border-color:var(--gold); }
+.navbar-15sw .chip .av {
+    width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#16324f,#0a1a2f); border:1px solid rgba(240,201,78,.35);
+    font-size:.72rem; font-weight:700; color:var(--gold);
+}
+.navbar-15sw .chip .role {
+    display:block; font-family:var(--mono); font-size:.55rem; letter-spacing:1.5px;
+    text-transform:uppercase; color:var(--gold-dim); font-weight:600;
+}
+.navbar-15sw .menu {
+    position:absolute; right:1.25rem; top:100%; margin-top:.4rem; min-width:190px; z-index:40;
+    background:#0a1a2f; border:1px solid rgba(240,201,78,.25); border-radius:8px;
+    box-shadow:0 18px 50px rgba(0,0,0,.6); overflow:hidden;
+}
+.navbar-15sw .menu a, .navbar-15sw .menu button {
+    display:block; width:100%; text-align:left; padding:.6rem .9rem; font-size:.84rem;
+    color:rgba(255,255,255,.85); background:none; border:0; cursor:pointer;
+}
+.navbar-15sw .menu a:hover, .navbar-15sw .menu button:hover { background:rgba(240,201,78,.12); color:#fff; }
+
+.navbar-15sw .burger {
+    margin-left:auto; background:none; border:1px solid rgba(240,201,78,.35); color:var(--gold);
+    border-radius:6px; padding:.35rem .6rem; cursor:pointer; font-size:1.1rem; line-height:1;
+}
+@media (min-width:1024px) { .navbar-15sw .burger { display:none; } }
+.navbar-15sw .drawer { border-top:1px solid rgba(240,201,78,.2); padding:.5rem .75rem 1rem; }
+.navbar-15sw .drawer a, .navbar-15sw .drawer button {
+    display:block; width:100%; text-align:left; padding:.55rem .75rem; border-radius:6px;
+    color:rgba(255,255,255,.82); font-size:.9rem; font-weight:600; background:none; border:0; cursor:pointer;
+}
+.navbar-15sw .drawer a.on { background:rgba(240,201,78,.15); color:#fff; }
+.navbar-15sw .drawer .sep { border-top:1px solid rgba(255,255,255,.08); margin:.5rem 0; }
+.navbar-15sw .drawer .who { padding:.4rem .75rem; color:var(--steel-dim); font-size:.75rem; }
+
+/* Which hat is on — never a guess. */
+.hatbar-15sw {
+    background:rgba(240,201,78,.12); border-bottom:1px solid rgba(240,201,78,.3);
+    color:#f6e2a8; text-align:center; padding:.45rem 1rem; font-size:.82rem;
+}
+.hatbar-15sw button { color:var(--gold,#f0c94e); font-weight:700; text-decoration:underline; background:none; border:0; cursor:pointer; }
+
+/* Page title strip. Stays white: the pages that use it (leave, IPCR, IWOT)
+   are white, and their buttons are styled for a light background. */
+.pagehead-15sw { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.pagehead-15sw .inner { max-width:1400px; margin:0 auto; padding:1.25rem; }
+`;
+
+function initialsOf(name) {
+    return (name || '')
+        .replace(/,/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join('');
+}
+
 export default function AuthenticatedLayout({ header, children }) {
-    const { user, isAdmin, isSuperadmin, canSwitchView, viewMode } =
-        usePage().props.auth;
+    const { user, isAdmin, isSuperadmin, canSwitchView, viewMode } = usePage().props.auth;
 
     const switchView = () => router.post(route('view-mode.toggle'));
+    const [drawer, setDrawer] = useState(false);
+    const [menu, setMenu] = useState(false);
 
-    const [showingNavigationDropdown, setShowingNavigationDropdown] =
-        useState(false);
+    // One list, rendered twice (bar + drawer) so they can never drift.
+    const links = [
+        { label: 'Dashboard', href: route('dashboard'), on: route().current('dashboard') },
+        !isAdmin && {
+            label: 'My Profile',
+            href: route('my-profile.edit'),
+            on: route().current('my-profile.*'),
+        },
+        {
+            // Admins have no "my leave" — Leave is the requests queue until
+            // they switch hats.
+            label: isAdmin ? 'Leave requests' : 'My Leave',
+            href: route(isAdmin ? 'leave.requests' : 'leave.index'),
+            on: route().current('leave.*'),
+        },
+        { label: 'IWOT', href: route('iwot.index'), on: route().current('iwot.*') },
+        { label: 'IPCR', href: route('ipcr.index'), on: route().current('ipcr.*') },
+        isAdmin && {
+            // Users + Employees live behind one "Personnel" tab.
+            label: 'Personnel',
+            href: route('admin.users.index'),
+            on: route().current('admin.users.*') || route().current('admin.employees.*'),
+        },
+        isAdmin && {
+            label: 'Balances',
+            href: route('admin.balances.index'),
+            on: route().current('admin.balances.*'),
+        },
+    ].filter(Boolean);
+
+    const hatLabel = viewMode === 'employee' ? '← Back to admin' : 'View as employee';
 
     return (
         <div className="min-h-screen bg-gray-100">
-            {/* PAF-blue brand stripe */}
-            <div className="h-1 bg-gradient-to-r from-blue-950 via-blue-800 to-sky-600" />
-            <nav className="border-b border-gray-200 bg-white shadow-sm">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 justify-between">
-                        <div className="flex">
-                            <div className="flex shrink-0 items-center">
-                                <Link href="/">
-                                    <ApplicationLogo />
-                                </Link>
-                            </div>
+            <style>{NAV_CSS}</style>
 
-                            <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                                <NavLink
-                                    href={route('dashboard')}
-                                    active={route().current('dashboard')}
-                                >
-                                    Dashboard
-                                </NavLink>
-                                {/* My Profile is employee self-service; an
-                                    admin edits records under Employees. */}
-                                {!isAdmin && (
-                                    <NavLink
-                                        href={route('my-profile.edit')}
-                                        active={route().current('my-profile.*')}
-                                    >
-                                        My Profile
-                                    </NavLink>
-                                )}
-                                {/* Admins have no "my leave" — Leave is the
-                                    requests queue until they switch hats. */}
-                                <NavLink
-                                    href={route(
-                                        isAdmin ? 'leave.requests' : 'leave.index',
-                                    )}
-                                    active={route().current('leave.*')}
-                                >
-                                    {isAdmin ? 'Leave requests' : 'My Leave'}
-                                </NavLink>
+            <nav className="navbar-15sw">
+                <div className="bar">
+                    <Link href="/" className="brand">
+                        <ApplicationLogo compact />
+                        <span className="wm">
+                            <b>15th Strike Wing</b>
+                            <span>Civilian Personnel Management System</span>
+                        </span>
+                    </Link>
 
-                                <NavLink
-                                    href={route('iwot.index')}
-                                    active={route().current('iwot.*')}
-                                >
-                                    IWOT
-                                </NavLink>
-
-                                <NavLink
-                                    href={route('ipcr.index')}
-                                    active={route().current('ipcr.*')}
-                                >
-                                    IPCR
-                                </NavLink>
-
-                                {/* Users + Employees live behind one
-                                    "Personnel" tab (Accounts / Records). */}
-                                {isAdmin && (
-                                    <NavLink
-                                        href={route('admin.users.index')}
-                                        active={
-                                            route().current('admin.users.*') ||
-                                            route().current('admin.employees.*')
-                                        }
-                                    >
-                                        Personnel
-                                    </NavLink>
-                                )}
-                                {isAdmin && (
-                                    <NavLink
-                                        href={route('admin.balances.index')}
-                                        active={route().current(
-                                            'admin.balances.*',
-                                        )}
-                                    >
-                                        Balances
-                                    </NavLink>
-                                )}
-                                {/* Holidays and Audit are now quick buttons on
-                                    the dashboard, not top-level nav. */}
-                            </div>
-                        </div>
-
-                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
-                            {canSwitchView && (
-                                <button
-                                    onClick={switchView}
-                                    className={
-                                        'mr-2 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition ' +
-                                        (viewMode === 'employee'
-                                            ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100'
-                                            : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100')
-                                    }
-                                    title="Admins can preview the app exactly as an employee sees it"
-                                >
-                                    {viewMode === 'employee'
-                                        ? '← Back to admin'
-                                        : 'View as employee'}
-                                </button>
-                            )}
-                            <div className="relative ms-3">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                                            >
-                                                {user.name}
-
-                                                <svg
-                                                    className="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
-
-                                    <Dropdown.Content>
-                                        <Dropdown.Link
-                                            href={route('profile.edit')}
-                                        >
-                                            Account settings
-                                        </Dropdown.Link>
-                                        <Dropdown.Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                        >
-                                            Log Out
-                                        </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
-                            </div>
-                        </div>
-
-                        <div className="-me-2 flex items-center sm:hidden">
-                            <button
-                                onClick={() =>
-                                    setShowingNavigationDropdown(
-                                        (previousState) => !previousState,
-                                    )
-                                }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
-                            >
-                                <svg
-                                    className="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        className={
-                                            !showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        className={
-                                            showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
+                    <div className="links">
+                        {links.map((l) => (
+                            <Link key={l.label} href={l.href} className={l.on ? 'on' : ''}>
+                                {l.label}
+                            </Link>
+                        ))}
                     </div>
-                </div>
 
-                <div
-                    className={
-                        (showingNavigationDropdown ? 'block' : 'hidden') +
-                        ' sm:hidden'
-                    }
-                >
-                    <div className="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
+                    <div className="right">
                         {canSwitchView && (
                             <button
+                                className="hat"
                                 onClick={switchView}
-                                className="block w-full px-4 py-2 text-start text-base font-medium text-amber-700"
+                                title="Admins can preview the app exactly as an employee sees it"
                             >
-                                {viewMode === 'employee'
-                                    ? '← Back to admin'
-                                    : 'View as employee'}
+                                {hatLabel}
                             </button>
                         )}
-                        {!isAdmin && (
-                            <ResponsiveNavLink
-                                href={route('my-profile.edit')}
-                                active={route().current('my-profile.*')}
-                            >
-                                My Profile
-                            </ResponsiveNavLink>
-                        )}
-                        <ResponsiveNavLink
-                            href={route(
-                                isAdmin ? 'leave.requests' : 'leave.index',
-                            )}
-                            active={route().current('leave.*')}
-                        >
-                            {isAdmin ? 'Leave requests' : 'My Leave'}
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink
-                            href={route('iwot.index')}
-                            active={route().current('iwot.*')}
-                        >
-                            IWOT
-                        </ResponsiveNavLink>
-
-                        <ResponsiveNavLink
-                            href={route('ipcr.index')}
-                            active={route().current('ipcr.*')}
-                        >
-                            IPCR
-                        </ResponsiveNavLink>
-
-                        {isAdmin && (
-                            <ResponsiveNavLink
-                                href={route('admin.users.index')}
-                                active={
-                                    route().current('admin.users.*') ||
-                                    route().current('admin.employees.*')
-                                }
-                            >
-                                Personnel
-                            </ResponsiveNavLink>
-                        )}
-                        {isAdmin && (
-                            <ResponsiveNavLink
-                                href={route('admin.balances.index')}
-                                active={route().current('admin.balances.*')}
-                            >
-                                Balances
-                            </ResponsiveNavLink>
-                        )}
-                        {/* Holidays and Audit are quick buttons on the
-                            dashboard, not top-level nav. */}
-                    </div>
-
-                    <div className="border-t border-gray-200 pb-1 pt-4">
-                        <div className="px-4">
-                            <div className="text-base font-medium text-gray-800">
+                        <button className="chip" onClick={() => setMenu((v) => !v)}>
+                            <span className="av">{initialsOf(user.name)}</span>
+                            <span style={{ lineHeight: 1.15 }}>
                                 {user.name}
-                            </div>
-                            <div className="text-sm font-medium text-gray-500">
-                                {user.email}
-                            </div>
-                        </div>
-
-                        <div className="mt-3 space-y-1">
-                            {/* The admin's view switch lives in the top bar on
-                                desktop; phones only have this menu. */}
-                            {canSwitchView && (
-                                <ResponsiveNavLink
-                                    method="post"
-                                    href={route('view-mode.toggle')}
-                                    as="button"
-                                >
+                                <span className="role">
                                     {viewMode === 'employee'
-                                        ? '← Back to admin'
-                                        : 'View as employee'}
-                                </ResponsiveNavLink>
-                            )}
-                            <ResponsiveNavLink href={route('profile.edit')}>
-                                Account settings
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
-                        </div>
+                                        ? 'employee'
+                                        : isSuperadmin
+                                          ? 'superadmin'
+                                          : isAdmin
+                                            ? 'admin'
+                                            : 'employee'}
+                                </span>
+                            </span>
+                            <span style={{ color: '#8ba3bf', fontSize: '.7rem' }}>▾</span>
+                        </button>
                     </div>
+
+                    <button className="burger" onClick={() => setDrawer((v) => !v)}>
+                        {drawer ? '✕' : '☰'}
+                    </button>
                 </div>
+
+                {menu && (
+                    <div className="menu" onMouseLeave={() => setMenu(false)}>
+                        <Link href={route('profile.edit')}>Account settings</Link>
+                        <Link href={route('logout')} method="post" as="button">
+                            Log Out
+                        </Link>
+                    </div>
+                )}
+
+                {drawer && (
+                    <div className="drawer">
+                        {links.map((l) => (
+                            <Link key={l.label} href={l.href} className={l.on ? 'on' : ''}>
+                                {l.label}
+                            </Link>
+                        ))}
+                        <div className="sep" />
+                        <div className="who">{user.name}</div>
+                        {canSwitchView && (
+                            <button onClick={switchView}>{hatLabel}</button>
+                        )}
+                        <Link href={route('profile.edit')}>Account settings</Link>
+                        <Link href={route('logout')} method="post" as="button">
+                            Log Out
+                        </Link>
+                    </div>
+                )}
             </nav>
 
-            {/* Which hat is on, said plainly — an admin in employee mode has
-                no admin powers at all, so it must never be a guess. */}
             {canSwitchView && viewMode === 'employee' && (
-                <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
-                    You are in{' '}
-                    <span className="font-semibold">employee mode</span> — filing
-                    and viewing your own records only.{' '}
-                    <button
-                        onClick={switchView}
-                        className="font-semibold underline hover:text-amber-950"
-                    >
-                        Back to admin
-                    </button>
+                <div className="hatbar-15sw">
+                    You are in <strong>employee mode</strong> — filing and viewing your own records
+                    only. <button onClick={switchView}>Back to admin</button>
                 </div>
             )}
 
             {header && (
-                <header className="bg-white shadow">
-                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                        {header}
-                    </div>
+                <header className="pagehead-15sw">
+                    <div className="inner">{header}</div>
                 </header>
             )}
 

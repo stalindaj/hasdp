@@ -36,11 +36,12 @@ class IpcrTest extends TestCase
         return $u;
     }
 
-    private function payload(int $rateeId): array
+    private function payload(int $rateeId, int $year = 2026, int $semester = 1): array
     {
         return [
             'user_id' => $rateeId,
-            'rating_period' => 'January – June 2026',
+            'year' => $year,
+            'semester' => $semester,
             'status' => 'approved',
             'groups' => [
                 [
@@ -96,7 +97,8 @@ class IpcrTest extends TestCase
         // off the Performance Standards descriptors itself.
         $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'rating_period' => 'January - June 2026',
+            'year' => 2020,
+            'semester' => 1,
             'status' => 'draft',
             'groups' => [[
                 'major_final_output' => 'Process leave applications',
@@ -141,7 +143,8 @@ class IpcrTest extends TestCase
 
         $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'rating_period' => 'January - June 2026',
+            'year' => 2021,
+            'semester' => 2,
             'status' => 'draft',
             // Filled from the rating period — not calendar dates.
             'fe_reviewed_date' => 'January',
@@ -181,7 +184,8 @@ class IpcrTest extends TestCase
 
         $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'rating_period' => 'A',
+            'year' => 2021,
+            'semester' => 1,
             'status' => 'draft',
             'fe_intervening_activities' => [['activity' => 'Extra duty', 'rating' => 1.5]],
             'groups' => [[
@@ -204,7 +208,8 @@ class IpcrTest extends TestCase
 
         $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'rating_period' => 'January - June 2026',
+            'year' => 2022,
+            'semester' => 2,
             'status' => 'draft',
             'fe_reviewed_by' => 'TSg Ronnie R Doble PAF',
             'fe_approved_by' => 'MAJ Ariel Dickson C Almeda PAF',
@@ -240,7 +245,8 @@ class IpcrTest extends TestCase
         \Illuminate\Support\Facades\Storage::fake('local');
 
         $ratee = $this->employee();
-        $form = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $form = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2022,
+            'semester' => 1, 'status' => 'draft']);
         $ink = \Illuminate\Http\UploadedFile::fake()->image('sig.png', 400, 120);
 
         // The commitment block and "Discussed with" are the ratee's own.
@@ -278,8 +284,10 @@ class IpcrTest extends TestCase
         $ratee = $this->employee();
         $other = $this->employee();
 
-        $mine = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
-        $theirs = IpcrForm::create(['user_id' => $other->id, 'rating_period' => 'B', 'status' => 'draft']);
+        $mine = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2023,
+            'semester' => 2, 'status' => 'draft']);
+        $theirs = IpcrForm::create(['user_id' => $other->id, 'year' => 2023,
+            'semester' => 1, 'status' => 'draft']);
 
         $this->actingAs($ratee)->get(route('ipcr.show', $mine))->assertOk();
         $this->actingAs($ratee)->get(route('ipcr.show', $theirs))->assertForbidden();
@@ -310,8 +318,10 @@ class IpcrTest extends TestCase
         $admin = $this->manager();
         $other = $this->employee();
 
-        $mine = IpcrForm::create(['user_id' => $admin->id, 'rating_period' => 'A', 'status' => 'draft']);
-        $theirs = IpcrForm::create(['user_id' => $other->id, 'rating_period' => 'B', 'status' => 'submitted']);
+        $mine = IpcrForm::create(['user_id' => $admin->id, 'year' => 2024,
+            'semester' => 2, 'status' => 'draft']);
+        $theirs = IpcrForm::create(['user_id' => $other->id, 'year' => 2024,
+            'semester' => 1, 'status' => 'submitted']);
 
         // Admin hat: everyone's forms, and they may decide.
         $this->actingAs($admin)->get(route('ipcr.show', $theirs))->assertOk();
@@ -347,7 +357,8 @@ class IpcrTest extends TestCase
     public function test_nobody_approves_their_own_ipcr(): void
     {
         $admin = $this->manager();
-        $own = IpcrForm::create(['user_id' => $admin->id, 'rating_period' => 'A', 'status' => 'submitted']);
+        $own = IpcrForm::create(['user_id' => $admin->id, 'year' => 2025,
+            'semester' => 2, 'status' => 'submitted']);
 
         $this->actingAs($admin)
             ->post(route('ipcr.decide', $own), ['decision' => 'approve'])
@@ -359,7 +370,8 @@ class IpcrTest extends TestCase
     public function test_ratee_cannot_delete(): void
     {
         $ratee = $this->employee();
-        $form = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $form = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2025,
+            'semester' => 1, 'status' => 'draft']);
 
         $this->actingAs($ratee)->delete(route('ipcr.destroy', $form))->assertForbidden();
         $this->assertDatabaseHas('ipcr_forms', ['id' => $form->id]);
@@ -373,7 +385,8 @@ class IpcrTest extends TestCase
         // Ratee files with typed (hand-entered) supervisors.
         $this->actingAs($ratee)->post(route('ipcr.store'), [
             'user_id' => $ratee->id,
-            'rating_period' => 'A',
+            'year' => 2026,
+            'semester' => 2,
             'status' => 'draft',
             'reviewer_name' => 'TSg Ronnie R Doble PAF',
             'reviewer_designation' => 'Pneudraulics Shop Supervisor / NCOIC',
@@ -405,7 +418,8 @@ class IpcrTest extends TestCase
         \Illuminate\Support\Facades\Storage::fake('local');
 
         $ratee = $this->employee();
-        $form = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $form = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2026,
+            'semester' => 1, 'status' => 'draft']);
         $file = \Illuminate\Http\UploadedFile::fake()->create('ipcr.pdf', 100, 'application/pdf');
 
         // Not yet approved → blocked.
@@ -417,5 +431,92 @@ class IpcrTest extends TestCase
         $form->refresh();
         $this->assertNotNull($form->scanned_copy_path);
         \Illuminate\Support\Facades\Storage::assertExists($form->scanned_copy_path);
+    }
+
+    public function test_only_one_ipcr_per_person_per_semester(): void
+    {
+        $manager = $this->manager();
+        $ratee = $this->employee();
+
+        $this->actingAs($manager)
+            ->post(route('ipcr.store'), $this->payload($ratee->id, 2026, 1))
+            ->assertRedirect();
+
+        // Same person, same semester → rejected with a readable message.
+        $this->actingAs($manager)
+            ->post(route('ipcr.store'), $this->payload($ratee->id, 2026, 1))
+            ->assertSessionHasErrors('semester');
+
+        // The other semester of the same year is fine — two a year, never more.
+        $this->actingAs($manager)
+            ->post(route('ipcr.store'), $this->payload($ratee->id, 2026, 2))
+            ->assertRedirect();
+
+        $this->assertSame(2, IpcrForm::where('user_id', $ratee->id)->count());
+    }
+
+    public function test_submitted_forms_land_in_the_pending_queue(): void
+    {
+        $manager = $this->manager();
+        $ratee = $this->employee();
+
+        $draft = IpcrForm::create([
+            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 1, 'status' => 'draft',
+        ]);
+        $waiting = IpcrForm::create([
+            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 2, 'status' => IpcrForm::SUBMITTED,
+        ]);
+
+        // Default view for a manager is the pending queue.
+        $this->actingAs($manager)->get(route('ipcr.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('filter', 'pending')
+                ->where('pendingCount', 1)
+                ->has('forms', 1)
+                ->where('forms.0.id', $waiting->id));
+
+        // "All records" shows both.
+        $this->actingAs($manager)->get(route('ipcr.index', ['filter' => 'all']))
+            ->assertInertia(fn ($page) => $page->has('forms', 2));
+
+        $this->assertSame('draft', $draft->fresh()->status);
+    }
+
+    public function test_approval_ticks_the_semester_compliance_flag(): void
+    {
+        $manager = $this->manager();
+        $employee = \App\Models\Employee::create([
+            'emp_no' => '9001', 'first_name' => 'Test', 'last_name' => 'Ratee',
+        ]);
+        $ratee = $this->employee();
+        $ratee->update(['employee_id' => $employee->id]);
+
+        $form = IpcrForm::create([
+            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 2, 'status' => IpcrForm::SUBMITTED,
+        ]);
+
+        $this->actingAs($manager)
+            ->post(route('ipcr.decide', $form), ['decision' => 'approve'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('ipcr_records', [
+            'employee_id' => $employee->id,
+            'year' => 2026,
+            'sem2_done' => true,
+        ]);
+
+        // An approved IPCR is final — it can no longer be returned.
+        $this->actingAs($manager)
+            ->post(route('ipcr.decide', $form->fresh()), ['decision' => 'return'])
+            ->assertForbidden();
+
+        // Deleting it is how a mistake is undone, and that takes the tick back.
+        $this->actingAs($manager)->delete(route('ipcr.destroy', $form))->assertRedirect();
+
+        $this->assertDatabaseHas('ipcr_records', [
+            'employee_id' => $employee->id,
+            'year' => 2026,
+            'sem2_done' => false,
+        ]);
     }
 }

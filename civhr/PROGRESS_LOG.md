@@ -22,6 +22,67 @@
 
 ## Log
 
+### 2026-08-04 — Portal look on both dashboards; forms stay white
+- **Commit:** pending
+- **Summary:** Ported the standalone portal's landing page (`home.php` in the
+  teammate folder) into CivDir as `Components/Portal.jsx` — a small kit
+  (`Portal` shell, `PortalTicker`, `PortalHero`, `PortalModules`,
+  `PortalPanel`, `PortalStat`, `PortalFooter`) carrying the status ticker, the
+  HUD hero card with bracket corners and radar sweep, and the Quick Access
+  modules.
+  - **Employee dashboard:** hero → Quick Access (IPCR / IWOT / Leave) → the
+    same status panels as before, restyled dark.
+  - **Admin dashboard:** the **roster leads** — a compact hero, then the
+    Personnel Status Board (three summary panels, the full roster with its
+    clickable IPCR semester chips, pending L&D and pending leave), then Quick
+    Access. That ordering is the user's ask: as an admin the first thing they
+    want is everyone's status.
+  - **Forms deliberately stay white** (leave, IPCR, IWOT and the L&D modals):
+    they are data entry and they print, so the light chrome stays.
+  - Nothing about the L&D flow, the semester toggles or the pending queues was
+    rewritten — only their presentation, so there is no second copy to keep in
+    sync.
+- **Files touched:** `resources/js/Components/Portal.jsx` (new, replaces the
+  short-lived `PortalHero.jsx`), `resources/js/Pages/Dashboard.jsx`,
+  `app/Http/Controllers/DashboardController.php` (employee payload gained
+  `position` + `clearance` for the banner), `FEATURES.md`.
+- **Features affected:** 16, 17, 29.
+- **Verified:** `php artisan test` green (191); `npm run build` clean.
+  Browser-checked both hats on :8123 — admin reads CLEARANCE · admin with the
+  17-row roster and 34 semester chips; employee reads CLEARANCE · employee with
+  the three modules. No console errors, no horizontal overflow at 375px, and
+  `/ipcr/4` confirmed still light (no `.portal` on records pages).
+- **Then, same session:** the user asked to take the design all the way, so
+  `AuthenticatedLayout` was rewritten as the portal's **navy/gold navbar** —
+  brand block (seal + 15TH STRIKE WING over the CPMS sub-line), gold-underlined
+  active link, the hat switch as a gold pill, and a user chip (initials + name
+  + role) opening Account settings / Log Out. Breakpoints: links collapse to a
+  burger drawer under 1024px; under 480px the wordmark drops so the seal alone
+  carries the brand (it was pushing the burger 11px off a 375px screen).
+  Breeze's `NavLink`/`ResponsiveNavLink`/`Dropdown` are no longer used here.
+  The **white page-title strip stays white** — the pages that use it are white
+  and their buttons are styled for a light background — but the dashboard now
+  passes no title at all, so the portal starts directly under the nav.
+  Holidays / Audit trail moved from that strip into the admin Quick Access.
+- **Then, mobile:** made the sheets fillable on a phone held sideways.
+  `resources/css/app.css` now carries a `max-width:1023px` block: sheet cells
+  go to **16px** (below that iOS Safari zooms the page on focus and you lose
+  your place in the table) with a 38px minimum height, and the sheets keep a
+  62rem minimum width so they scroll inside their card rather than collapsing
+  into slivers — with a "swipe sideways" hint above each. Verified the whole
+  auto-rating flow at 844×390: typed a standard, tapped it, watched the green
+  check, 95 → Qlty %, Ql1 = 5, "Outstanding", with no page-level overflow.
+  **Real bug found and fixed while testing:** on a 390px screen the admin
+  roster's grid column resolved to 520px and was being *clipped* by
+  `.portal { overflow:hidden }` — the right third of the Roster / Pending
+  panels was unreachable. Grid items default to `min-width:auto`, so the
+  table's intrinsic width won; `.portal .grid > *, .p-panel { min-width:0 }`
+  hands the scrolling back to the table's own box.
+- **Next step:** User to eyeball it, then commit + push. No migration.
+- **Open questions / notes:** The portal's background collage
+  (`images/15SW.PNG` in the teammate folder) is still not carried over — drop
+  the file into `public/` and it can be wired into `.portal::before`.
+
 ### 2026-08-04 — One hat on IPCR/IWOT, server-side status clamp, signature-upload error
 - **Commit:** pending
 - **Summary:** Production-readiness pass over the two new modules.

@@ -16,10 +16,25 @@ class IwotForm extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'year' => 'integer',
+        'semester' => 'integer',
         'signature_uploads' => 'array',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    /**
+     * The period is the semester, so the printed line follows from it (same
+     * rule as IpcrForm — one place, every caller consistent).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $form) {
+            if (blank($form->rating_period) && $form->year && $form->semester) {
+                $form->rating_period = \App\Support\RatingPeriod::label($form->year, $form->semester);
+            }
+        });
+    }
 
     public const DRAFT = 'draft';
     public const SUBMITTED = 'submitted';

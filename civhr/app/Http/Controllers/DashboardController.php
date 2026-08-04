@@ -144,6 +144,10 @@ class DashboardController extends Controller
             'me' => [
                 'name'   => $user->name,
                 'emp_no' => $e?->emp_no,
+                // For the portal banner: what they do, and the hat they are
+                // wearing right now (an admin previewing reads "employee").
+                'position'  => $e?->position,
+                'clearance' => 'employee',
                 'sem1'   => (bool) ($ipcr?->sem1_done),
                 'sem2'   => (bool) ($ipcr?->sem2_done),
                 'balances'      => $balances,
