@@ -1,6 +1,5 @@
-import FormE from '@/Components/Ipcr/FormE';
 import Matrix from '@/Components/Ipcr/Matrix';
-import { MEASURES, autoRating, parsePercent, splitRatingPeriod } from '@/Components/Ipcr/rating';
+import { MEASURES } from '@/Components/Ipcr/rating';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
@@ -13,16 +12,8 @@ const input =
 function blankGroup() {
     return {
         major_final_output: '',
-        success_indicator: '',
         timeliness: '',
-        actual_accomplishment: '',
-        quality_pct: '',
-        timeliness_pct: '',
-        quantity_pct: '',
-        quality_rating: '',
-        timeliness_rating: '',
-        quantity_rating: '',
-        remarks: '',
+        success_indicator: '',
         rows: MEASURES.map((m) => ({
             performance_measure: m.measure,
             performance_targets: '',
@@ -31,7 +22,6 @@ function blankGroup() {
             satisfactory: '',
             unsatisfactory: '',
             poor: '',
-            selected_band: null,
         })),
     };
 }
@@ -59,38 +49,21 @@ function Card({ title, action, hint, children }) {
 export default function Form({ form, personnel, isManager, currentUserId, defaults }) {
     const editing = Boolean(form?.id);
 
-    const period = form?.rating_period ?? 'January - June 2026';
-    // The signature cells are dated from the rating period from the start, not
-    // only once it is edited.
-    const [periodStart, periodEnd] = splitRatingPeriod(period);
-
     const { data, setData, post, patch, processing, errors } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
-        rating_period: period,
-        // A manager files for someone else, so their own position is not a
-        // sensible default — it arrives when they pick the ratee.
         position_title: form?.position_title ?? (isManager ? '' : (defaults?.position ?? '')),
         office_unit: form?.office_unit ?? '',
-        strategic_priority: form?.strategic_priority ?? '',
-        core_function: form?.core_function ?? '',
+        rating_period: form?.rating_period ?? '',
         status: form?.status ?? 'draft',
-        discussed_with: form?.discussed_with ?? '',
-        discussed_date: form?.discussed_date ?? periodEnd,
-        fe_reviewed_by: form?.fe_reviewed_by ?? '',
-        fe_reviewed_date: form?.fe_reviewed_date ?? periodStart,
-        fe_approved_by: form?.fe_approved_by ?? '',
-        fe_approved_date: form?.fe_approved_date ?? periodStart,
-        fe_assessed_by: form?.fe_assessed_by ?? '',
-        fe_assessed_date: form?.fe_assessed_date ?? periodEnd,
-        fe_final_rating_by: form?.fe_final_rating_by ?? '',
-        fe_final_rating_date: form?.fe_final_rating_date ?? periodEnd,
-        fe_comments: form?.fe_comments ?? '',
-        fe_intervening_activities: form?.fe_intervening_activities ?? [],
+        prepared_by: form?.prepared_by ?? (isManager ? '' : (defaults?.name ?? '')),
+        prepared_designation: form?.prepared_designation ?? 'Employee',
+        approved_by: form?.approved_by ?? '',
+        approved_designation: form?.approved_designation ?? 'NCOIC',
         groups: form?.groups?.length ? structuredClone(form.groups) : [blankGroup()],
     });
 
-    const rateeName =
-        form?.ratee ??
+    const employeeName =
+        form?.employee ??
         personnel.find((p) => String(p.id) === String(data.user_id))?.name ??
         defaults?.name ??
         '';
@@ -109,85 +82,44 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         }));
 
     const addGroup = () => setData((d) => ({ ...d, groups: [...d.groups, blankGroup()] }));
+    const removeGroup = (gi) => setData((d) => ({ ...d, groups: d.groups.filter((_, i) => i !== gi) }));
 
-    const removeGroup = (gi) =>
-        setData((d) => ({ ...d, groups: d.groups.filter((_, i) => i !== gi) }));
-
-    /**
-     * Clicking a Performance Standards cell marks it as the achieved band for
-     * that measure, copies its % into Form E and re-rates the measure
-     * (his selectStandard()).
-     */
-    const selectStandard = (gi, mi, band) =>
-        patchGroups(gi, (g) => {
-            const rows = g.rows.map((r, j) => (j === mi ? { ...r, selected_band: band } : r));
-            const key = { o: 'outstanding', vs: 'very_satisfactory', s: 'satisfactory', u: 'unsatisfactory', p: 'poor' }[band];
-            const pct = parsePercent(g.rows[mi]?.[key]);
-            if (pct == null) {
-                return { ...g, rows };
-            }
-            const next = { ...g, rows, [MEASURES[mi].pct]: pct };
-            return { ...next, [MEASURES[mi].rating]: autoRating(next, mi) ?? '' };
-        });
-
-    // The rating period dates the signature cells: its first half for the
-    // commitment (Reviewed / Approved), its second for the review.
-    const setRatingPeriod = (value) => {
-        const [start, end] = splitRatingPeriod(value);
-        patchData({
-            rating_period: value,
-            fe_reviewed_date: start,
-            fe_approved_date: start,
-            discussed_date: end,
-            fe_assessed_date: end,
-            fe_final_rating_date: end,
-        });
-    };
-
-    const setRatee = (value) => {
+    const setEmployee = (value) => {
         const person = personnel.find((p) => String(p.id) === String(value));
         patchData({
             user_id: value,
             position_title: person?.position ?? '',
-            discussed_with: person?.name ?? '',
+            prepared_by: person?.name ?? '',
         });
     };
 
     const submit = (e) => {
         e.preventDefault();
-        if (editing) patch(route('ipcr.update', form.id));
-        else post(route('ipcr.store'));
+        if (editing) patch(route('iwot.update', form.id));
+        else post(route('iwot.store'));
     };
-
-    const signedDate = new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    });
-
-    const sheet = { data, setGroup, setRow, readOnly: false, rateeName };
 
     return (
         <AuthenticatedLayout
             header={
                 <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    {editing ? 'Edit IPCR Entry' : 'New IPCR Entry'}
+                    {editing ? 'Edit IWOT' : 'New IWOT'}
                 </h2>
             }
         >
-            <Head title={editing ? 'Edit IPCR' : 'New IPCR'} />
+            <Head title={editing ? 'Edit IWOT' : 'New IWOT'} />
 
             <form onSubmit={submit} className="py-8">
                 <div className="mx-auto max-w-[100rem] space-y-6 px-4 sm:px-6 lg:px-8">
-                    <Card title="Performance Commitment Details">
+                    <Card title="Work Output Target Details">
                         <div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
                             {isManager && (
                                 <div>
-                                    <label className={label}>Personnel (Ratee) *</label>
+                                    <label className={label}>Personnel *</label>
                                     <select
                                         className={input}
                                         value={data.user_id}
-                                        onChange={(e) => setRatee(e.target.value)}
+                                        onChange={(e) => setEmployee(e.target.value)}
                                     >
                                         <option value="">— Select Personnel —</option>
                                         {personnel.map((p) => (
@@ -197,9 +129,6 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                             </option>
                                         ))}
                                     </select>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Position auto-fills from the selected personnel.
-                                    </p>
                                     {errors.user_id && (
                                         <p className="mt-1 text-xs text-rose-600">{errors.user_id}</p>
                                     )}
@@ -207,23 +136,10 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             )}
 
                             <div>
-                                <label className={label}>Rating period *</label>
-                                <input
-                                    className={input}
-                                    placeholder="e.g. January - June 2026"
-                                    value={data.rating_period}
-                                    onChange={(e) => setRatingPeriod(e.target.value)}
-                                />
-                                {errors.rating_period && (
-                                    <p className="mt-1 text-xs text-rose-600">{errors.rating_period}</p>
-                                )}
-                            </div>
-
-                            <div>
                                 <label className={label}>Position / Designation</label>
                                 <input
                                     className={input}
-                                    placeholder="e.g. Computer Operator"
+                                    placeholder="e.g. Administrative Aide III (Clerk I)"
                                     value={data.position_title}
                                     onChange={(e) => patchData({ position_title: e.target.value })}
                                 />
@@ -233,9 +149,19 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 <label className={label}>Office / Unit</label>
                                 <input
                                     className={input}
-                                    placeholder="e.g. Headquarters, Office of the Director for Personnel, 15SW"
+                                    placeholder="e.g. 15th Strike Wing, PAF / Office of Directorate for Personnel"
                                     value={data.office_unit}
                                     onChange={(e) => patchData({ office_unit: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className={label}>Period covered</label>
+                                <input
+                                    className={input}
+                                    placeholder="e.g. January - June 2026"
+                                    value={data.rating_period}
+                                    onChange={(e) => patchData({ rating_period: e.target.value })}
                                 />
                             </div>
 
@@ -247,7 +173,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                     onChange={(e) => patchData({ status: e.target.value })}
                                 >
                                     {(isManager
-                                        ? ['draft', 'submitted', 'reviewed', 'approved']
+                                        ? ['draft', 'submitted', 'approved']
                                         : ['draft', 'submitted']
                                     ).map((s) => (
                                         <option key={s} value={s}>
@@ -260,7 +186,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                     </Card>
 
                     <Card
-                        title="IPCR Form Matrix"
+                        title="IWOT Matrix"
                         action={
                             <button
                                 type="button"
@@ -272,35 +198,71 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                         }
                         hint={
                             <>
-                                Click on any cell under <strong>Performance Standards</strong> (Outstanding, Very
-                                Satisfactory, Satisfactory, Unsatisfactory, or Poor) to select it for that measure —
-                                the cell will highlight green with a check mark, and its % will automatically be
-                                copied into the matching Quality/Timeliness/Quantity % field in FORM E below, which
-                                then recalculates the rating for you.
+                                Set the targets for the coming period: one <strong>Major Final Output</strong> per
+                                block, its success indicator, and what counts as Outstanding down to Poor for each
+                                of Quality, Timeliness and Quantity. The IPCR at the end of the period is rated
+                                against exactly these standards.
                             </>
                         }
                     >
                         <Matrix
-                            {...sheet}
-                            selectStandard={selectStandard}
+                            data={data}
+                            setGroup={setGroup}
+                            setRow={setRow}
                             addGroup={addGroup}
                             removeGroup={removeGroup}
+                            rateeName={employeeName}
                         />
                     </Card>
 
-                    <Card
-                        title="IPCR Form (FORM E)"
-                        hint={
-                            <>
-                                Enter the <strong>% accomplished</strong> for Quality, Timeliness, and Quantity of
-                                each output below — the Ql1 / Qn2 / T3 ratings and the Average (A4) are computed by
-                                comparing your entry against the standards you set in the matrix above. You can
-                                still edit any rating manually afterward, or simply click a standard cell in the
-                                matrix to have its % copied down here.
-                            </>
-                        }
-                    >
-                        <FormE {...sheet} setData={patchData} signedDate={signedDate} />
+                    <Card title="Signatories">
+                        <div className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2">
+                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
+                                    Prepared by
+                                </p>
+                                <div>
+                                    <label className={label}>Name</label>
+                                    <input
+                                        className={input}
+                                        value={data.prepared_by}
+                                        onChange={(e) => patchData({ prepared_by: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={label}>Designation</label>
+                                    <input
+                                        className={input}
+                                        value={data.prepared_designation}
+                                        onChange={(e) => patchData({ prepared_designation: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
+                                    Approved by
+                                </p>
+                                <div>
+                                    <label className={label}>Name</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. TSg Ronnie R Doble PAF"
+                                        value={data.approved_by}
+                                        onChange={(e) => patchData({ approved_by: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={label}>Designation</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. NCOIC"
+                                        value={data.approved_designation}
+                                        onChange={(e) => patchData({ approved_designation: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </Card>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -310,17 +272,17 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 disabled={processing}
                                 className="rounded-md bg-[#0b2a52] px-6 py-2 text-sm font-medium text-white hover:bg-[#071b35] disabled:opacity-50"
                             >
-                                {editing ? 'Update IPCR' : 'Save IPCR'}
+                                {editing ? 'Update IWOT' : 'Save draft'}
                             </button>
                             <Link
-                                href={editing ? route('ipcr.show', form.id) : route('ipcr.index')}
+                                href={editing ? route('iwot.show', form.id) : route('iwot.index')}
                                 className="rounded-md border border-gray-300 px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                             >
                                 Cancel
                             </Link>
                         </div>
                         <p className="text-xs text-gray-500">
-                            Saving generates the printable matrix and Form E.
+                            Saving generates the printable IWOT sheet, ready to sign.
                         </p>
                     </div>
                 </div>

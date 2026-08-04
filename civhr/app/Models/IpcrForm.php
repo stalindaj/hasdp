@@ -15,12 +15,9 @@ class IpcrForm extends Model
 {
     protected $guarded = [];
 
+    // The Form E date cells are free text ("January", "June 2026" — filled from
+    // the rating period), so they are deliberately not cast to dates.
     protected $casts = [
-        'discussed_date' => 'date',
-        'fe_reviewed_date' => 'date',
-        'fe_approved_date' => 'date',
-        'fe_assessed_date' => 'date',
-        'fe_final_rating_date' => 'date',
         'fe_average_point_score' => 'decimal:2',
         'fe_overall_point_score' => 'decimal:2',
         'fe_overall_numerical_rating' => 'decimal:2',
@@ -28,9 +25,17 @@ class IpcrForm extends Model
         'ratee_sig' => 'array',
         'reviewer_sig' => 'array',
         'approver_sig' => 'array',
+        'fe_intervening_activities' => 'array',
+        'signature_uploads' => 'array',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
     ];
+
+    /**
+     * The six blocks that can carry an e-signature on the printed Form E: the
+     * commitment and review halves are signed separately, exactly as on paper.
+     */
+    public const SIGNATURE_SLOTS = ['ratee', 'reviewer', 'approver', 'discussed', 'assessed', 'final'];
 
     public const DRAFT = 'draft';
     public const SUBMITTED = 'submitted';
@@ -98,8 +103,11 @@ class IpcrForm extends Model
     }
 
     /**
-     * Recompute the overall scores from the group ratings and persist them.
-     * Overall = mean of each group's average rating.
+     * Recompute the summary scores exactly as his updateSummary() does:
+     *   average point score = mean of each group's average rating
+     *   overall point score = average point score + intervening-activity total
+     *   numerical rating     = min(overall point score, 5)
+     *   adjectival           = the CSC 5-point band of the numerical rating
      */
     public function recomputeRatings(): void
     {
@@ -108,18 +116,27 @@ class IpcrForm extends Model
             ->filter(fn ($v) => $v !== null)
             ->values();
 
-        $overall = $averages->isNotEmpty()
+        $avg = $averages->isNotEmpty()
             ? round($averages->avg(), 2)
             : null;
 
-        if ($overall !== null) {
-            $overall = min($overall, 5.00);
-        }
+        $intervening = $this->interveningTotal();
 
-        $this->fe_average_point_score = $overall;
+        $overall = $avg === null ? null : round($avg + $intervening, 2);
+        $numerical = $overall === null ? null : min($overall, 5.00);
+
+        $this->fe_average_point_score = $avg;
+        $this->fe_intervening_activity = number_format($intervening, 2, '.', '');
         $this->fe_overall_point_score = $overall;
-        $this->fe_overall_numerical_rating = $overall;
-        $this->fe_overall_adjectival_rating = self::adjectival($overall);
-        $this->overall_rating = $overall;
+        $this->fe_overall_numerical_rating = $numerical;
+        $this->fe_overall_adjectival_rating = self::adjectival($numerical);
+        $this->overall_rating = $numerical;
+    }
+
+    /** Sum of the intervening-activity ratings (his computeInterveningTotal()). */
+    public function interveningTotal(): float
+    {
+        return collect($this->fe_intervening_activities ?? [])
+            ->sum(fn ($a) => is_numeric($a['rating'] ?? null) ? (float) $a['rating'] : 0);
     }
 }

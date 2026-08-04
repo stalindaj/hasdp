@@ -614,11 +614,20 @@
             // Pull the clearest message out of whatever the server returned —
             // a validation JSON, plain text, or just a status code.
             function explain(r, body) {
-                try {
-                    const j = JSON.parse(body);
-                    if (j.errors && j.errors.signature) return j.errors.signature[0];
-                    if (j.message) return j.message;
-                } catch (e) { /* not JSON */ }
+                // PHP may print a warning ahead of the JSON, so parse from the
+                // first brace rather than trusting the whole body.
+                const start = body.indexOf('{');
+                if (start !== -1) {
+                    try {
+                        const j = JSON.parse(body.slice(start));
+                        if (j.errors && j.errors.signature) return j.errors.signature[0];
+                        if (j.message) return j.message;
+                    } catch (e) { /* not JSON after all */ }
+                }
+                if (/unable to create a temporary file/i.test(body)) {
+                    return 'The server could not store the upload: PHP has no writable temp directory '
+                        + '(set upload_tmp_dir in php.ini). No file was saved.';
+                }
                 if (r.status === 419) return 'Your session expired — reload the page and try again.';
                 if (r.status === 413) return 'That image is too large for the server. Try one under 8 MB.';
                 return 'Upload failed (' + r.status + '). Use a PNG, JPG or WEBP under 8 MB.';

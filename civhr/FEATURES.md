@@ -33,6 +33,9 @@
 | 23 | Admin: balances grid | All-employee balance grid, editable | 🟢 done | `Admin/BalanceController` | 9 |
 | 24 | Admin: holidays | Non-working days for 6.C; reached via a dashboard quick-button | 🟢 done | `Admin/HolidayController`, `Holiday`, `Dashboard.jsx` | — |
 | 25 | Audit trail (superadmin) | Every act logged + export; reached via a dashboard quick-button | 🟢 done | `Admin/AuditController`, `LeaveApplicationAction`, `Dashboard.jsx` | 1 |
+| 26 | IPCR form (Matrix + FORM E) | Fill the performance-standards matrix and Form E on-screen, auto-rate from the % achieved, then print the official Form E | 🟢 done | `IpcrController`, `IpcrForm/Group/Row`, `Components/Ipcr/{rating.js,Matrix,FormE}`, `Pages/Ipcr/*`, `views/ipcr/print.blade.php` | 1 |
+| 27 | IWOT (work output targets) | Set the period's targets + performance standards on the same matrix, save a draft, print the official sheet | 🟢 done | `IwotController`, `IwotForm/Group/Row`, `IwotAccess`, `Pages/Iwot/*`, `views/iwot/print.blade.php` | 1,26 |
+| 28 | E-signatures on IPCR/IWOT | One signature image per named block, dropped onto the printed sheet (as CS Form 6 already does) | 🟢 done | `App\Support\FormSignatures`, `*_signatures` routes, `views/partials/signature-picker.blade.php` | 21,26,27 |
 
 ## Feature detail notes
 
@@ -52,3 +55,46 @@
 - On the printed leave card the forfeiture is netted into the year's Earned
   column (a full closed year reads 10 VL / 15 SL), with a "less N mandatory
   leave not availed" note in Particulars.
+
+### 26 — IPCR form (Matrix + FORM E)
+- Two sheets, one record. The **matrix** holds each Major Final Output with its
+  three measure rows (Quality / Timeliness / Quantity), their targets and the
+  five Performance Standards descriptors; **FORM E** holds the actual
+  accomplishment, the % achieved per measure, the Ql1/Qn2/T3/A4 ratings, the
+  intervening activities and the signatory blocks.
+- **Auto-rating:** the % achieved is compared against the numbers parsed from
+  that measure's five descriptors (Outstanding → 5 … Poor → 1). Clicking a
+  descriptor cell marks it (persisted in `ipcr_form_rows.selected_band`) and
+  copies its % down. A rating typed by hand wins; anything left blank is
+  derived server-side on save, so a score never depends on the browser.
+- **Scores:** A4 = mean of the given Ql/Qn/T; average point score = mean of the
+  A4s; overall = average + the intervening-activity total; the numerical rating
+  is that capped at 5.00, and the adjectival rating is its CSC band.
+- **Form E dates are free text** — filled from the rating period ("January -
+  June 2026" → "January" / "June 2026"), never calendar dates.
+- Signatories are the Form E cells themselves; `reviewer_sig`/`approver_sig`
+  are frozen from "Reviewed by" / "Approved by" at save.
+- `/ipcr/{id}/print` renders the **official Form E** from the office template:
+  the commitment paragraph, the orange Reviewed/Approved band, the blue rating
+  grid (Output · Success Indicator · Actual Accomplishment · Q/Qn/T3/A4 ·
+  Remarks), the summary ladder, and the rater's block — with an e-signature
+  slot on each of the six named blocks.
+
+### 27 — IWOT (Individual Work Output Target)
+- The targets half of the cycle: the same matrix component as the IPCR, but
+  target-setting only, so no achieved-standard picker and no ratings.
+- Printed from the office template on a landscape page: three header lines
+  (name / position+SG / unit), the matrix, then PREPARED BY (employee) and
+  APPROVED BY (NCOIC) with a signature band over each name.
+- Workflow mirrors the IPCR: draft → submitted → approved by a manager (or
+  returned). Once approved the employee can no longer edit it.
+
+### 28 — E-signatures on IPCR / IWOT
+- `App\Support\FormSignatures` stores one image per block in the form's
+  `signature_uploads` JSON, trimmed by `SignatureImage` so the ink prints big.
+- Who may sign what: on Form E the ratee owns the commitment and "Discussed
+  with" blocks, a manager owns the four supervisor blocks; on the IWOT the
+  employee owns "Prepared by" and a manager owns "Approved by".
+- A signatory with an account falls back to their account e-signature until an
+  image is uploaded onto the form itself — the supervisors here rarely have
+  accounts, which is why the image belongs to the form.

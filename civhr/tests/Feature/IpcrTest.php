@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\IpcrForm;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\IpcrAccess;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -87,6 +88,190 @@ class IpcrTest extends TestCase
         $this->assertSame('Outstanding', $form->fe_overall_adjectival_rating);
     }
 
+    public function test_ratings_are_derived_from_the_percent_against_the_matrix_standards(): void
+    {
+        $ratee = $this->employee();
+
+        // Only percentages are sent — no ratings — so the server must read them
+        // off the Performance Standards descriptors itself.
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            'user_id' => $ratee->id,
+            'rating_period' => 'January - June 2026',
+            'status' => 'draft',
+            'groups' => [[
+                'major_final_output' => 'Process leave applications',
+                'quality_pct' => 97,      // >= 95 -> Outstanding (5)
+                'timeliness_pct' => 91,   // >= 90 -> Very Satisfactory (4)
+                'quantity_pct' => 40,     // below Unsatisfactory -> Poor (1)
+                'rows' => [
+                    [
+                        'performance_measure' => 'Quality',
+                        'outstanding' => '95% and above', 'very_satisfactory' => '90-94%',
+                        'satisfactory' => '85-89%', 'unsatisfactory' => '80-84%', 'poor' => 'below 80%',
+                        'selected_band' => 'o',
+                    ],
+                    [
+                        'performance_measure' => 'Timeliness',
+                        'outstanding' => '95% and above', 'very_satisfactory' => '90-94%',
+                        'satisfactory' => '85-89%', 'unsatisfactory' => '80-84%', 'poor' => 'below 80%',
+                    ],
+                    [
+                        'performance_measure' => 'Quantity',
+                        'outstanding' => '95% and above', 'very_satisfactory' => '90-94%',
+                        'satisfactory' => '85-89%', 'unsatisfactory' => '80-84%', 'poor' => 'below 80%',
+                    ],
+                ],
+            ]],
+        ])->assertRedirect();
+
+        $group = IpcrForm::with('groups.rows')->first()->groups->first();
+
+        $this->assertEqualsWithDelta(5, (float) $group->quality_rating, 0.01);
+        $this->assertEqualsWithDelta(4, (float) $group->timeliness_rating, 0.01);
+        $this->assertEqualsWithDelta(1, (float) $group->quantity_rating, 0.01);
+        $this->assertEqualsWithDelta(3.33, (float) $group->average_rating, 0.01);
+
+        // The clicked standard cell is remembered so the green check survives.
+        $this->assertSame('o', $group->rows->first()->selected_band);
+    }
+
+    public function test_intervening_activities_add_to_the_overall_score_and_form_e_dates_are_free_text(): void
+    {
+        $ratee = $this->employee();
+
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            'user_id' => $ratee->id,
+            'rating_period' => 'January - June 2026',
+            'status' => 'draft',
+            // Filled from the rating period — not calendar dates.
+            'fe_reviewed_date' => 'January',
+            'fe_approved_date' => 'January',
+            'discussed_date' => 'June 2026',
+            'fe_assessed_date' => 'June 2026',
+            'fe_final_rating_date' => 'June 2026',
+            'fe_intervening_activities' => [
+                ['activity' => 'Typhoon response detail', 'rating' => 0.25],
+                ['activity' => 'Inventory augmentation', 'rating' => 0.5],
+            ],
+            'groups' => [[
+                'major_final_output' => 'Records management',
+                'quality_rating' => 4,
+                'timeliness_rating' => 4,
+                'quantity_rating' => 4,
+                'rows' => [],
+            ]],
+        ])->assertRedirect();
+
+        $form = IpcrForm::with('groups')->first();
+
+        $this->assertSame('January', $form->fe_reviewed_date);
+        $this->assertSame('June 2026', $form->fe_final_rating_date);
+        $this->assertCount(2, $form->fe_intervening_activities);
+
+        // average 4.00 + intervening 0.75 = 4.75 -> Outstanding
+        $this->assertEqualsWithDelta(4.00, (float) $form->fe_average_point_score, 0.01);
+        $this->assertEqualsWithDelta(0.75, (float) $form->fe_intervening_activity, 0.01);
+        $this->assertEqualsWithDelta(4.75, (float) $form->fe_overall_point_score, 0.01);
+        $this->assertSame('Outstanding', $form->fe_overall_adjectival_rating);
+    }
+
+    public function test_overall_numerical_rating_is_capped_at_five(): void
+    {
+        $ratee = $this->employee();
+
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            'user_id' => $ratee->id,
+            'rating_period' => 'A',
+            'status' => 'draft',
+            'fe_intervening_activities' => [['activity' => 'Extra duty', 'rating' => 1.5]],
+            'groups' => [[
+                'major_final_output' => 'Everything, perfectly',
+                'quality_rating' => 5, 'timeliness_rating' => 5, 'quantity_rating' => 5,
+                'rows' => [],
+            ]],
+        ])->assertRedirect();
+
+        $form = IpcrForm::first();
+
+        $this->assertEqualsWithDelta(6.50, (float) $form->fe_overall_point_score, 0.01);
+        $this->assertEqualsWithDelta(5.00, (float) $form->fe_overall_numerical_rating, 0.01);
+        $this->assertEqualsWithDelta(5.00, (float) $form->overall_rating, 0.01);
+    }
+
+    public function test_print_renders_the_official_form_e(): void
+    {
+        $ratee = $this->employee();
+
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            'user_id' => $ratee->id,
+            'rating_period' => 'January - June 2026',
+            'status' => 'draft',
+            'fe_reviewed_by' => 'TSg Ronnie R Doble PAF',
+            'fe_approved_by' => 'MAJ Ariel Dickson C Almeda PAF',
+            'strategic_priority' => 'Territorial defense, security and stability services',
+            'core_function' => 'Administration of PAF Civ HRs',
+            'groups' => [[
+                'major_final_output' => 'Maintain the personnel database',
+                'success_indicator' => '100% of records updated monthly',
+                'actual_accomplishment' => 'All records updated by the 21st',
+                'quality_rating' => 5, 'timeliness_rating' => 4, 'quantity_rating' => 4,
+                'rows' => [['performance_measure' => 'Quality', 'outstanding' => '95% and above']],
+            ]],
+        ])->assertRedirect();
+
+        $this->actingAs($ratee)->get(route('ipcr.print', IpcrForm::first()))
+            ->assertOk()
+            ->assertSee('INDIVIDUAL PERFORMANCE COMMITMENT AND REVIEW (IPCR)')
+            ->assertSee('(FORM E)')
+            ->assertSee('Reviewed by')
+            ->assertSee('Approved by')
+            ->assertSee('Ql1')
+            ->assertSee('TSg Ronnie R Doble PAF')
+            ->assertSee('Comments and Recommendations for Development Purposes')
+            ->assertSee('Strategic Priority No.: Territorial defense, security and stability services')
+            ->assertSee('Maintain the personnel database')
+            // (5 + 4 + 4) / 3 = 4.33 -> Very Satisfactory
+            ->assertSee('Overall Equivalent Adjectival Rating')
+            ->assertSee('Very Satisfactory');
+    }
+
+    public function test_ratee_signs_their_own_blocks_only_and_the_ink_prints(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $ratee = $this->employee();
+        $form = IpcrForm::create(['user_id' => $ratee->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $ink = \Illuminate\Http\UploadedFile::fake()->image('sig.png', 400, 120);
+
+        // The commitment block and "Discussed with" are the ratee's own.
+        $this->actingAs($ratee)
+            ->post(route('ipcr.signature.store', [$form, 'ratee']), ['signature' => $ink])
+            ->assertRedirect();
+
+        // The supervisor blocks are not.
+        $this->actingAs($ratee)
+            ->post(route('ipcr.signature.store', [$form, 'approver']), ['signature' => $ink])
+            ->assertForbidden();
+
+        $this->actingAs($this->manager())
+            ->post(route('ipcr.signature.store', [$form, 'approver']), ['signature' => $ink])
+            ->assertRedirect();
+
+        $form->refresh();
+        \Illuminate\Support\Facades\Storage::assertExists($form->signature_uploads['ratee']);
+
+        $this->actingAs($ratee)->get(route('ipcr.print', $form))
+            ->assertOk()
+            ->assertSee('/ipcr/'.$form->id.'/signature/ratee', false);
+
+        // …and it can be taken off again.
+        $this->actingAs($ratee)
+            ->delete(route('ipcr.signature.destroy', [$form, 'ratee']))
+            ->assertRedirect();
+
+        $this->assertEmpty(IpcrForm::first()->signature_uploads['ratee'] ?? null);
+    }
+
     public function test_ratee_only_sees_their_own_forms(): void
     {
         $manager = $this->manager();
@@ -114,6 +299,61 @@ class IpcrTest extends TestCase
 
         // Forced back to the ratee themselves.
         $this->assertSame($ratee->id, IpcrForm::first()->user_id);
+    }
+
+    /**
+     * One hat at a time: while an admin is in employee mode they are just a
+     * ratee — their own IPCR only, no rating of others, no approving.
+     */
+    public function test_admin_in_employee_mode_is_only_a_ratee(): void
+    {
+        $admin = $this->manager();
+        $other = $this->employee();
+
+        $mine = IpcrForm::create(['user_id' => $admin->id, 'rating_period' => 'A', 'status' => 'draft']);
+        $theirs = IpcrForm::create(['user_id' => $other->id, 'rating_period' => 'B', 'status' => 'submitted']);
+
+        // Admin hat: everyone's forms, and they may decide.
+        $this->actingAs($admin)->get(route('ipcr.show', $theirs))->assertOk();
+        $this->assertTrue(IpcrAccess::isManager($admin));
+
+        // Switch to the employee hat.
+        $this->actingAs($admin)->post(route('view-mode.toggle'))->assertRedirect();
+
+        $this->actingAs($admin)->get(route('ipcr.show', $mine))->assertOk();
+        $this->actingAs($admin)->get(route('ipcr.show', $theirs))->assertForbidden();
+        $this->actingAs($admin)->get(route('ipcr.edit', $theirs))->assertForbidden();
+        $this->actingAs($admin)->delete(route('ipcr.destroy', $theirs))->assertForbidden();
+        $this->actingAs($admin)
+            ->post(route('ipcr.decide', $theirs), ['decision' => 'approve'])
+            ->assertForbidden();
+
+        // Filing while in employee mode files for themselves, not for others.
+        $this->actingAs($admin)->post(route('ipcr.store'), $this->payload($other->id))->assertRedirect();
+        $this->assertSame($admin->id, IpcrForm::latest('id')->first()->user_id);
+    }
+
+    /** The status dropdown is limited in the UI; the server must enforce it. */
+    public function test_ratee_cannot_self_approve_through_the_status_field(): void
+    {
+        $ratee = $this->employee();
+
+        // payload() asks for "approved" — a ratee must not get it.
+        $this->actingAs($ratee)->post(route('ipcr.store'), $this->payload($ratee->id))->assertRedirect();
+
+        $this->assertSame('draft', IpcrForm::first()->status);
+    }
+
+    public function test_nobody_approves_their_own_ipcr(): void
+    {
+        $admin = $this->manager();
+        $own = IpcrForm::create(['user_id' => $admin->id, 'rating_period' => 'A', 'status' => 'submitted']);
+
+        $this->actingAs($admin)
+            ->post(route('ipcr.decide', $own), ['decision' => 'approve'])
+            ->assertForbidden();
+
+        $this->assertSame('submitted', $own->fresh()->status);
     }
 
     public function test_ratee_cannot_delete(): void

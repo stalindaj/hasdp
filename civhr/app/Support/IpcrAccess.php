@@ -12,14 +12,22 @@ use App\Models\User;
  * app's admin + rating officer: they see everyone's forms and may create,
  * edit, rate and delete. Everyone else is a ratee: they see and edit their own.
  *
- * Unlike Leave, IPCR is not part of the admin/employee "one hat" toggle — a
- * rating officer must be able to rate others regardless of view mode.
+ * IPCR obeys the same "one hat at a time" rule as Leave: while an admin is in
+ * employee mode they are just a ratee — they see only their own IPCR, cannot
+ * pick someone else to rate, and cannot approve. Switching back to the admin
+ * hat restores all of it.
  */
 class IpcrAccess
 {
     private const MANAGER_ROLES = ['admin', 'superadmin', 'hr_officer', 'approver'];
 
     public static function isManager(User $user): bool
+    {
+        return self::hasManagerRole($user) && ! ViewMode::isEmployee();
+    }
+
+    /** The role itself, regardless of which hat is on. */
+    public static function hasManagerRole(User $user): bool
     {
         return $user->roles()->whereIn('name', self::MANAGER_ROLES)->exists();
     }
@@ -29,14 +37,15 @@ class IpcrAccess
         return self::isManager($user) || $form->user_id === $user->id;
     }
 
-    /** Managers may edit anything; a ratee may edit their own while it is a draft. */
+    /** Managers may edit anything; a ratee may edit their own while it is open. */
     public static function canEdit(User $user, IpcrForm $form): bool
     {
         if (self::isManager($user)) {
             return true;
         }
 
-        return $form->user_id === $user->id && $form->status === 'draft';
+        return $form->user_id === $user->id
+            && in_array($form->status, [IpcrForm::DRAFT, IpcrForm::RETURNED], true);
     }
 
     public static function canDelete(User $user, IpcrForm $form): bool
@@ -54,14 +63,32 @@ class IpcrAccess
         return self::isManager($user) || $form->user_id === $user->id;
     }
 
-    /** A manager (or the named approver) approves / returns a submitted form. */
+    /**
+     * A manager (or the named approver) approves / returns a submitted form.
+     * Nobody approves their own IPCR — the same rule Leave holds to.
+     */
     public static function canDecide(User $user, IpcrForm $form): bool
     {
-        if ($form->status !== IpcrForm::SUBMITTED) {
+        if ($form->status !== IpcrForm::SUBMITTED || $form->user_id === $user->id) {
             return false;
         }
 
-        return self::isManager($user) || $form->approver_id === $user->id;
+        return self::isManager($user)
+            || ($form->approver_id === $user->id && ! ViewMode::isEmployee());
+    }
+
+    /**
+     * Who may put ink on which Form E block. The ratee signs their own two
+     * (the commitment and "Discussed with"); the four supervisor blocks belong
+     * to a manager. Nobody signs on someone else's behalf.
+     */
+    public static function canSignBlock(User $user, IpcrForm $form, string $slot): bool
+    {
+        if (in_array($slot, ['ratee', 'discussed'], true)) {
+            return self::isManager($user) || $form->user_id === $user->id;
+        }
+
+        return self::isManager($user);
     }
 
     /** Once approved, the ratee or a manager uploads the scanned wet-signed copy. */

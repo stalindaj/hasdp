@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\BalanceController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\LdController;
 use App\Http\Controllers\IpcrController;
+use App\Http\Controllers\IwotController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -140,6 +141,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/ipcr/{ipcr}/decide', [IpcrController::class, 'decide'])->name('ipcr.decide');
     Route::post('/ipcr/{ipcr}/scan', [IpcrController::class, 'storeScan'])->name('ipcr.scan.store');
     Route::get('/ipcr/{ipcr}/scan', [IpcrController::class, 'scan'])->name('ipcr.scan');
+    // E-signatures on the printed Form E, one image per block.
+    Route::post('/ipcr/{ipcr}/signature/{slot}', [IpcrController::class, 'storeSignature'])->name('ipcr.signature.store');
+    Route::delete('/ipcr/{ipcr}/signature/{slot}', [IpcrController::class, 'destroySignature'])->name('ipcr.signature.destroy');
+    Route::get('/ipcr/{ipcr}/signature/{slot}', [IpcrController::class, 'signature'])->name('ipcr.signature');
+
+    // IWOT — Individual Work Output Target (the targets the IPCR rates against).
+    Route::get('/iwot', [IwotController::class, 'index'])->name('iwot.index');
+    Route::get('/iwot/create', [IwotController::class, 'create'])->name('iwot.create');
+    Route::post('/iwot', [IwotController::class, 'store'])->name('iwot.store');
+    Route::get('/iwot/{iwot}', [IwotController::class, 'show'])->name('iwot.show');
+    Route::get('/iwot/{iwot}/edit', [IwotController::class, 'edit'])->name('iwot.edit');
+    Route::patch('/iwot/{iwot}', [IwotController::class, 'update'])->name('iwot.update');
+    Route::get('/iwot/{iwot}/print', [IwotController::class, 'print'])->name('iwot.print');
+    Route::delete('/iwot/{iwot}', [IwotController::class, 'destroy'])->name('iwot.destroy');
+    Route::post('/iwot/{iwot}/submit', [IwotController::class, 'submit'])->name('iwot.submit');
+    Route::post('/iwot/{iwot}/decide', [IwotController::class, 'decide'])->name('iwot.decide');
+    Route::post('/iwot/{iwot}/signature/{slot}', [IwotController::class, 'storeSignature'])->name('iwot.signature.store');
+    Route::delete('/iwot/{iwot}/signature/{slot}', [IwotController::class, 'destroySignature'])->name('iwot.signature.destroy');
+    Route::get('/iwot/{iwot}/signature/{slot}', [IwotController::class, 'signature'])->name('iwot.signature');
 });
 
 // Admin area (superadmin + admin only)

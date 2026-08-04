@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\IpcrForm;
 use App\Models\IpcrFormGroup;
 use App\Models\User;
+use App\Support\FormSignatures;
 use App\Support\IpcrAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,9 +49,9 @@ class IpcrController extends Controller
         return Inertia::render('Ipcr/Form', [
             'form' => null,
             'personnel' => $this->personnel(),
-            'signatories' => $this->signatories(),
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
+            'defaults' => $this->defaults($request),
         ]);
     }
 
@@ -58,9 +59,11 @@ class IpcrController extends Controller
     {
         $data = $this->validated($request);
 
-        // A ratee may only file for themselves.
+        // A ratee may only file for themselves, and only as far as "submitted"
+        // — the UI hides the rest, but the request must not be trusted.
         if (! IpcrAccess::isManager($request->user())) {
             $data['user_id'] = $request->user()->id;
+            $data['status'] = $this->rateeStatus($data['status']);
         }
 
         $form = $this->persist(new IpcrForm(), $data);
@@ -75,9 +78,9 @@ class IpcrController extends Controller
         return Inertia::render('Ipcr/Form', [
             'form' => $this->payload($ipcr),
             'personnel' => $this->personnel(),
-            'signatories' => $this->signatories(),
             'isManager' => IpcrAccess::isManager($request->user()),
             'currentUserId' => $request->user()->id,
+            'defaults' => $this->defaults($request),
         ]);
     }
 
@@ -89,6 +92,7 @@ class IpcrController extends Controller
 
         if (! IpcrAccess::isManager($request->user())) {
             $data['user_id'] = $ipcr->user_id; // ratee cannot reassign
+            $data['status'] = $this->rateeStatus($data['status']);
         }
 
         $this->persist($ipcr, $data);
@@ -111,13 +115,75 @@ class IpcrController extends Controller
         ]);
     }
 
+    /** The official Form E, ready to print (and to sign on-screen). */
     public function print(Request $request, IpcrForm $ipcr)
     {
         abort_unless(IpcrAccess::canView($request->user(), $ipcr), 403);
 
+        $user = $request->user();
         $ipcr->load(['ratee.employee', 'reviewer.employee', 'approver.employee', 'groups.rows']);
 
-        return view('ipcr.print', ['form' => $ipcr]);
+        $signable = collect(IpcrForm::SIGNATURE_SLOTS)
+            ->mapWithKeys(fn ($slot) => [$slot => IpcrAccess::canSignBlock($user, $ipcr, $slot)])
+            ->all();
+
+        // The ratee signs their own two blocks, so their account e-signature
+        // stands in until an image is uploaded onto this form. The typed
+        // supervisors have no account to fall back on.
+        $signatures = collect(IpcrForm::SIGNATURE_SLOTS)
+            ->mapWithKeys(fn ($slot) => [$slot => FormSignatures::resolve(
+                $ipcr,
+                $slot,
+                'ipcr.signature',
+                in_array($slot, ['ratee', 'discussed'], true) ? $ipcr->ratee : null,
+            )])
+            ->all();
+
+        return view('ipcr.print', [
+            'form' => $ipcr,
+            'signatures' => $signatures,
+            'signable' => $signable,
+            'canSign' => in_array(true, $signable, true),
+        ]);
+    }
+
+    // ── e-signatures ─────────────────────────────────────────────────────
+
+    public function storeSignature(Request $request, IpcrForm $ipcr, string $slot)
+    {
+        abort_unless(in_array($slot, IpcrForm::SIGNATURE_SLOTS, true), 404);
+        abort_unless(IpcrAccess::canSignBlock($request->user(), $ipcr, $slot), 403,
+            'That signature block is not yours to sign.');
+
+        $request->validate([
+            'signature' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:8192'],
+        ], [
+            'signature.image' => 'Upload a picture of the signature (a PNG with a transparent background prints cleanest).',
+            'signature.max' => 'That image is too large — keep it under 8 MB.',
+        ]);
+
+        FormSignatures::put($ipcr, $slot, $request->file('signature'), "ipcr-signatures/{$ipcr->id}");
+
+        return back()->with('success', 'Signature added — it prints over the name on Form E.');
+    }
+
+    public function destroySignature(Request $request, IpcrForm $ipcr, string $slot)
+    {
+        abort_unless(in_array($slot, IpcrForm::SIGNATURE_SLOTS, true), 404);
+        abort_unless(IpcrAccess::canSignBlock($request->user(), $ipcr, $slot), 403);
+
+        FormSignatures::forget($ipcr, $slot);
+
+        return back()->with('success', 'Signature removed.');
+    }
+
+    public function signature(Request $request, IpcrForm $ipcr, string $slot)
+    {
+        abort_unless(in_array($slot, IpcrForm::SIGNATURE_SLOTS, true), 404);
+        abort_unless(IpcrAccess::canView($request->user(), $ipcr), 403);
+        abort_unless(FormSignatures::has($ipcr, $slot), 404);
+
+        return response()->file(Storage::path(FormSignatures::path($ipcr, $slot)));
     }
 
     public function destroy(Request $request, IpcrForm $ipcr)
@@ -199,27 +265,35 @@ class IpcrController extends Controller
 
     // ── helpers ──────────────────────────────────────────────────────────
 
-    /** Anyone who can be named as a signatory (active accounts, with a label). */
-    private function signatories()
+    /**
+     * Employees who can be rated (managers pick the ratee). The position comes
+     * along so picking a ratee fills the matrix header the way the original
+     * app's updateUserDetails() did.
+     */
+    private function personnel()
     {
-        return User::where('is_active', true)
+        return User::whereHas('roles', fn ($q) => $q->where('name', 'employee'))
+            ->with('employee:id,position')
             ->orderBy('name')
-            ->get()
+            ->get(['id', 'employee_id', 'name', 'username'])
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
-                'label' => $u->signatoryLabel(),
+                'username' => $u->username,
+                'position' => $u->employee?->position,
             ])
             ->values();
     }
 
-    /** Employees who can be rated (managers pick the ratee). */
-    private function personnel()
+    /** The signed-in user's own header defaults for a brand-new form. */
+    private function defaults(Request $request): array
     {
-        return User::whereHas('roles', fn ($q) => $q->where('name', 'employee'))
-            ->orderBy('name')
-            ->get(['id', 'name', 'username'])
-            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'username' => $u->username]);
+        $user = $request->user();
+
+        return [
+            'name' => $user->name,
+            'position' => $user->employee?->position ?? '',
+        ];
     }
 
     private function validated(Request $request): array
@@ -240,19 +314,27 @@ class IpcrController extends Controller
             'prepared_by' => ['nullable', 'string', 'max:191'],
             'approved_by' => ['nullable', 'string', 'max:191'],
             'discussed_with' => ['nullable', 'string', 'max:191'],
-            'discussed_date' => ['nullable', 'date'],
 
             'fe_reviewed_by' => ['nullable', 'string', 'max:191'],
-            'fe_reviewed_date' => ['nullable', 'date'],
             'fe_approved_by' => ['nullable', 'string', 'max:191'],
-            'fe_approved_date' => ['nullable', 'date'],
             'fe_review_remarks' => ['nullable', 'string'],
             'fe_assessed_by' => ['nullable', 'string', 'max:191'],
-            'fe_assessed_date' => ['nullable', 'date'],
             'fe_final_rating_by' => ['nullable', 'string', 'max:191'],
-            'fe_final_rating_date' => ['nullable', 'date'],
             'fe_comments' => ['nullable', 'string'],
-            'fe_intervening_activity' => ['nullable', 'string'],
+
+            // Form E date cells are free text, filled from the rating period
+            // ("January", "June 2026") — not calendar dates.
+            'discussed_date' => ['nullable', 'string', 'max:60'],
+            'fe_reviewed_date' => ['nullable', 'string', 'max:60'],
+            'fe_approved_date' => ['nullable', 'string', 'max:60'],
+            'fe_assessed_date' => ['nullable', 'string', 'max:60'],
+            'fe_final_rating_date' => ['nullable', 'string', 'max:60'],
+
+            // "Add: Intervening Activity" — a list of {activity, rating} rows;
+            // their total is computed server-side into fe_intervening_activity.
+            'fe_intervening_activities' => ['nullable', 'array'],
+            'fe_intervening_activities.*.activity' => ['nullable', 'string', 'max:191'],
+            'fe_intervening_activities.*.rating' => ['nullable', 'numeric'],
 
             'groups' => ['array'],
             'groups.*.major_final_output' => ['nullable', 'string'],
@@ -274,6 +356,7 @@ class IpcrController extends Controller
             'groups.*.rows.*.satisfactory' => ['nullable', 'string'],
             'groups.*.rows.*.unsatisfactory' => ['nullable', 'string'],
             'groups.*.rows.*.poor' => ['nullable', 'string'],
+            'groups.*.rows.*.selected_band' => ['nullable', 'in:o,vs,s,u,p'],
         ]);
     }
 
@@ -284,9 +367,17 @@ class IpcrController extends Controller
         unset($data['groups']);
 
         // Typed signatories -> frozen {name, designation} snapshots (these are
-        // usually military supervisors, not accounts in the system).
-        $reviewerSig = $this->sig($data['reviewer_name'] ?? null, $data['reviewer_designation'] ?? null);
-        $approverSig = $this->sig($data['approver_name'] ?? null, $data['approver_designation'] ?? null);
+        // usually military supervisors, not accounts in the system). The names
+        // are typed straight into the Form E "Reviewed by" / "Approved by"
+        // cells; the older explicit fields still win when they are sent.
+        $reviewerSig = $this->sig(
+            $data['reviewer_name'] ?? $data['fe_reviewed_by'] ?? null,
+            $data['reviewer_designation'] ?? null,
+        );
+        $approverSig = $this->sig(
+            $data['approver_name'] ?? $data['fe_approved_by'] ?? null,
+            $data['approver_designation'] ?? null,
+        );
         unset($data['reviewer_name'], $data['reviewer_designation'], $data['approver_name'], $data['approver_designation']);
 
         return DB::transaction(function () use ($form, $data, $groups, $reviewerSig, $approverSig) {
@@ -308,6 +399,8 @@ class IpcrController extends Controller
                     continue;
                 }
 
+                $rows = array_values($g['rows'] ?? []);
+
                 $group = $form->groups()->create([
                     'major_final_output' => $major,
                     'success_indicator' => $g['success_indicator'] ?? null,
@@ -317,9 +410,9 @@ class IpcrController extends Controller
                     'quality_pct' => $this->num($g['quality_pct'] ?? null),
                     'timeliness_pct' => $this->num($g['timeliness_pct'] ?? null),
                     'quantity_pct' => $this->num($g['quantity_pct'] ?? null),
-                    'quality_rating' => $this->num($g['quality_rating'] ?? null),
-                    'timeliness_rating' => $this->num($g['timeliness_rating'] ?? null),
-                    'quantity_rating' => $this->num($g['quantity_rating'] ?? null),
+                    'quality_rating' => $this->rating($g, $rows, 0),
+                    'timeliness_rating' => $this->rating($g, $rows, 1),
+                    'quantity_rating' => $this->rating($g, $rows, 2),
                     'remarks' => $g['remarks'] ?? null,
                 ]);
 
@@ -327,16 +420,18 @@ class IpcrController extends Controller
                 $group->computeAverage();
                 $group->save();
 
-                foreach (array_values($g['rows'] ?? []) as $ri => $r) {
+                foreach ($rows as $ri => $r) {
                     $form->rows()->create([
                         'group_id' => $group->id,
-                        'performance_measure' => $r['performance_measure'] ?? '',
+                        'performance_measure' => $r['performance_measure']
+                            ?? (IpcrFormGroup::MEASURES[$ri]['measure'] ?? ''),
                         'performance_targets' => $r['performance_targets'] ?? null,
                         'outstanding' => $r['outstanding'] ?? null,
                         'very_satisfactory' => $r['very_satisfactory'] ?? null,
                         'satisfactory' => $r['satisfactory'] ?? null,
                         'unsatisfactory' => $r['unsatisfactory'] ?? null,
                         'poor' => $r['poor'] ?? null,
+                        'selected_band' => $r['selected_band'] ?? null,
                         'sort_order' => $ri,
                     ]);
                 }
@@ -353,6 +448,34 @@ class IpcrController extends Controller
     private function num($v): ?float
     {
         return is_numeric($v) ? (float) $v : null;
+    }
+
+    /** A ratee can only leave their own form as a draft or submit it. */
+    private function rateeStatus(?string $status): string
+    {
+        return in_array($status, [IpcrForm::DRAFT, IpcrForm::SUBMITTED], true)
+            ? $status
+            : IpcrForm::DRAFT;
+    }
+
+    /**
+     * One measure's rating. A rating typed into Form E wins (the ratee may
+     * override); otherwise it is read off the achieved % against that
+     * measure's five standard descriptors, so the score never depends on the
+     * browser having run the auto-rating.
+     */
+    private function rating(array $group, array $rows, int $measure): ?float
+    {
+        $keys = IpcrFormGroup::MEASURES[$measure];
+
+        if (($typed = $this->num($group[$keys['rating']] ?? null)) !== null) {
+            return $typed;
+        }
+
+        return IpcrFormGroup::rateFromPercent(
+            $this->num($group[$keys['pct']] ?? null),
+            $rows[$measure] ?? [],
+        );
     }
 
     /** A typed signatory -> a frozen block matching User::signatoryBlock() keys. */
@@ -397,19 +520,22 @@ class IpcrController extends Controller
             'prepared_by' => $ipcr->prepared_by,
             'approved_by' => $ipcr->approved_by,
             'discussed_with' => $ipcr->discussed_with,
-            'discussed_date' => optional($ipcr->discussed_date)->toDateString(),
+            'discussed_date' => $ipcr->discussed_date,
             'fe_reviewed_by' => $ipcr->fe_reviewed_by,
-            'fe_reviewed_date' => optional($ipcr->fe_reviewed_date)->toDateString(),
+            'fe_reviewed_date' => $ipcr->fe_reviewed_date,
             'fe_approved_by' => $ipcr->fe_approved_by,
-            'fe_approved_date' => optional($ipcr->fe_approved_date)->toDateString(),
+            'fe_approved_date' => $ipcr->fe_approved_date,
             'fe_review_remarks' => $ipcr->fe_review_remarks,
             'fe_assessed_by' => $ipcr->fe_assessed_by,
-            'fe_assessed_date' => optional($ipcr->fe_assessed_date)->toDateString(),
+            'fe_assessed_date' => $ipcr->fe_assessed_date,
             'fe_final_rating_by' => $ipcr->fe_final_rating_by,
-            'fe_final_rating_date' => optional($ipcr->fe_final_rating_date)->toDateString(),
+            'fe_final_rating_date' => $ipcr->fe_final_rating_date,
             'fe_comments' => $ipcr->fe_comments,
             'fe_intervening_activity' => $ipcr->fe_intervening_activity,
+            'fe_intervening_activities' => $ipcr->fe_intervening_activities ?? [],
             'overall_rating' => $ipcr->overall_rating,
+            'fe_average_point_score' => $ipcr->fe_average_point_score,
+            'fe_overall_point_score' => $ipcr->fe_overall_point_score,
             'fe_overall_numerical_rating' => $ipcr->fe_overall_numerical_rating,
             'fe_overall_adjectival_rating' => $ipcr->fe_overall_adjectival_rating,
             'groups' => $ipcr->groups->map(fn (IpcrFormGroup $g) => [
@@ -417,13 +543,15 @@ class IpcrController extends Controller
                 'success_indicator' => $g->success_indicator,
                 'timeliness' => $g->timeliness,
                 'actual_accomplishment' => $g->actual_accomplishment,
-                'quality_pct' => $g->quality_pct,
-                'timeliness_pct' => $g->timeliness_pct,
-                'quantity_pct' => $g->quantity_pct,
-                'quality_rating' => $g->quality_rating,
-                'timeliness_rating' => $g->timeliness_rating,
-                'quantity_rating' => $g->quantity_rating,
-                'average_rating' => $g->average_rating,
+                // Plain numbers, not the "90.00" the decimal cast returns, so
+                // the editor shows 4 rather than 4.00 in the rating cells.
+                'quality_pct' => $this->num($g->quality_pct),
+                'timeliness_pct' => $this->num($g->timeliness_pct),
+                'quantity_pct' => $this->num($g->quantity_pct),
+                'quality_rating' => $this->num($g->quality_rating),
+                'timeliness_rating' => $this->num($g->timeliness_rating),
+                'quantity_rating' => $this->num($g->quantity_rating),
+                'average_rating' => $this->num($g->average_rating),
                 'remarks' => $g->remarks,
                 'rows' => $g->rows->map(fn ($r) => [
                     'performance_measure' => $r->performance_measure,
@@ -433,6 +561,7 @@ class IpcrController extends Controller
                     'satisfactory' => $r->satisfactory,
                     'unsatisfactory' => $r->unsatisfactory,
                     'poor' => $r->poor,
+                    'selected_band' => $r->selected_band,
                 ])->values(),
             ])->values(),
         ];

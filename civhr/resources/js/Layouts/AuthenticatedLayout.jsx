@@ -57,6 +57,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </NavLink>
 
                                 <NavLink
+                                    href={route('iwot.index')}
+                                    active={route().current('iwot.*')}
+                                >
+                                    IWOT
+                                </NavLink>
+
+                                <NavLink
                                     href={route('ipcr.index')}
                                     active={route().current('ipcr.*')}
                                 >
@@ -233,6 +240,13 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('leave.*')}
                         >
                             {isAdmin ? 'Leave requests' : 'My Leave'}
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink
+                            href={route('iwot.index')}
+                            active={route().current('iwot.*')}
+                        >
+                            IWOT
                         </ResponsiveNavLink>
 
                         <ResponsiveNavLink
