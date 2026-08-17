@@ -23,9 +23,12 @@ return [
     // Blank it out for a civilian agency.
     'branch_suffix' => env('AGENCY_BRANCH_SUFFIX', 'PAF'),
 
-    // Annual Learning & Development target per employee, in hours. The
-    // dashboard shows how many hours each person still has pending.
-    'ld_target_hours' => (float) env('LD_TARGET_HOURS', 8),
+    // Annual Learning & Development target, in hours, keyed to salary grade:
+    // rank-and-file (SG 1–14) must log 8 hours a year, supervisory/managerial
+    // staff (SG 15 and up) 40. See App\Support\LdTarget.
+    'ld_target_hours'            => (float) env('LD_TARGET_HOURS', 8),          // SG 1–14
+    'ld_target_hours_supervisor' => (float) env('LD_TARGET_HOURS_SUPERVISOR', 40), // SG 15+
+    'ld_supervisor_sg_min'       => (int) env('LD_SUPERVISOR_SG_MIN', 15),
 
     // Annual leave entitlements that reset each January (days per year).
     'wellness_days' => (float) env('WELLNESS_DAYS', 5),

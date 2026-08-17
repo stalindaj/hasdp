@@ -153,6 +153,12 @@ export default function AuthenticatedLayout({ header, children }) {
         { label: 'IWOT', href: route('iwot.index'), on: route().current('iwot.*') },
         { label: 'IPCR', href: route('ipcr.index'), on: route().current('ipcr.*') },
         isAdmin && {
+            // L&D roster — everyone's yearly training hours vs their target.
+            label: 'L&D',
+            href: route('ld.index'),
+            on: route().current('ld.index'),
+        },
+        isAdmin && {
             // Users + Employees live behind one "Personnel" tab.
             label: 'Personnel',
             href: route('admin.users.index'),

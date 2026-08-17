@@ -9,6 +9,7 @@ use App\Models\LeaveCreditEntry;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\LdTarget;
 use App\Support\LeaveWorkflow;
 use Database\Seeders\LeaveTypeSeeder;
 use Database\Seeders\RoleSeeder;
@@ -284,5 +285,51 @@ class LdAndUploadsTest extends TestCase
             ->patch(route('admin.balances.update', $employee->employee), [
                 'kind' => 'vl', 'value' => 99,
             ])->assertForbidden();
+    }
+
+    // ── L&D roster & salary-grade targets ─────────────────────────────
+
+    public function test_the_ld_target_follows_salary_grade(): void
+    {
+        $clerk = Employee::create(['emp_no' => '9101', 'first_name' => 'A', 'last_name' => 'B', 'salary_grade' => 14]);
+        $chief = Employee::create(['emp_no' => '9102', 'first_name' => 'C', 'last_name' => 'D', 'salary_grade' => 15]);
+        $noSg  = Employee::create(['emp_no' => '9103', 'first_name' => 'E', 'last_name' => 'F']);
+
+        $this->assertEquals(8.0, LdTarget::hoursFor($clerk));   // SG 1–14
+        $this->assertEquals(40.0, LdTarget::hoursFor($chief));  // SG 15+
+        $this->assertEquals(8.0, LdTarget::hoursFor($noSg));    // unset → rank-and-file
+    }
+
+    public function test_the_ld_roster_reports_targets_and_is_admin_only(): void
+    {
+        $admin = $this->adminUser();
+
+        $clerk = Employee::create(['emp_no' => '9001', 'first_name' => 'Rank', 'last_name' => 'File', 'salary_grade' => 11]);
+        Employee::create(['emp_no' => '9002', 'first_name' => 'Big', 'last_name' => 'Boss', 'salary_grade' => 18]);
+
+        // The clerk logs exactly the 8h their grade requires → met.
+        $clerk->ldEntries()->create([
+            'title'  => 'Records seminar',
+            'hours'  => 8,
+            'date'   => now()->toDateString(),
+            'status' => LdEntry::APPROVED,
+        ]);
+
+        $this->actingAs($admin)->get(route('ld.index'))
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->component('Ld/Index')
+                ->where('rows', function ($rows) {
+                    $rows = collect($rows);
+                    $clerk = $rows->firstWhere('emp_no', '9001');
+                    $chief = $rows->firstWhere('emp_no', '9002');
+
+                    return (float) $clerk['target'] === 8.0 && $clerk['met'] === true
+                        && (float) $chief['target'] === 40.0 && $chief['met'] === false;
+                })
+                ->etc());
+
+        // The roster is admin-only.
+        $this->actingAs($this->employeeUser())->get(route('ld.index'))->assertForbidden();
     }
 }

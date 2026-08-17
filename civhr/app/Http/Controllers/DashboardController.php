@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\IpcrRecord;
 use App\Models\LeaveApplication;
 use App\Support\CreditLedger;
+use App\Support\LdTarget;
 use App\Support\LeaveWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -39,9 +40,11 @@ class DashboardController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        $rows = $employees->map(function ($e) use ($year, $target) {
+        $rows = $employees->map(function ($e) use ($year) {
             $ipcr = $e->ipcrRecords->first();
             $ldHours = (float) $e->ldEntries->sum('hours');
+            // Target follows salary grade (8h SG 1–14, 40h SG 15+).
+            $ldTarget = LdTarget::hoursFor($e);
 
             // Ledger stays up to date even before anyone opens the card.
             CreditLedger::ensureUpToDate($e);
@@ -61,7 +64,8 @@ class DashboardController extends Controller
                 'leave_used'    => $used,
                 'leave_pending' => $apps->where('status', LeaveWorkflow::PENDING)->count(),
                 'ld_hours'   => $ldHours,
-                'ld_pending' => max(0, $target - $ldHours),
+                'ld_target'  => $ldTarget,
+                'ld_pending' => max(0, $ldTarget - $ldHours),
             ];
         });
 
@@ -121,8 +125,8 @@ class DashboardController extends Controller
     /** Employee (or an admin previewing as one): their own status. */
     private function employeeDashboard($user, int $year)
     {
-        $target = (float) config('agency.ld_target_hours');
         $e = $user->employee;
+        $target = LdTarget::hoursFor($e);
 
         $ipcr = $e?->ipcrRecords()->where('year', $year)->first();
         // The employee sees everything they submitted (with its status);
@@ -175,7 +179,7 @@ class DashboardController extends Controller
         abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
 
         $year = now()->year;
-        $target = (float) config('agency.ld_target_hours');
+        $target = LdTarget::hoursFor($employee);
 
         $ldEntries = $employee->ldEntries()->whereYear('date', $year)->orderByDesc('date')->get();
         $ldApproved = $ldEntries->where('status', \App\Models\LdEntry::APPROVED);

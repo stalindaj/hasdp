@@ -215,7 +215,7 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
                     <PortalPanel title="Learning & Development">
                         <div className="p-stats">
                             <PortalStat value={`${boxes.ld.total_hours}h`} label={`hours approved · ${year}`} />
-                            <PortalStat value={boxes.ld.behind} label={`below ${ldTarget}h target`} />
+                            <PortalStat value={boxes.ld.behind} label="below L&amp;D target" />
                             <PortalStat value={boxes.ld.pending} label="awaiting approval" />
                         </div>
                     </PortalPanel>
@@ -264,9 +264,9 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
                                                 )}
                                             </td>
                                             <td>
-                                                <div>{r.ld_hours}h</div>
+                                                <div>{r.ld_hours}h / {r.ld_target}h</div>
                                                 {r.ld_pending > 0 ? (
-                                                    <div className="dim">{r.ld_pending}h pending</div>
+                                                    <div className="dim">{r.ld_pending}h to target</div>
                                                 ) : (
                                                     <div className="ok">target met</div>
                                                 )}

@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\LdEntry;
+use App\Support\LdTarget;
 use App\Support\LeaveWorkflow;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 /**
  * Learning & Development submissions.
@@ -21,6 +25,82 @@ use Illuminate\Validation\Rule;
  */
 class LdController extends Controller
 {
+    /**
+     * Admin overview: every employee's L&D standing for a year, their
+     * salary-grade target (8h for SG 1–14, 40h for SG 15+), and the queue of
+     * submissions still awaiting a decision. Read-only roster — approvals and
+     * logging a training for someone happen from the queue and the employee
+     * card respectively.
+     */
+    public function index(Request $request)
+    {
+        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
+
+        $year = (int) $request->integer('year', now()->year);
+
+        $employees = Employee::query()
+            ->active()
+            ->whereNotNull('emp_no')
+            ->where('emp_no', '!=', 'mission')
+            ->with(['ldEntries' => fn ($q) => $q->whereYear('date', $year)])
+            ->orderBy('last_name')
+            ->get();
+
+        $rows = $employees->map(function ($e) {
+            $hours = (float) $e->ldEntries->where('status', LdEntry::APPROVED)->sum('hours');
+            $target = LdTarget::hoursFor($e);
+
+            return [
+                'id'        => $e->id,
+                'emp_no'    => $e->emp_no,
+                'name'      => trim($e->last_name.', '.$e->first_name),
+                'sg'        => $e->salary_grade,
+                'target'    => $target,
+                'hours'     => round($hours, 1),
+                'remaining' => round(max(0, $target - $hours), 1),
+                'met'       => $hours >= $target,
+                'pending'   => $e->ldEntries->where('status', LdEntry::PENDING)->count(),
+            ];
+        })->values();
+
+        // The approval queue — every pending submission, oldest first.
+        $pending = LdEntry::with('employee:id,first_name,last_name')
+            ->where('status', LdEntry::PENDING)
+            ->oldest()
+            ->get()
+            ->map(fn ($l) => [
+                'id'       => $l->id,
+                'employee' => trim($l->employee?->first_name.' '.$l->employee?->last_name),
+                'title'    => $l->title,
+                'hours'    => (float) $l->hours,
+                'date'     => $l->date->format('M j, Y'),
+                'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
+            ]);
+
+        // Years that have any activity, so the switcher only offers real ones.
+        $years = LdEntry::pluck('date')
+            ->map(fn ($d) => (int) Carbon::parse($d)->year)
+            ->push(now()->year)
+            ->push($year)
+            ->unique()
+            ->sortDesc()
+            ->values();
+
+        return Inertia::render('Ld/Index', [
+            'year'  => $year,
+            'years' => $years,
+            'rows'  => $rows,
+            'pending' => $pending,
+            'summary' => [
+                'total'   => $rows->count(),
+                'met'     => $rows->where('met', true)->count(),
+                'behind'  => $rows->where('met', false)->count(),
+                'pending' => $pending->count(),
+            ],
+        ]);
+    }
+
     /** Employee submits a training for approval. */
     public function store(Request $request)
     {

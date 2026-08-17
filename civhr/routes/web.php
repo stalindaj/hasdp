@@ -122,6 +122,8 @@ Route::middleware('auth')->group(function () {
 
     // L&D — employee submits with photo proof; admin approves; files are
     // private and served only to the owner and admins.
+    Route::get('/ld', [LdController::class, 'index'])
+        ->middleware('admin')->name('ld.index');
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
     Route::patch('/ld/{entry}/decide', [LdController::class, 'decide'])->name('ld.decide');
     Route::get('/ld/{entry}/file/{kind}', [LdController::class, 'file'])
