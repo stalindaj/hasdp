@@ -304,8 +304,8 @@ class LdAndUploadsTest extends TestCase
     {
         $admin = $this->adminUser();
 
-        $clerk = Employee::create(['emp_no' => '9001', 'first_name' => 'Rank', 'last_name' => 'File', 'salary_grade' => 11]);
-        Employee::create(['emp_no' => '9002', 'first_name' => 'Big', 'last_name' => 'Boss', 'salary_grade' => 18]);
+        $clerk = $this->userWithRoles(['employee'], ['emp_no' => '9001', 'first_name' => 'Rank', 'last_name' => 'File', 'salary_grade' => 11])->employee;
+        $this->userWithRoles(['employee'], ['emp_no' => '9002', 'first_name' => 'Big', 'last_name' => 'Boss', 'salary_grade' => 18]);
 
         // The clerk logs exactly the 8h their grade requires → met.
         $clerk->ldEntries()->create([
@@ -331,5 +331,32 @@ class LdAndUploadsTest extends TestCase
 
         // The roster is admin-only.
         $this->actingAs($this->employeeUser())->get(route('ld.index'))->assertForbidden();
+    }
+
+    public function test_the_ld_roster_excludes_deactivated_and_account_less_employees(): void
+    {
+        $admin = $this->adminUser();
+
+        // On the roster: an active login.
+        $this->userWithRoles(['employee'], ['emp_no' => '9001', 'first_name' => 'Still', 'last_name' => 'Here']);
+
+        // A deactivated login — the person has left.
+        $gone = $this->userWithRoles(['employee'], ['emp_no' => '9002', 'first_name' => 'Long', 'last_name' => 'Gone']);
+        $gone->update(['is_active' => false]);
+
+        // A record with no login at all (e.g. a signatory or pre-go-live entry).
+        Employee::create(['emp_no' => '9003', 'first_name' => 'No', 'last_name' => 'Login']);
+
+        $this->actingAs($admin)->get(route('ld.index'))
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->where('rows', function ($rows) {
+                    $nos = collect($rows)->pluck('emp_no');
+
+                    return $nos->contains('9001')
+                        && ! $nos->contains('9002')
+                        && ! $nos->contains('9003');
+                })
+                ->etc());
     }
 }

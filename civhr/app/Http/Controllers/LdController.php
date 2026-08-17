@@ -38,8 +38,12 @@ class LdController extends Controller
 
         $year = (int) $request->integer('year', now()->year);
 
+        // Only people who are active in the system: they must have a login and
+        // it must be switched on. This drops both deactivated accounts and
+        // record-only entries with no login (separated staff, signatories),
+        // which the plain active() scope would otherwise leave on the roster.
         $employees = Employee::query()
-            ->active()
+            ->whereHas('user', fn ($u) => $u->where('is_active', true))
             ->whereNotNull('emp_no')
             ->where('emp_no', '!=', 'mission')
             ->with(['ldEntries' => fn ($q) => $q->whereYear('date', $year)])
