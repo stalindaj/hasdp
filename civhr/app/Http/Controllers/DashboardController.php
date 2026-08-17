@@ -133,6 +133,7 @@ class DashboardController extends Controller
         $ldHours = (float) $ldEntries->where('status', \App\Models\LdEntry::APPROVED)->sum('hours');
 
         $balances = $e ? CreditLedger::balances($e) : null;
+        $forced = $e ? CreditLedger::forcedLeaveStatus($e) : null;
         $pending = $e
             ? LeaveApplication::where('employee_id', $e->id)->where('status', LeaveWorkflow::PENDING)->count()
             : 0;
@@ -151,6 +152,7 @@ class DashboardController extends Controller
                 'sem1'   => (bool) ($ipcr?->sem1_done),
                 'sem2'   => (bool) ($ipcr?->sem2_done),
                 'balances'      => $balances,
+                'forced'        => $forced,
                 'leave_pending' => $pending,
                 'ld_hours'      => $ldHours,
                 'ld_pending'    => max(0, $target - $ldHours),

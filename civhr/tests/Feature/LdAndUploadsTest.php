@@ -14,6 +14,7 @@ use Database\Seeders\LeaveTypeSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -28,9 +29,18 @@ class LdAndUploadsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Freeze mid-month so accrual timing is deterministic (the running
+        // month has not closed, so only earlier months have accrued).
+        Carbon::setTestNow('2026-08-17');
         $this->seed(RoleSeeder::class);
         $this->seed(LeaveTypeSeeder::class);
         Storage::fake('local');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function userWithRoles(array $roles, ?array $employee = null): User
@@ -47,6 +57,7 @@ class LdAndUploadsTest extends TestCase
     {
         return $this->userWithRoles(['employee'], [
             'emp_no' => '5807', 'first_name' => 'Justin', 'last_name' => 'Bercades',
+            'credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth(),
         ]);
     }
 
@@ -250,7 +261,7 @@ class LdAndUploadsTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.balances.index'))->assertOk();
 
-        // Fresh employee: 1.25 VL accrued this month. Set it to 15.
+        // Employee has 1.25 VL from last month's accrual. Set it to 15.
         $this->actingAs($admin)->patch(route('admin.balances.update', $employee), [
             'kind' => 'vl', 'value' => 15, 'note' => 'Opening balance per 201 file',
         ])->assertRedirect();

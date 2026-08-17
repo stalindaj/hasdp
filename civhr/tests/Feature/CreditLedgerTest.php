@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\LeaveApplication;
+use App\Models\LeaveCreditEntry;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Support\LeaveWorkflow;
 use Database\Seeders\LeaveTypeSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class CreditLedgerTest extends TestCase
@@ -21,8 +23,17 @@ class CreditLedgerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Freeze mid-month so accrual-timing assertions are deterministic:
+        // the running month (Aug) has not closed, so it does not accrue yet.
+        Carbon::setTestNow('2026-08-17');
         $this->seed(RoleSeeder::class);
         $this->seed(LeaveTypeSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function employee(array $attrs = []): Employee
@@ -42,16 +53,45 @@ class CreditLedgerTest extends TestCase
 
     public function test_vl_and_sl_accrue_1_25_per_month_and_catch_up(): void
     {
-        // Accrual began four months ago → 5 monthly postings inclusive.
+        // Accrual began four months ago (Apr). Apr–Jul have closed and accrue;
+        // the running month (Aug) does not yet → 4 monthly postings.
         $e = $this->employee(['credits_accrual_start' => now()->subMonths(4)->startOfMonth()]);
 
         $balances = CreditLedger::balances($e);
 
-        $this->assertEquals(6.25, $balances['vl']);   // 5 × 1.25
-        $this->assertEquals(6.25, $balances['sl']);
+        $this->assertEquals(5.0, $balances['vl']);   // 4 × 1.25
+        $this->assertEquals(5.0, $balances['sl']);
 
         // Reading again must not double-post.
-        $this->assertEquals(6.25, CreditLedger::balances($e)['vl']);
+        $this->assertEquals(5.0, CreditLedger::balances($e)['vl']);
+    }
+
+    public function test_an_accrual_posted_for_a_month_still_running_is_pruned(): void
+    {
+        // Frozen now is 2026-08-17, so August has not closed yet. Simulate a
+        // row written under the old "post on the 1st" rule, alongside a genuine
+        // boss adjustment that must survive.
+        $e = $this->employee(['credits_accrual_start' => '2026-06-01']);
+
+        LeaveCreditEntry::insert([
+            ['employee_id' => $e->id, 'kind' => 'vl', 'amount' => 1.25, 'period' => '2026-08', 'note' => 'Monthly accrual 2026-08', 'created_at' => now(), 'updated_at' => now()],
+            ['employee_id' => $e->id, 'kind' => 'sl', 'amount' => 1.25, 'period' => '2026-08', 'note' => 'Monthly accrual 2026-08', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        CreditLedger::adjust($e, 'vl', 10, 'Opening balance per 201 file', 1);
+
+        $balances = CreditLedger::balances($e);
+
+        // Jun + Jul accrue (2 months); the premature Aug row is dropped. Plus 10.
+        $this->assertEquals(2 * 1.25 + 10, $balances['vl']);
+        $this->assertEquals(2 * 1.25, $balances['sl']);
+
+        // The premature August accrual is gone…
+        $this->assertEquals(0, $e->creditEntries()->where('period', '2026-08')->count());
+        // …but the boss's manual adjustment (no period) is untouched.
+        $this->assertEquals(
+            1,
+            $e->creditEntries()->whereNull('period')->where('kind', 'vl')->count()
+        );
     }
 
     public function test_a_closed_year_forfeits_unused_mandatory_leave(): void
@@ -63,10 +103,10 @@ class CreditLedgerTest extends TestCase
 
         $balances = CreditLedger::balances($e);
 
-        // 2025: 15 − 5 forfeited = 10. 2026 (Jan–Aug, current year): 8 × 1.25.
-        $this->assertEquals(10 + 8 * 1.25, $balances['vl']);
+        // 2025: 15 − 5 forfeited = 10. 2026 (Jan–Jul closed; Aug still running): 7 × 1.25.
+        $this->assertEquals(10 + 7 * 1.25, $balances['vl']);
         // SL never forfeits: a full 2025 plus 2026 to date.
-        $this->assertEquals((12 + 8) * 1.25, $balances['sl']);
+        $this->assertEquals((12 + 7) * 1.25, $balances['sl']);
 
         // The forfeiture is one auditable ledger row, and re-reading is idempotent.
         $this->assertEquals($balances['vl'], CreditLedger::balances($e)['vl']);
@@ -99,7 +139,7 @@ class CreditLedgerTest extends TestCase
         ]);
 
         // 2025: 15 earned − 5 availed − 0 forfeited = 10. Plus 2026 to date.
-        $this->assertEquals(10 + 8 * 1.25, CreditLedger::balances($e->fresh())['vl']);
+        $this->assertEquals(10 + 7 * 1.25, CreditLedger::balances($e->fresh())['vl']);
         $this->assertEquals(
             0,
             $e->creditEntries()->where('event_key', 'forfeit-fl-2025')->count()
@@ -117,14 +157,14 @@ class CreditLedgerTest extends TestCase
 
     public function test_an_admin_adjustment_changes_the_balance_and_is_recorded(): void
     {
-        $e = $this->employee(['credits_accrual_start' => now()->startOfMonth()]);
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
         $admin = $this->admin();
 
         $this->actingAs($admin)->post(route('dashboard.credit', $e), [
             'kind' => 'vl', 'amount' => 10.5, 'note' => 'Opening balance per 201 file',
         ])->assertRedirect();
 
-        // 1.25 (this month's accrual) + 10.5 adjustment.
+        // 1.25 (last month's accrual) + 10.5 adjustment.
         $this->assertEquals(11.75, CreditLedger::balances($e)['vl']);
         $this->assertStringContainsString(
             'Opening balance',
@@ -134,7 +174,7 @@ class CreditLedgerTest extends TestCase
 
     public function test_an_approved_vacation_leave_deducts_from_vl(): void
     {
-        $e = $this->employee(['credits_accrual_start' => now()->startOfMonth()]);
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
         $applicant = User::factory()->create(['employee_id' => $e->id]);
         $applicant->roles()->sync(Role::where('name', 'employee')->pluck('id'));
         $admin = $this->admin();
@@ -172,7 +212,7 @@ class CreditLedgerTest extends TestCase
 
     public function test_an_approved_wellness_leave_reduces_the_annual_entitlement(): void
     {
-        $e = $this->employee(['credits_accrual_start' => now()->startOfMonth()]);
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
         $applicant = User::factory()->create(['employee_id' => $e->id]);
         $applicant->roles()->sync(Role::where('name', 'employee')->pluck('id'));
         $admin = $this->admin();
@@ -234,7 +274,7 @@ class CreditLedgerTest extends TestCase
     public function test_the_approval_screen_checks_the_balance_and_splits_pay(): void
     {
         // Only 1.25 VL accrued, but 5 days applied → 1.25 with pay / 3.75 without.
-        $e = $this->employee(['credits_accrual_start' => now()->startOfMonth()]);
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
         $applicant = User::factory()->create(['employee_id' => $e->id]);
         $applicant->roles()->sync(Role::where('name', 'employee')->pluck('id'));
         $admin = $this->admin();
@@ -263,7 +303,7 @@ class CreditLedgerTest extends TestCase
 
     public function test_the_employee_card_shows_balances_and_is_admin_only(): void
     {
-        $e = $this->employee(['credits_accrual_start' => now()->startOfMonth()]);
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
         $admin = $this->admin();
 
         $this->actingAs($admin)->get(route('dashboard.employee', $e))

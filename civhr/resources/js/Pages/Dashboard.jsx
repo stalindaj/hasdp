@@ -481,6 +481,17 @@ function EmployeeDashboard({ year, ldTarget, me }) {
                     ) : (
                         <p className="p-empty">No employee record linked.</p>
                     )}
+                    {me.forced && me.forced.required > 0 && (
+                        <p className="dim mt-2 text-xs">
+                            Mandatory leave ·{' '}
+                            <span className="font-semibold">
+                                {me.forced.used} of {me.forced.required} days used
+                            </span>
+                            {me.forced.remaining > 0
+                                ? ` — ${me.forced.remaining} still to take this year`
+                                : ' — requirement met'}
+                        </p>
+                    )}
                     {me.leave_pending > 0 && (
                         <p className="warn mt-2">{me.leave_pending} application(s) pending</p>
                     )}

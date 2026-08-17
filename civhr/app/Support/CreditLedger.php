@@ -11,14 +11,15 @@ use Illuminate\Support\Carbon;
 /**
  * The leave-credit ledger.
  *
- * VL and SL accrue +1.25 on the 1st of every month, are adjusted by admins,
+ * VL and SL accrue +1.25 at the end of every month, are adjusted by admins,
  * and are deducted when a leave is approved. Balances are simply the sum of
  * ledger rows — nothing is ever edited in place, so every number is auditable.
  *
- * Accrual is "lazy": whenever balances are read, any missing monthly rows
- * since the employee's accrual start are inserted (idempotent via the unique
- * [employee, kind, period] key). No cron needed — important on shell-less
- * shared hosting.
+ * Accrual is "lazy": whenever balances are read, any missing monthly rows for
+ * months that have already ended are inserted (idempotent via the unique
+ * [employee, kind, period] key). The running month is not credited until it
+ * closes, and each row is dated the last day of its month. No cron needed —
+ * important on shell-less shared hosting.
  *
  * Wellness Leave (5/yr) and Special Privilege Leave (3/yr) are annual
  * entitlements that reset each year: remaining = entitlement + this year's
@@ -48,7 +49,7 @@ class CreditLedger
         self::ensureForfeitures($employee);
     }
 
-    /** Post any missing monthly VL/SL accruals up to the current month. */
+    /** Post any missing monthly VL/SL accruals for every month that has ended. */
     private static function ensureAccruals(Employee $employee): void
     {
         if (! $employee->credits_accrual_start) {
@@ -58,7 +59,23 @@ class CreditLedger
         }
 
         $start = Carbon::parse($employee->credits_accrual_start)->startOfMonth();
-        $end = now()->startOfMonth();
+
+        // Credit accrues at month-end, so the running month is only posted once
+        // it closes; until then the latest accruable month is the previous one.
+        $end = now()->isLastOfMonth()
+            ? now()->startOfMonth()
+            : now()->startOfMonth()->subMonthNoOverflow();
+
+        // Self-heal: remove any monthly accrual posted for a month that has not
+        // yet closed — e.g. rows written under the old "post on the 1st" rule.
+        // Only the automatic period rows are touched; a manual admin adjustment
+        // carries no period, so a boss's edit is never removed. Runs before the
+        // early return so a same-month joiner's premature row is cleaned too.
+        LeaveCreditEntry::where('employee_id', $employee->id)
+            ->whereIn('kind', self::ACCRUING)
+            ->whereNotNull('period')
+            ->where('period', '>', $end->format('Y-m'))
+            ->delete();
 
         if ($start->greaterThan($end)) {
             return;
@@ -73,6 +90,8 @@ class CreditLedger
         $rows = [];
         foreach (CarbonPeriod::create($start, '1 month', $end) as $month) {
             $period = $month->format('Y-m');
+            // Dated the last day of the month it accrues for, not the read date.
+            $postedAt = $month->copy()->endOfMonth();
             foreach (self::ACCRUING as $kind) {
                 $rows[] = [
                     'employee_id' => $employee->id,
@@ -80,8 +99,8 @@ class CreditLedger
                     'amount'      => self::MONTHLY_ACCRUAL,
                     'period'      => $period,
                     'note'        => 'Monthly accrual '.$period,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                    'created_at'  => $postedAt,
+                    'updated_at'  => $postedAt,
                 ];
             }
         }

@@ -13,6 +13,7 @@ use Database\Seeders\HolidaySeeder;
 use Database\Seeders\LeaveTypeSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -25,8 +26,16 @@ class AuditAndRecordedLeaveTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Freeze mid-month: the running month has not closed, so it has not accrued.
+        Carbon::setTestNow('2026-08-17');
         $this->seed(RoleSeeder::class);
         $this->seed(LeaveTypeSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function userWithRoles(array $roles, ?array $employee = null): User
@@ -52,7 +61,7 @@ class AuditAndRecordedLeaveTest extends TestCase
     {
         return $this->userWithRoles(['employee'], [
             'emp_no' => '5111', 'first_name' => 'Justin', 'last_name' => 'Bercades',
-            'credits_accrual_start' => now()->startOfMonth(),
+            'credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth(),
         ])->employee;
     }
 
