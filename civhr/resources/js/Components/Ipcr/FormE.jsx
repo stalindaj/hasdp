@@ -5,8 +5,9 @@ import { MEASURES, autoRating, fmt, groupAverage, summary } from './rating';
  * indicators and standards come from the ratee's IWOT for the semester; what
  * is filled in here is the actual accomplishment, the % achieved per measure
  * (which auto-rates Ql1 / Qn2 / T3 against the IWOT standards), the
- * intervening activities, and the signatory blocks. With no IWOT on file
- * (editableOutputs) the outputs are typed here and rated by hand.
+ * intervening activities, and the signatory blocks. The outputs and success
+ * indicators stay editable here; with no IWOT on file they are typed here and
+ * rated by hand.
  */
 
 const HEADER_BG = '#fce4d6';
@@ -84,11 +85,10 @@ export default function FormE({
     readOnly = false,
     rateeName,
     signedDate,
-    editableOutputs = false,
     addGroup,
     removeGroup,
 }) {
-    const typeOutputs = editableOutputs && !readOnly;
+    const typeOutputs = !readOnly;
     const groups = data.groups ?? [];
     const sums = summary(data);
     const activities = data.fe_intervening_activities ?? [];

@@ -2,7 +2,7 @@ import FormE from '@/Components/Ipcr/FormE';
 import { MEASURES, splitRatingPeriod } from '@/Components/Ipcr/rating';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const navy = '#0b2a52';
 
@@ -99,7 +99,7 @@ function IwotNotice({ iwot, hasRatee }) {
                 <a href={route('iwot.show', iwot.found.id)} target="_blank" rel="noreferrer" className="font-semibold underline">
                     IWOT for this semester
                 </a>{' '}
-                ({iwot.found.status}). Change them on the IWOT, not here.
+                ({iwot.found.status}). You can still adjust them here.
             </p>
         );
     }
@@ -156,8 +156,11 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
     });
 
     // The matrix lives on the IWOT: whenever the ratee or the semester changes,
-    // Form E takes that IWOT's outputs and standards.
+    // Form E is pre-filled with that IWOT's outputs and standards. Reopening a
+    // saved IPCR keeps what was saved — outputs edited here are not clobbered.
     const [iwot, setIwot] = useState({ loading: false, found: null });
+    const hasSaved = Boolean(form?.groups?.some((g) => String(g.major_final_output ?? '').trim()));
+    const savedFor = useRef(hasSaved ? `${form.user_id}|${form.year}|${form.semester}` : null);
 
     useEffect(() => {
         if (!data.user_id) {
@@ -173,7 +176,8 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
             .then(({ data: res }) => {
                 if (!live) return;
                 setIwot({ loading: false, found: res.iwot });
-                if (res.iwot?.groups?.length) {
+                const keep = savedFor.current === `${data.user_id}|${data.year}|${data.semester}`;
+                if (!keep && res.iwot?.groups?.length) {
                     setData((d) => ({ ...d, groups: fromIwot(res.iwot.groups, d.groups) }));
                 }
             })
@@ -182,8 +186,6 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
             live = false;
         };
     }, [data.user_id, data.year, data.semester]);
-
-    const fromIwotSheet = Boolean(iwot.found?.groups?.length);
 
     const rateeName =
         form?.ratee ??
@@ -394,7 +396,6 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             {...sheet}
                             setData={patchData}
                             signedDate={signedDate}
-                            editableOutputs={!fromIwotSheet}
                             addGroup={addGroup}
                             removeGroup={removeGroup}
                         />
