@@ -124,7 +124,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
     // only once it is edited.
     const [periodStart, periodEnd] = splitRatingPeriod(period);
 
-    const { data, setData, post, patch, processing, errors } = useForm({
+    const { data, setData, post, patch, processing, errors, transform } = useForm({
         user_id: form?.user_id ?? (isManager ? '' : currentUserId),
         year: form?.year ?? periods.currentYear,
         semester: form?.semester ?? periods.currentSemester,
@@ -238,6 +238,12 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
     const submit = (e) => {
         e.preventDefault();
+        // Ratings are typed now, so no % goes up — otherwise the server would
+        // re-derive a rating someone deliberately cleared from an old %.
+        transform((d) => ({
+            ...d,
+            groups: d.groups.map((g) => ({ ...g, quality_pct: '', timeliness_pct: '', quantity_pct: '' })),
+        }));
         if (editing) patch(route('ipcr.update', form.id));
         else post(route('ipcr.store'));
     };
@@ -383,11 +389,10 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                         scrolls
                         hint={
                             <>
-                                The outputs, success indicators and performance standards come from the ratee's{' '}
-                                <strong>IWOT</strong> for this semester. Enter the <strong>% accomplished</strong>{' '}
-                                for Quality, Timeliness, and Quantity of each output — the Ql1 / Qn2 / T3 ratings
-                                and the Average (A4) are computed against those standards. You can still edit any
-                                rating manually afterward.
+                                The outputs and success indicators are pre-filled from the ratee's{' '}
+                                <strong>IWOT</strong> for this semester. Type each output's actual accomplishment
+                                and its <strong>Ql1 / Qn2 / T3</strong> ratings — the Average (A4) and the overall
+                                scores are computed for you.
                             </>
                         }
                     >

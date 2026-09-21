@@ -1,11 +1,11 @@
-import { MEASURES, autoRating, fmt, groupAverage, summary } from './rating';
+import { MEASURES, fmt, groupAverage, summary } from './rating';
 
 /**
  * IPCR FORM E — the rating sheet, and the whole IPCR. The outputs, success
  * indicators and standards come from the ratee's IWOT for the semester; what
- * is filled in here is the actual accomplishment, the % achieved per measure
- * (which auto-rates Ql1 / Qn2 / T3 against the IWOT standards), the
- * intervening activities, and the signatory blocks. The outputs and success
+ * is filled in here is the actual accomplishment, the Ql1 / Qn2 / T3 ratings
+ * (typed, as on the paper form), the intervening activities, and the
+ * signatory blocks. The outputs and success
  * indicators stay editable here; with no IWOT on file they are typed here and
  * rated by hand.
  */
@@ -92,16 +92,6 @@ export default function FormE({
     const groups = data.groups ?? [];
     const sums = summary(data);
     const activities = data.fe_intervening_activities ?? [];
-
-    // Typing a % re-rates that measure against the IWOT standards, exactly
-    // like his autoRateGroup(); the rating stays editable afterwards.
-    const setPct = (gi, mi, value) => {
-        const next = { ...groups[gi], [MEASURES[mi].pct]: value };
-        setGroup(gi, {
-            [MEASURES[mi].pct]: value,
-            [MEASURES[mi].rating]: autoRating(next, mi) ?? '',
-        });
-    };
 
     const setActivity = (ai, patch) =>
         setData({
@@ -201,8 +191,6 @@ export default function FormE({
                         <td colSpan={2} style={{ width: '20%' }}>Success Indicator (Target + Measure)</td>
                         <td colSpan={2} style={{ width: '22%' }}>
                             Actual Accomplishments
-                            <br />
-                            <span className="text-[0.65rem] font-normal italic">(with % per measure)</span>
                         </td>
                         <td style={{ width: '7%' }}>Ql1</td>
                         <td style={{ width: '7%' }}>Qn2</td>
@@ -252,6 +240,7 @@ export default function FormE({
                                     {typeOutputs ? (
                                         <>
                                             <Area
+                                                minHeight={80}
                                                 value={g.major_final_output}
                                                 onChange={(v) => setGroup(gi, { major_final_output: v })}
                                             />
@@ -274,6 +263,7 @@ export default function FormE({
                                 <td colSpan={2} className="align-top">
                                     {typeOutputs ? (
                                         <Area
+                                            minHeight={80}
                                             value={g.success_indicator}
                                             onChange={(v) => setGroup(gi, { success_indicator: v })}
                                         />
@@ -285,39 +275,16 @@ export default function FormE({
                                 </td>
                                 <td colSpan={2} className="align-top">
                                     <Area
+                                        minHeight={80}
                                         readOnly={readOnly}
                                         value={g.actual_accomplishment}
                                         onChange={(v) => setGroup(gi, { actual_accomplishment: v })}
                                     />
-                                    <div className="mt-1 flex gap-1">
-                                        {MEASURES.map((m, mi) => (
-                                            <div key={m.pct} className="flex-1">
-                                                <label className="block text-center text-[0.6rem] text-gray-600">
-                                                    {['Qlty %', 'Time %', 'Qty %'][mi]}
-                                                </label>
-                                                {readOnly ? (
-                                                    <div className="text-center text-[0.65rem]">{g[m.pct] ?? ''}</div>
-                                                ) : (
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        min="0"
-                                                        max="200"
-                                                        value={g[m.pct] ?? ''}
-                                                        onChange={(e) => setPct(gi, mi, e.target.value)}
-                                                        className="w-full rounded border border-gray-300 p-[2px] text-center text-[0.65rem]"
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
                                 </td>
 
                                 {/* Form E prints Quality, Quantity, Timeliness in that order. */}
                                 {[0, 2, 1].map((mi) => {
-                                    const auto = autoRating(g, mi);
                                     const value = g[MEASURES[mi].rating];
-                                    const filled = auto != null && String(auto) === String(value);
                                     return (
                                         <td key={mi} className="text-center align-middle">
                                             {readOnly ? (
@@ -330,11 +297,7 @@ export default function FormE({
                                                     onChange={(e) =>
                                                         setGroup(gi, { [MEASURES[mi].rating]: e.target.value })
                                                     }
-                                                    className={`w-full border-0 border-b-2 bg-transparent p-[2px] text-center text-[0.7rem] focus:ring-0 ${
-                                                        filled
-                                                            ? 'border-emerald-400 bg-emerald-400/10 font-bold'
-                                                            : 'border-gray-300'
-                                                    }`}
+                                                    className="w-full border-0 border-b-2 border-gray-300 bg-transparent p-[2px] text-center text-[0.8rem] font-bold focus:ring-0"
                                                 />
                                             )}
                                         </td>
