@@ -614,6 +614,9 @@ class IpcrController extends Controller
             'fe_reviewed_date' => $ipcr->fe_reviewed_date,
             'fe_approved_by' => $ipcr->fe_approved_by,
             'fe_approved_date' => $ipcr->fe_approved_date,
+            // Frozen on the signatory blocks; surfaced flat for the editor.
+            'reviewer_designation' => $ipcr->reviewer_sig['designation'] ?? '',
+            'approver_designation' => $ipcr->approver_sig['designation'] ?? '',
             'fe_review_remarks' => $ipcr->fe_review_remarks,
             'fe_assessed_by' => $ipcr->fe_assessed_by,
             'fe_assessed_date' => $ipcr->fe_assessed_date,

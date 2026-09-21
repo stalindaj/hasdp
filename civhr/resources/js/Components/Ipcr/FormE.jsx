@@ -33,6 +33,26 @@ function Text({ value, onChange, readOnly, placeholder, className = '', small })
     );
 }
 
+/**
+ * The small designation line under a signatory's name ("Civ HR", "Chief,
+ * Admin Branch"). Without an onChange it is a caption — the bottom band's
+ * Assessed by / Final Rating by print the same designations as the top one.
+ */
+function Desig({ value, onChange, readOnly, placeholder }) {
+    if (readOnly || !onChange) {
+        return value ? <div className="p-[2px] text-center text-[0.7rem] text-gray-600">{value}</div> : null;
+    }
+    return (
+        <input
+            type="text"
+            value={value ?? ''}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full border-0 bg-transparent p-[2px] text-center text-[0.7rem] text-gray-600 placeholder:italic focus:ring-0"
+        />
+    );
+}
+
 function Area({ value, onChange, readOnly, minHeight = 50 }) {
     if (readOnly) {
         return (
@@ -122,6 +142,12 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                                 value={data.fe_reviewed_by}
                                 onChange={(v) => setData({ fe_reviewed_by: v })}
                             />
+                            <Desig
+                                readOnly={readOnly}
+                                placeholder="Designation, e.g. Civ HR"
+                                value={data.reviewer_designation}
+                                onChange={(v) => setData({ reviewer_designation: v })}
+                            />
                         </td>
                         <td colSpan={2} className="text-center">
                             <Text
@@ -138,6 +164,12 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                                 placeholder="Enter Approver Name"
                                 value={data.fe_approved_by}
                                 onChange={(v) => setData({ fe_approved_by: v })}
+                            />
+                            <Desig
+                                readOnly={readOnly}
+                                placeholder="Designation, e.g. Commander"
+                                value={data.approver_designation}
+                                onChange={(v) => setData({ approver_designation: v })}
                             />
                         </td>
                         <td colSpan={2} className="text-center">
@@ -424,6 +456,7 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                                 value={data.fe_assessed_by}
                                 onChange={(v) => setData({ fe_assessed_by: v })}
                             />
+                            <Desig value={data.reviewer_designation} />
                         </td>
                         <td className="text-center">
                             <Text
@@ -441,6 +474,7 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                                 value={data.fe_final_rating_by}
                                 onChange={(v) => setData({ fe_final_rating_by: v })}
                             />
+                            <Desig value={data.approver_designation} />
                         </td>
                         <td colSpan={2} className="text-center">
                             <Text

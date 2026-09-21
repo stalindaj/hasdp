@@ -240,6 +240,45 @@ class IpcrTest extends TestCase
             ->assertSee('Very Satisfactory');
     }
 
+    public function test_signatory_designations_are_saved_and_print_under_both_bands(): void
+    {
+        $ratee = $this->employee();
+
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            'user_id' => $ratee->id,
+            'year' => 2026,
+            'semester' => 1,
+            'status' => 'draft',
+            'fe_reviewed_by' => 'Marie Cris A Uri',
+            'reviewer_designation' => 'Civ HR',
+            'fe_approved_by' => 'LTC MARICEL C TABACO PAF',
+            'approver_designation' => 'Chief, Admin Branch',
+            'fe_assessed_by' => 'Marie Cris A Uri',
+            'fe_final_rating_by' => 'LTC MARICEL C TABACO PAF',
+            'groups' => [[
+                'major_final_output' => 'Maintain the personnel database',
+                'rows' => [],
+            ]],
+        ])->assertRedirect();
+
+        $form = IpcrForm::first();
+
+        $this->assertSame('Civ HR', $form->reviewer_sig['designation']);
+        $this->assertSame('Chief, Admin Branch', $form->approver_sig['designation']);
+
+        // Reviewed/Approved and Assessed/Final Rating share the designations,
+        // so each one prints twice.
+        $print = $this->actingAs($ratee)->get(route('ipcr.print', $form))->assertOk();
+        $this->assertSame(2, substr_count($print->getContent(), 'Civ HR'));
+        $this->assertSame(2, substr_count($print->getContent(), 'Chief, Admin Branch'));
+
+        // The editor gets them back flat, for the Form E designation cells.
+        $this->actingAs($ratee)->get(route('ipcr.edit', $form))
+            ->assertOk()
+            ->assertSee('Civ HR')
+            ->assertSee('Chief, Admin Branch');
+    }
+
     public function test_ratee_signs_their_own_blocks_only_and_the_ink_prints(): void
     {
         \Illuminate\Support\Facades\Storage::fake('local');

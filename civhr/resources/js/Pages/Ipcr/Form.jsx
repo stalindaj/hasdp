@@ -89,6 +89,10 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         fe_reviewed_date: form?.fe_reviewed_date ?? periodStart,
         fe_approved_by: form?.fe_approved_by ?? '',
         fe_approved_date: form?.fe_approved_date ?? periodStart,
+        // The two supervisors' designations — they print under the name in
+        // both signatory bands (Reviewed/Approved and Assessed/Final Rating).
+        reviewer_designation: form?.reviewer_designation ?? '',
+        approver_designation: form?.approver_designation ?? '',
         fe_assessed_by: form?.fe_assessed_by ?? '',
         fe_assessed_date: form?.fe_assessed_date ?? periodEnd,
         fe_final_rating_by: form?.fe_final_rating_by ?? '',
