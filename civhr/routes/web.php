@@ -133,6 +133,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/ipcr', [IpcrController::class, 'index'])->name('ipcr.index');
     Route::get('/ipcr/create', [IpcrController::class, 'create'])->name('ipcr.create');
     Route::post('/ipcr', [IpcrController::class, 'store'])->name('ipcr.store');
+    Route::get('/ipcr/iwot-matrix', [IpcrController::class, 'iwotMatrix'])->name('ipcr.iwot-matrix');
     Route::get('/ipcr/{ipcr}', [IpcrController::class, 'show'])->name('ipcr.show');
     Route::get('/ipcr/{ipcr}/edit', [IpcrController::class, 'edit'])->name('ipcr.edit');
     Route::patch('/ipcr/{ipcr}', [IpcrController::class, 'update'])->name('ipcr.update');

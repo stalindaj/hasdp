@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\IpcrForm;
 use App\Models\IpcrFormGroup;
 use App\Models\IpcrRecord;
+use App\Models\IwotForm;
 use App\Models\User;
 use App\Support\FormSignatures;
 use App\Support\IpcrAccess;
@@ -131,6 +132,51 @@ class IpcrController extends Controller
         $this->persist($ipcr, $data);
 
         return redirect()->route('ipcr.show', $ipcr)->with('success', 'IPCR updated.');
+    }
+
+    /**
+     * The IWOT a ratee filed for a semester — the targets and performance
+     * standards Form E rates against. The IPCR no longer has a matrix of its
+     * own; it borrows this one.
+     */
+    public function iwotMatrix(Request $request)
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'integer'],
+            'year' => ['required', 'integer'],
+            'semester' => ['required', 'integer', 'in:1,2'],
+        ]);
+
+        $user = $request->user();
+        abort_unless(IpcrAccess::isManager($user) || (int) $data['user_id'] === $user->id, 403);
+
+        $iwot = IwotForm::with('groups.rows')
+            ->where('user_id', $data['user_id'])
+            ->where('year', $data['year'])
+            ->where('semester', $data['semester'])
+            ->latest('updated_at')
+            ->first();
+
+        return response()->json([
+            'iwot' => $iwot ? [
+                'id' => $iwot->id,
+                'status' => $iwot->status,
+                'groups' => $iwot->groups->map(fn ($g) => [
+                    'major_final_output' => $g->major_final_output,
+                    'success_indicator' => $g->success_indicator,
+                    'timeliness' => $g->timeliness,
+                    'rows' => $g->rows->map(fn ($r) => [
+                        'performance_measure' => $r->performance_measure,
+                        'performance_targets' => $r->performance_targets,
+                        'outstanding' => $r->outstanding,
+                        'very_satisfactory' => $r->very_satisfactory,
+                        'satisfactory' => $r->satisfactory,
+                        'unsatisfactory' => $r->unsatisfactory,
+                        'poor' => $r->poor,
+                    ])->values(),
+                ])->values(),
+            ] : null,
+        ]);
     }
 
     public function show(Request $request, IpcrForm $ipcr)

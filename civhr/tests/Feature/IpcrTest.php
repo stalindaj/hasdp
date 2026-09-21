@@ -279,6 +279,40 @@ class IpcrTest extends TestCase
             ->assertSee('Chief, Admin Branch');
     }
 
+    public function test_form_e_borrows_the_iwot_matrix_for_the_same_semester(): void
+    {
+        $ratee = $this->employee();
+        $iwot = \App\Models\IwotForm::create(['user_id' => $ratee->id, 'year' => 2026,
+            'semester' => 1, 'status' => 'approved']);
+        $group = $iwot->groups()->create(['major_final_output' => 'Update the 201 files',
+            'success_indicator' => '100% updated', 'sort_order' => 0]);
+        $iwot->rows()->create(['group_id' => $group->id, 'performance_measure' => 'Quality',
+            'outstanding' => '95% and above', 'sort_order' => 0]);
+
+        $this->actingAs($ratee)
+            ->getJson(route('ipcr.iwot-matrix', ['user_id' => $ratee->id, 'year' => 2026, 'semester' => 1]))
+            ->assertOk()
+            ->assertJsonPath('iwot.id', $iwot->id)
+            ->assertJsonPath('iwot.groups.0.major_final_output', 'Update the 201 files')
+            ->assertJsonPath('iwot.groups.0.rows.0.outstanding', '95% and above');
+
+        // Another semester has no IWOT.
+        $this->actingAs($ratee)
+            ->getJson(route('ipcr.iwot-matrix', ['user_id' => $ratee->id, 'year' => 2026, 'semester' => 2]))
+            ->assertOk()
+            ->assertJsonPath('iwot', null);
+
+        // Someone else's IWOT is off limits to a ratee, open to a manager.
+        $other = $this->employee();
+        $this->actingAs($other)
+            ->getJson(route('ipcr.iwot-matrix', ['user_id' => $ratee->id, 'year' => 2026, 'semester' => 1]))
+            ->assertForbidden();
+        $this->actingAs($this->manager())
+            ->getJson(route('ipcr.iwot-matrix', ['user_id' => $ratee->id, 'year' => 2026, 'semester' => 1]))
+            ->assertOk()
+            ->assertJsonPath('iwot.id', $iwot->id);
+    }
+
     public function test_ratee_signs_their_own_blocks_only_and_the_ink_prints(): void
     {
         \Illuminate\Support\Facades\Storage::fake('local');

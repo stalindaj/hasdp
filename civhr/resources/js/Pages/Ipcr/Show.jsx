@@ -1,5 +1,4 @@
 import FormE from '@/Components/Ipcr/FormE';
-import Matrix from '@/Components/Ipcr/Matrix';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 
@@ -59,7 +58,7 @@ export default function Show({ form, canEdit, canDelete, canSubmit, canDecide, c
                             rel="noreferrer"
                             className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
                         >
-                            Print forms (Matrix + Form E)
+                            Print Form E
                         </a>
                         {canEdit && (
                             <Link
@@ -134,10 +133,6 @@ export default function Show({ form, canEdit, canDelete, canSubmit, canDecide, c
                             )}
                         </div>
                     </section>
-
-                    <Card title="IPCR Form Matrix">
-                        <Matrix {...sheet} />
-                    </Card>
 
                     <Card title="IPCR Form (FORM E)">
                         <FormE {...sheet} signedDate={form.submitted_at ?? ''} />

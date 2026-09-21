@@ -1,8 +1,8 @@
 import FormE from '@/Components/Ipcr/FormE';
-import Matrix from '@/Components/Ipcr/Matrix';
-import { MEASURES, autoRating, parsePercent, splitRatingPeriod } from '@/Components/Ipcr/rating';
+import { MEASURES, splitRatingPeriod } from '@/Components/Ipcr/rating';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 
 const navy = '#0b2a52';
 
@@ -36,6 +36,32 @@ function blankGroup() {
     };
 }
 
+/** The Form E entries a group carries — what the IPCR itself fills in. */
+const RATED = [
+    'actual_accomplishment',
+    'quality_pct',
+    'timeliness_pct',
+    'quantity_pct',
+    'quality_rating',
+    'timeliness_rating',
+    'quantity_rating',
+    'remarks',
+];
+
+/**
+ * The IWOT's outputs, success indicators and standards, carrying over what was
+ * already rated on Form E — matched by output text, else by position — so a
+ * re-sync never loses an entry.
+ */
+function fromIwot(iwotGroups, current) {
+    const key = (g) => String(g.major_final_output ?? '').trim().toLowerCase();
+    return iwotGroups.map((ig, i) => {
+        const prev = current.find((g) => key(g) === key(ig)) ?? current[i] ?? {};
+        const rated = Object.fromEntries(RATED.map((k) => [k, prev[k] ?? '']));
+        return { ...blankGroup(), ...ig, ...rated };
+    });
+}
+
 function Card({ title, action, hint, scrolls = false, children }) {
     return (
         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
@@ -58,6 +84,33 @@ function Card({ title, action, hint, scrolls = false, children }) {
             )}
             <div className="sheet-scroll overflow-x-auto p-4 pt-0">{children}</div>
         </section>
+    );
+}
+
+/** Where Form E's outputs are coming from, or why they are typed by hand. */
+function IwotNotice({ iwot, hasRatee }) {
+    if (!hasRatee || iwot.loading) {
+        return null;
+    }
+    if (iwot.found?.groups?.length) {
+        return (
+            <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+                Outputs and standards loaded from the{' '}
+                <a href={route('iwot.show', iwot.found.id)} target="_blank" rel="noreferrer" className="font-semibold underline">
+                    IWOT for this semester
+                </a>{' '}
+                ({iwot.found.status}). Change them on the IWOT, not here.
+            </p>
+        );
+    }
+    return (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            No IWOT is on file for this ratee and semester, so there are no standards to rate against —{' '}
+            <a href={route('iwot.create')} target="_blank" rel="noreferrer" className="font-semibold underline">
+                file the IWOT first
+            </a>
+            , or type the outputs below and rate them by hand.
+        </p>
     );
 }
 
@@ -102,6 +155,36 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         groups: form?.groups?.length ? structuredClone(form.groups) : [blankGroup()],
     });
 
+    // The matrix lives on the IWOT: whenever the ratee or the semester changes,
+    // Form E takes that IWOT's outputs and standards.
+    const [iwot, setIwot] = useState({ loading: false, found: null });
+
+    useEffect(() => {
+        if (!data.user_id) {
+            setIwot({ loading: false, found: null });
+            return;
+        }
+        let live = true;
+        setIwot((s) => ({ ...s, loading: true }));
+        window.axios
+            .get(route('ipcr.iwot-matrix'), {
+                params: { user_id: data.user_id, year: data.year, semester: data.semester },
+            })
+            .then(({ data: res }) => {
+                if (!live) return;
+                setIwot({ loading: false, found: res.iwot });
+                if (res.iwot?.groups?.length) {
+                    setData((d) => ({ ...d, groups: fromIwot(res.iwot.groups, d.groups) }));
+                }
+            })
+            .catch(() => live && setIwot({ loading: false, found: null }));
+        return () => {
+            live = false;
+        };
+    }, [data.user_id, data.year, data.semester]);
+
+    const fromIwotSheet = Boolean(iwot.found?.groups?.length);
+
     const rateeName =
         form?.ratee ??
         personnel.find((p) => String(p.id) === String(data.user_id))?.name ??
@@ -115,33 +198,10 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
 
     const setGroup = (gi, obj) => patchGroups(gi, (g) => ({ ...g, ...obj }));
 
-    const setRow = (gi, ri, obj) =>
-        patchGroups(gi, (g) => ({
-            ...g,
-            rows: g.rows.map((r, j) => (j === ri ? { ...r, ...obj } : r)),
-        }));
-
     const addGroup = () => setData((d) => ({ ...d, groups: [...d.groups, blankGroup()] }));
 
     const removeGroup = (gi) =>
         setData((d) => ({ ...d, groups: d.groups.filter((_, i) => i !== gi) }));
-
-    /**
-     * Clicking a Performance Standards cell marks it as the achieved band for
-     * that measure, copies its % into Form E and re-rates the measure
-     * (his selectStandard()).
-     */
-    const selectStandard = (gi, mi, band) =>
-        patchGroups(gi, (g) => {
-            const rows = g.rows.map((r, j) => (j === mi ? { ...r, selected_band: band } : r));
-            const key = { o: 'outstanding', vs: 'very_satisfactory', s: 'satisfactory', u: 'unsatisfactory', p: 'poor' }[band];
-            const pct = parsePercent(g.rows[mi]?.[key]);
-            if (pct == null) {
-                return { ...g, rows };
-            }
-            const next = { ...g, rows, [MEASURES[mi].pct]: pct };
-            return { ...next, [MEASURES[mi].rating]: autoRating(next, mi) ?? '' };
-        });
 
     // Picking the semester rewrites the printed line (and, through it, the
     // signature dates) — unless someone has typed their own wording.
@@ -186,7 +246,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         year: 'numeric',
     });
 
-    const sheet = { data, setGroup, setRow, readOnly: false, rateeName };
+    const sheet = { data, setGroup, readOnly: false, rateeName };
 
     return (
         <AuthenticatedLayout
@@ -317,49 +377,27 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                     </Card>
 
                     <Card
-                        title="IPCR Form Matrix"
-                        scrolls
-                        action={
-                            <button
-                                type="button"
-                                onClick={addGroup}
-                                className="rounded-full border border-white/20 bg-white/15 px-4 py-1 text-xs font-medium text-white hover:bg-white/25"
-                            >
-                                + Add Major Output Group
-                            </button>
-                        }
-                        hint={
-                            <>
-                                Click on any cell under <strong>Performance Standards</strong> (Outstanding, Very
-                                Satisfactory, Satisfactory, Unsatisfactory, or Poor) to select it for that measure —
-                                the cell will highlight green with a check mark, and its % will automatically be
-                                copied into the matching Quality/Timeliness/Quantity % field in FORM E below, which
-                                then recalculates the rating for you.
-                            </>
-                        }
-                    >
-                        <Matrix
-                            {...sheet}
-                            selectStandard={selectStandard}
-                            addGroup={addGroup}
-                            removeGroup={removeGroup}
-                        />
-                    </Card>
-
-                    <Card
                         title="IPCR Form (FORM E)"
                         scrolls
                         hint={
                             <>
-                                Enter the <strong>% accomplished</strong> for Quality, Timeliness, and Quantity of
-                                each output below — the Ql1 / Qn2 / T3 ratings and the Average (A4) are computed by
-                                comparing your entry against the standards you set in the matrix above. You can
-                                still edit any rating manually afterward, or simply click a standard cell in the
-                                matrix to have its % copied down here.
+                                The outputs, success indicators and performance standards come from the ratee's{' '}
+                                <strong>IWOT</strong> for this semester. Enter the <strong>% accomplished</strong>{' '}
+                                for Quality, Timeliness, and Quantity of each output — the Ql1 / Qn2 / T3 ratings
+                                and the Average (A4) are computed against those standards. You can still edit any
+                                rating manually afterward.
                             </>
                         }
                     >
-                        <FormE {...sheet} setData={patchData} signedDate={signedDate} />
+                        <IwotNotice iwot={iwot} hasRatee={Boolean(data.user_id)} />
+                        <FormE
+                            {...sheet}
+                            setData={patchData}
+                            signedDate={signedDate}
+                            editableOutputs={!fromIwotSheet}
+                            addGroup={addGroup}
+                            removeGroup={removeGroup}
+                        />
                     </Card>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -379,7 +417,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             </Link>
                         </div>
                         <p className="text-xs text-gray-500">
-                            Saving generates the printable matrix and Form E.
+                            Saving generates the printable Form E.
                         </p>
                     </div>
                 </div>

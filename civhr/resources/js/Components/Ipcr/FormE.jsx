@@ -1,10 +1,12 @@
 import { MEASURES, autoRating, fmt, groupAverage, summary } from './rating';
 
 /**
- * IPCR FORM E — the rating sheet. The outputs and success indicators mirror the
- * matrix above it; what is filled in here is the actual accomplishment, the %
- * achieved per measure (which auto-rates Ql1 / Qn2 / T3), the intervening
- * activities, and the signatory blocks.
+ * IPCR FORM E — the rating sheet, and the whole IPCR. The outputs, success
+ * indicators and standards come from the ratee's IWOT for the semester; what
+ * is filled in here is the actual accomplishment, the % achieved per measure
+ * (which auto-rates Ql1 / Qn2 / T3 against the IWOT standards), the
+ * intervening activities, and the signatory blocks. With no IWOT on file
+ * (editableOutputs) the outputs are typed here and rated by hand.
  */
 
 const HEADER_BG = '#fce4d6';
@@ -75,12 +77,23 @@ function Summary({ value }) {
     return <div className="p-[3px] text-center text-[0.8rem] font-bold text-[#0b2a52]">{value || ''}</div>;
 }
 
-export default function FormE({ data, setData, setGroup, readOnly = false, rateeName, signedDate }) {
+export default function FormE({
+    data,
+    setData,
+    setGroup,
+    readOnly = false,
+    rateeName,
+    signedDate,
+    editableOutputs = false,
+    addGroup,
+    removeGroup,
+}) {
+    const typeOutputs = editableOutputs && !readOnly;
     const groups = data.groups ?? [];
     const sums = summary(data);
     const activities = data.fe_intervening_activities ?? [];
 
-    // Typing a % re-rates that measure against the matrix standards, exactly
+    // Typing a % re-rates that measure against the IWOT standards, exactly
     // like his autoRateGroup(); the rating stays editable afterwards.
     const setPct = (gi, mi, value) => {
         const next = { ...groups[gi], [MEASURES[mi].pct]: value };
@@ -236,14 +249,39 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                         return (
                             <tr key={gi}>
                                 <td className="align-top">
-                                    <div className="whitespace-pre-wrap p-1 text-[0.7rem] leading-snug">
-                                        {g.major_final_output}
-                                    </div>
+                                    {typeOutputs ? (
+                                        <>
+                                            <Area
+                                                value={g.major_final_output}
+                                                onChange={(v) => setGroup(gi, { major_final_output: v })}
+                                            />
+                                            {groups.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeGroup(gi)}
+                                                    className="mt-1 rounded-full border border-rose-200 bg-rose-50 px-2 text-[0.6rem] text-rose-600 hover:bg-rose-600 hover:text-white"
+                                                >
+                                                    ✕ Remove output
+                                                </button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="whitespace-pre-wrap p-1 text-[0.7rem] leading-snug">
+                                            {g.major_final_output}
+                                        </div>
+                                    )}
                                 </td>
                                 <td colSpan={2} className="align-top">
-                                    <div className="whitespace-pre-wrap p-1 text-[0.7rem] leading-snug">
-                                        {g.success_indicator}
-                                    </div>
+                                    {typeOutputs ? (
+                                        <Area
+                                            value={g.success_indicator}
+                                            onChange={(v) => setGroup(gi, { success_indicator: v })}
+                                        />
+                                    ) : (
+                                        <div className="whitespace-pre-wrap p-1 text-[0.7rem] leading-snug">
+                                            {g.success_indicator}
+                                        </div>
+                                    )}
                                 </td>
                                 <td colSpan={2} className="align-top">
                                     <Area
@@ -316,6 +354,20 @@ export default function FormE({ data, setData, setGroup, readOnly = false, ratee
                             </tr>
                         );
                     })}
+
+                    {typeOutputs && (
+                        <tr>
+                            <td colSpan={10} className="text-center">
+                                <button
+                                    type="button"
+                                    onClick={addGroup}
+                                    className="rounded-full bg-emerald-500 px-3 py-[2px] text-[0.7rem] text-white shadow hover:bg-emerald-600"
+                                >
+                                    + Add output
+                                </button>
+                            </td>
+                        </tr>
+                    )}
 
                     <tr>
                         <td colSpan={2} style={{ background: BAND_BG }} className="p-1 font-bold">
