@@ -126,10 +126,10 @@ export default function Show({ form, canEdit, canDelete, canSubmit, canDecide })
 
                     <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                         <div className="px-6 py-3 text-sm font-semibold text-white" style={{ background: navy }}>
-                            IWOT Matrix
+                            IWOT
                         </div>
                         <div className="overflow-x-auto p-4">
-                            <Matrix data={form} rateeName={form.employee} readOnly />
+                            <Matrix data={form} rateeName={form.employee} readOnly signatories />
                         </div>
                     </section>
                 </div>

@@ -152,26 +152,6 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 </div>
                             )}
 
-                            <div>
-                                <label className={label}>Position / Designation</label>
-                                <input
-                                    className={input}
-                                    placeholder="e.g. Administrative Aide III (Clerk I)"
-                                    value={data.position_title}
-                                    onChange={(e) => patchData({ position_title: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className={label}>Office / Unit</label>
-                                <input
-                                    className={input}
-                                    placeholder="e.g. 15th Strike Wing, PAF / Office of Directorate for Personnel"
-                                    value={data.office_unit}
-                                    onChange={(e) => patchData({ office_unit: e.target.value })}
-                                />
-                            </div>
-
                             {/* One IWOT per semester — two a year, never more
                                 — so the period is picked, not typed. */}
                             <div className="grid grid-cols-2 gap-3">
@@ -209,16 +189,6 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             </div>
 
                             <div>
-                                <label className={label}>Period covered (as printed)</label>
-                                <input
-                                    className={input}
-                                    placeholder="e.g. January - June 2026"
-                                    value={data.rating_period}
-                                    onChange={(e) => patchData({ rating_period: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
                                 <label className={label}>Status</label>
                                 <select
                                     className={input}
@@ -239,7 +209,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                     </Card>
 
                     <Card
-                        title="IWOT Matrix"
+                        title="IWOT"
                         scrolls
                         action={
                             <button
@@ -252,10 +222,12 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                         }
                         hint={
                             <>
-                                Set the targets for the coming period: one <strong>Major Final Output</strong> per
-                                block, its success indicator, and what counts as Outstanding down to Poor for each
-                                of Quality, Timeliness and Quantity. The IPCR at the end of the period is rated
-                                against exactly these standards.
+                                Fill the sheet in place, exactly as it prints: the position, office and period
+                                under the name, one <strong>Major Final Output</strong> per block with its success
+                                indicator and what counts as Outstanding down to Poor for each of Quality,
+                                Timeliness and Quantity, then the <strong>Prepared by</strong> /{' '}
+                                <strong>Approved by</strong> names and designations at the bottom. The IPCR at the
+                                end of the period is pre-filled from these outputs.
                             </>
                         }
                     >
@@ -266,57 +238,9 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             addGroup={addGroup}
                             removeGroup={removeGroup}
                             rateeName={employeeName}
+                            setData={patchData}
+                            signatories
                         />
-                    </Card>
-
-                    <Card title="Signatories">
-                        <div className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2">
-                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
-                                    Prepared by
-                                </p>
-                                <div>
-                                    <label className={label}>Name</label>
-                                    <input
-                                        className={input}
-                                        value={data.prepared_by}
-                                        onChange={(e) => patchData({ prepared_by: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className={label}>Designation</label>
-                                    <input
-                                        className={input}
-                                        value={data.prepared_designation}
-                                        onChange={(e) => patchData({ prepared_designation: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 rounded-md border border-gray-200 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-[#0b2a52]">
-                                    Approved by
-                                </p>
-                                <div>
-                                    <label className={label}>Name</label>
-                                    <input
-                                        className={input}
-                                        placeholder="e.g. TSg Ronnie R Doble PAF"
-                                        value={data.approved_by}
-                                        onChange={(e) => patchData({ approved_by: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className={label}>Designation</label>
-                                    <input
-                                        className={input}
-                                        placeholder="e.g. NCOIC"
-                                        value={data.approved_designation}
-                                        onChange={(e) => patchData({ approved_designation: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
                     </Card>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">

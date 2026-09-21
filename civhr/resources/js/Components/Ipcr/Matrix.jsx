@@ -1,16 +1,65 @@
 import { BANDS, MEASURES } from './rating';
 
 /**
- * The IPCR performance-standards matrix — the sheet the ratee actually fills
- * in, laid out exactly like the printed form: one Major Final Output per block
- * of three measure rows (Quality / Timeliness / Quantity), each measure
- * carrying its target and the five Performance Standards descriptors.
+ * The IWOT sheet, laid out like the printed form and edited in place (the
+ * same way Form E is on the IPCR): the header lines, one Major Final Output
+ * per block of three measure rows (Quality / Timeliness / Quantity), each
+ * measure carrying its target and the five Performance Standards descriptors,
+ * then the PREPARED BY / APPROVED BY blocks.
  *
- * Clicking a standard cell marks it as the achieved band for that measure and
- * copies its % down into Form E, which re-rates itself.
+ * Pass setData to make the header and signatories editable; without it they
+ * are shown as printed.
  */
 
 const cellText = 'w-full resize-y border-0 bg-transparent p-1 text-[0.7rem] leading-snug focus:ring-0';
+
+/** A header or signatory line: plain text when read-only, an input otherwise. */
+function Line({ value, onChange, placeholder, className = '' }) {
+    if (!onChange) {
+        return <div className={className}>{value || ''}</div>;
+    }
+    return (
+        <input
+            type="text"
+            value={value ?? ''}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            className={`block w-full border-0 border-b border-dashed border-gray-300 bg-transparent p-[1px] text-center placeholder:font-normal placeholder:normal-case placeholder:italic placeholder:text-gray-400 focus:border-indigo-400 focus:ring-0 ${className}`}
+        />
+    );
+}
+
+/** PREPARED BY / APPROVED BY — room for a signature over each name. */
+function Signatories({ data, set }) {
+    const blocks = [
+        ['PREPARED BY:', 'prepared_by', 'prepared_designation', 'Employee name', 'Employee'],
+        ['APPROVED BY:', 'approved_by', 'approved_designation', 'e.g. TSg Ronnie R Doble PAF', 'NCOIC'],
+    ];
+    return (
+        <div className="grid grid-cols-2 gap-10 px-4 pb-4 pt-6 text-[0.75rem]">
+            {blocks.map(([label, nameKey, desigKey, namePh, desigPh]) => (
+                <div key={nameKey}>
+                    <div className="font-bold">{label}</div>
+                    <div className="h-12" />
+                    <div className="w-72 max-w-full">
+                        <Line
+                            className="text-left text-[0.8rem] font-bold uppercase"
+                            placeholder={namePh}
+                            value={data[nameKey]}
+                            onChange={set && ((v) => set({ [nameKey]: v }))}
+                        />
+                        <Line
+                            className="text-left"
+                            placeholder={desigPh}
+                            value={data[desigKey]}
+                            onChange={set && ((v) => set({ [desigKey]: v }))}
+                        />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 function Cell({ value, onChange, rows = 2, readOnly, className = '', minHeight }) {
     if (readOnly) {
@@ -44,8 +93,11 @@ export default function Matrix({
     removeGroup,
     rateeName,
     readOnly = false,
+    setData,
+    signatories = false,
 }) {
     const groups = data.groups ?? [];
+    const set = !readOnly && setData ? setData : undefined;
 
     return (
         <div className="ipcr-sheet ipcr-matrix border border-black bg-white p-[2px]">
@@ -55,9 +107,26 @@ export default function Matrix({
                     <tr>
                         <td colSpan={readOnly ? 10 : 11} className="py-3 text-center">
                             <div className="font-bold">{rateeName || '—'}</div>
-                            <div className="text-[0.8em] underline">{data.position_title}</div>
-                            <div className="text-[0.75em] italic text-gray-600">{data.office_unit}</div>
-                            <div className="text-[0.7em]">{data.rating_period}</div>
+                            <div className="mx-auto max-w-xl">
+                                <Line
+                                    className="text-[0.8em] underline"
+                                    placeholder="Position, e.g. Administrative Aide III (Clerk I)"
+                                    value={data.position_title}
+                                    onChange={set && ((v) => set({ position_title: v }))}
+                                />
+                                <Line
+                                    className="text-[0.75em] italic text-gray-600"
+                                    placeholder="Office / unit, e.g. Office of the Directorate for Personnel"
+                                    value={data.office_unit}
+                                    onChange={set && ((v) => set({ office_unit: v }))}
+                                />
+                                <Line
+                                    className="text-[0.7em]"
+                                    placeholder="Period covered, e.g. January - June 2026"
+                                    value={data.rating_period}
+                                    onChange={set && ((v) => set({ rating_period: v }))}
+                                />
+                            </div>
                         </td>
                     </tr>
 
@@ -208,6 +277,8 @@ export default function Matrix({
                     </button>
                 </div>
             )}
+
+            {signatories && <Signatories data={data} set={set} />}
         </div>
     );
 }
