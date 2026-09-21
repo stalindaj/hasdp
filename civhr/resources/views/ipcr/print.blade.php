@@ -67,14 +67,18 @@
         .title { text-align: center; font-weight: 700; font-size: 9pt; margin: 10px 0 14px; }
 
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { border: 1px solid #000; padding: 2px 4px; vertical-align: top; word-wrap: break-word; }
+        td { border: 1pt solid #000; padding: 2px 4px; vertical-align: top; word-wrap: break-word; }
 
         /* The commitment reads full width; the ratee signs underneath, right. */
         .commit td { padding: 6px 8px; }
         .commit .stmt { font-weight: 700; }
-        .commit .sign { width: 3.2in; margin: 10px 0 0 auto; text-align: center; position: relative; }
-        .commit .sign .nm { font-weight: 700; }
-        .commit .sign img { position: absolute; left: 50%; transform: translateX(-50%); bottom: 30px; max-height: 0.42in; max-width: 90%; }
+        .commit .sign { width: 3.2in; margin: 0.4in 0 0 auto; text-align: center; }
+        /* Same look as the signatory columns: ink over a bold, ruled name. */
+        .commit .sign .nm { position: relative; display: inline-block; min-width: 70%; padding: 0 6px 1px; font-weight: 700; border-bottom: 1px solid #000; }
+        .commit .sign img {
+            position: absolute; left: 50%; transform: translateX(-50%); bottom: -0.02in;
+            max-height: 0.5in; max-width: 110%; mix-blend-mode: multiply;
+        }
 
         /* Template theme fills. */
         .band { background: #f8cbad; font-weight: 700; vertical-align: middle; }
@@ -83,10 +87,17 @@
         .ctr { text-align: center; }
         .mid { vertical-align: middle; }
 
-        .ink { height: 0.46in; position: relative; }
-        .ink img { position: absolute; left: 50%; transform: translateX(-50%); bottom: 1px; max-height: 0.44in; max-width: 88%; }
-        .signame { text-align: center; font-weight: 700; }
-        .sigdesig { text-align: center; font-size: 7.5pt; }
+        /* A signatory reads as one block, like a signed paper form: the ink
+           dips over the name, the name is bold on its own rule, and the
+           designation sits under it — no cell lines between the three. */
+        .ink { height: 0.46in; position: relative; border-bottom: none; }
+        .ink img {
+            position: absolute; left: 50%; transform: translateX(-50%); bottom: -0.08in;
+            max-height: 0.5in; max-width: 88%; z-index: 1; mix-blend-mode: multiply;
+        }
+        .signame { text-align: center; font-weight: 700; border-top: none; border-bottom: none; padding-bottom: 0; text-transform: uppercase; }
+        .signame .nm { display: inline-block; min-width: 70%; padding: 0 6px 1px; border-bottom: 1px solid #000; }
+        .sigdesig { text-align: center; font-size: 7.5pt; border-top: none; padding-top: 1px; }
 
         .sum td { font-weight: 700; }
         .sum .val { text-align: center; }
@@ -107,6 +118,10 @@
             background: #2563eb; color: #fff; cursor: pointer;
         }
         .sigup.rm { background: #6b7280; }
+        /* In a signatory column the buttons ride the ink cell's corner, so the
+           designation line underneath carries only the designation. */
+        .sigtools { position: absolute; top: 2px; right: 2px; z-index: 1; white-space: nowrap; }
+        .sigtools .sigup { margin-top: 0; }
 
         @media print {
             body { background: #fff; padding: 0; }
@@ -133,10 +148,12 @@
                     period {{ $form->rating_period }}.
                 </div>
                 <div class="sign">
-                    @if (! empty($signatures['ratee']))
-                        <img src="{{ $signatures['ratee'] }}" alt="">
-                    @endif
-                    <div class="nm">{{ $rateeName }}</div>
+                    <div class="nm">
+                        {{ $rateeName }}
+                        @if (! empty($signatures['ratee']))
+                            <img src="{{ $signatures['ratee'] }}" alt="">
+                        @endif
+                    </div>
                     <div>{{ $rateePosition }}</div>
                     <div>Date: {{ $signedDate }}</div>
                     @if ($canSignSlot('ratee'))
@@ -163,39 +180,43 @@
         <tr>
             <td class="ink">
                 @if (! empty($signatures['reviewer'])) <img src="{{ $signatures['reviewer'] }}" alt=""> @endif
+                @if ($canSignSlot('reviewer'))
+                    <span class="sigtools">
+                        <button type="button" class="sigup" onclick="pickSig('reviewer')">
+                            {{ !empty($form->signature_uploads['reviewer']) ? '✎ Replace' : '✎ Sign' }}
+                        </button>
+                        @if (!empty($form->signature_uploads['reviewer']))
+                            <button type="button" class="sigup rm" onclick="removeSig('reviewer')" title="Remove signature">✕</button>
+                        @endif
+                    </span>
+                @endif
             </td>
             <td rowspan="3" class="ctr mid">{{ $blocks['reviewer']['date'] }}</td>
             <td class="ink">
                 @if (! empty($signatures['approver'])) <img src="{{ $signatures['approver'] }}" alt=""> @endif
+                @if ($canSignSlot('approver'))
+                    <span class="sigtools">
+                        <button type="button" class="sigup" onclick="pickSig('approver')">
+                            {{ !empty($form->signature_uploads['approver']) ? '✎ Replace' : '✎ Sign' }}
+                        </button>
+                        @if (!empty($form->signature_uploads['approver']))
+                            <button type="button" class="sigup rm" onclick="removeSig('approver')" title="Remove signature">✕</button>
+                        @endif
+                    </span>
+                @endif
             </td>
             <td rowspan="3" class="ctr mid">{{ $blocks['approver']['date'] }}</td>
         </tr>
         <tr>
-            <td class="signame">{{ $blocks['reviewer']['name'] }}</td>
-            <td class="signame">{{ $blocks['approver']['name'] }}</td>
+            <td class="signame"><span class="nm">{{ $blocks['reviewer']['name'] }}</span></td>
+            <td class="signame"><span class="nm">{{ $blocks['approver']['name'] }}</span></td>
         </tr>
         <tr>
             <td class="sigdesig">
                 {{ $blocks['reviewer']['desig'] }}
-                @if ($canSignSlot('reviewer'))
-                    <button type="button" class="sigup" onclick="pickSig('reviewer')">
-                        {{ !empty($form->signature_uploads['reviewer']) ? '✎ Replace' : '✎ Sign' }}
-                    </button>
-                    @if (!empty($form->signature_uploads['reviewer']))
-                        <button type="button" class="sigup rm" onclick="removeSig('reviewer')">✕</button>
-                    @endif
-                @endif
             </td>
             <td class="sigdesig">
                 {{ $blocks['approver']['desig'] }}
-                @if ($canSignSlot('approver'))
-                    <button type="button" class="sigup" onclick="pickSig('approver')">
-                        {{ !empty($form->signature_uploads['approver']) ? '✎ Replace' : '✎ Sign' }}
-                    </button>
-                    @if (!empty($form->signature_uploads['approver']))
-                        <button type="button" class="sigup rm" onclick="removeSig('approver')">✕</button>
-                    @endif
-                @endif
             </td>
         </tr>
     </table>
@@ -284,27 +305,29 @@
             @foreach (['discussed', 'assessed', 'final'] as $slot)
                 <td class="ink">
                     @if (! empty($signatures[$slot])) <img src="{{ $signatures[$slot] }}" alt=""> @endif
+                    @if ($canSignSlot($slot))
+                        <span class="sigtools">
+                            <button type="button" class="sigup" onclick="pickSig('{{ $slot }}')">
+                                {{ !empty($form->signature_uploads[$slot]) ? '✎ Replace' : '✎ Sign' }}
+                            </button>
+                            @if (!empty($form->signature_uploads[$slot]))
+                                <button type="button" class="sigup rm" onclick="removeSig('{{ $slot }}')" title="Remove signature">✕</button>
+                            @endif
+                        </span>
+                    @endif
                 </td>
                 <td rowspan="3" class="ctr mid">{{ $blocks[$slot]['date'] }}</td>
             @endforeach
         </tr>
         <tr>
             @foreach (['discussed', 'assessed', 'final'] as $slot)
-                <td class="signame">{{ $blocks[$slot]['name'] }}</td>
+                <td class="signame"><span class="nm">{{ $blocks[$slot]['name'] }}</span></td>
             @endforeach
         </tr>
         <tr>
             @foreach (['discussed', 'assessed', 'final'] as $slot)
                 <td class="sigdesig">
                     {{ $blocks[$slot]['desig'] }}
-                    @if ($canSignSlot($slot))
-                        <button type="button" class="sigup" onclick="pickSig('{{ $slot }}')">
-                            {{ !empty($form->signature_uploads[$slot]) ? '✎ Replace' : '✎ Sign' }}
-                        </button>
-                        @if (!empty($form->signature_uploads[$slot]))
-                            <button type="button" class="sigup rm" onclick="removeSig('{{ $slot }}')">✕</button>
-                        @endif
-                    @endif
                 </td>
             @endforeach
         </tr>
