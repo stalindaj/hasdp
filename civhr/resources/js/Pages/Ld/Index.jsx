@@ -112,6 +112,7 @@ export default function Index({ year, years, rows, pending, summary }) {
                                             <p className="text-sm font-medium text-slate-800">{l.employee}</p>
                                             <p className="text-xs text-slate-500">
                                                 {l.title} · {l.hours}h · {l.date}
+                                                {l.competency ? ` · ${l.competency}` : ''}
                                             </p>
                                             <ProofLinks entry={l} />
                                         </div>

@@ -91,13 +91,75 @@ class LdAndUploadsTest extends TestCase
         $this->assertNull($entry->photo_path);
     }
 
-    public function test_ld_submission_requires_at_least_one_image(): void
+    public function test_ld_records_without_proof_so_the_paper_can_follow(): void
     {
         $this->actingAs($this->employeeUser())->post(route('ld.store'), [
             'title' => 'Seminar', 'hours' => 4, 'date' => '2026-07-10',
-        ])->assertSessionHasErrors(['certificate', 'photo']);
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $entry = LdEntry::firstOrFail();
+        $this->assertNull($entry->certificate_path);
+        $this->assertNull($entry->photo_path);
+        $this->assertSame(LdEntry::PENDING, $entry->status);
+    }
+
+    public function test_a_training_is_filed_with_its_competency_and_date_range(): void
+    {
+        $user = $this->employeeUser();
+
+        $this->actingAs($user)->post(route('ld.store'), [
+            'competency' => 'supervisory',
+            'title'   => 'Supervisory Development Course Track 1',
+            'date'    => '2026-07-29',
+            'date_to' => '2026-08-03',
+            'hours'   => 24,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $entry = LdEntry::firstOrFail();
+        $this->assertSame('supervisory', $entry->competency);
+        $this->assertSame('Supervisory Development Course Track 1', $entry->title);
+        $this->assertSame('29 July - 03 August 2026', $entry->inclusive_dates_text);
+    }
+
+    public function test_hours_left_blank_count_as_one(): void
+    {
+        $this->actingAs($this->employeeUser())->post(route('ld.store'), [
+            'title' => 'Flag raising lecture on RA 6713', 'date' => '2026-07-10',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertEquals(1.0, (float) LdEntry::firstOrFail()->hours);
+    }
+
+    public function test_an_unknown_competency_is_refused(): void
+    {
+        $this->actingAs($this->employeeUser())->post(route('ld.store'), [
+            'competency' => 'whatever', 'title' => 'Seminar', 'date' => '2026-07-10',
+        ])->assertSessionHasErrors('competency');
 
         $this->assertSame(0, LdEntry::count());
+    }
+
+    public function test_the_employee_sees_their_own_ld_page_with_their_standing(): void
+    {
+        $user = $this->employeeUser();
+
+        $this->actingAs($user)->post(route('ld.store'), [
+            'competency' => 'technical', 'title' => 'Records Management Seminar',
+            'date' => '2026-07-10', 'hours' => 8,
+        ])->assertRedirect();
+        $this->actingAs($this->adminUser())
+            ->patch(route('ld.decide', LdEntry::firstOrFail()), ['decision' => 'approved'])
+            ->assertRedirect();
+
+        $this->actingAs($user)->get(route('ld.mine', ['year' => 2026]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Ld/Mine')
+                ->where('summary.hours', 8)
+                ->where('summary.met', true)
+                ->where('entries.0.title', 'Records Management Seminar')
+                ->where('entries.0.competency', 'Technical')
+                ->where('entries.0.dates', '10 July 2026'));
     }
 
     public function test_pending_hours_do_not_count_until_approved(): void

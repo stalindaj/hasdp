@@ -124,6 +124,9 @@ Route::middleware('auth')->group(function () {
     // private and served only to the owner and admins.
     Route::get('/ld', [LdController::class, 'index'])
         ->middleware('admin')->name('ld.index');
+    // The employee's own L&D page — their trainings and the form to file one.
+    Route::get('/my-ld', [LdController::class, 'mine'])
+        ->middleware('employee')->name('ld.mine');
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
     Route::patch('/ld/{entry}/decide', [LdController::class, 'decide'])->name('ld.decide');
     Route::get('/ld/{entry}/file/{kind}', [LdController::class, 'file'])

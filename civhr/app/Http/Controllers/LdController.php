@@ -15,9 +15,12 @@ use Inertia\Inertia;
 /**
  * Learning & Development submissions.
  *
- * The employee files a training with photo proof (certificate and/or a photo
- * taken during the training — at least one required); an admin approves or
- * rejects it, and only approved hours count toward the yearly target.
+ * The employee files a training from their own L&D page — the competency it
+ * builds, its title, the dates it ran and the hours — and attaches the
+ * certificate and/or a photo taken during it. Proof is asked for but not
+ * required: a training nobody photographed is still a training, so it can be
+ * recorded and the paper brought later. An admin approves or rejects it, and
+ * only approved hours count toward the yearly target.
  *
  * Proof images hold personal data, so they are stored on the private disk and
  * served only to the owner and admins through the file route below — never as
@@ -76,8 +79,9 @@ class LdController extends Controller
                 'id'       => $l->id,
                 'employee' => trim($l->employee?->first_name.' '.$l->employee?->last_name),
                 'title'    => $l->title,
+                'competency' => $l->competencyLabel(),
                 'hours'    => (float) $l->hours,
-                'date'     => $l->date->format('d F Y'),
+                'date'     => $l->inclusive_dates_text,
                 'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
                 'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
             ]);
@@ -105,30 +109,99 @@ class LdController extends Controller
         ]);
     }
 
+    /**
+     * The employee's own L&D page: what they have filed for a year, where it
+     * stands against their salary-grade target, and the form to file more.
+     */
+    public function mine(Request $request)
+    {
+        $employee = $request->user()->employee;
+        abort_unless($employee, 403, 'Your account is not linked to an employee record.');
+
+        $year = (int) $request->integer('year', now()->year);
+
+        $entries = $employee->ldEntries()
+            ->whereYear('date', $year)
+            ->orderByDesc('date')
+            ->get();
+
+        $approved = (float) $entries->where('status', LdEntry::APPROVED)->sum('hours');
+        $target = LdTarget::hoursFor($employee);
+
+        // Hours per track, so the page shows the spread and not just a total.
+        $byCompetency = collect(LdEntry::COMPETENCIES)
+            ->map(fn ($label, $key) => [
+                'key'   => $key,
+                'label' => $label,
+                'hours' => round((float) $entries->where('status', LdEntry::APPROVED)
+                    ->where('competency', $key)->sum('hours'), 1),
+            ])
+            ->values();
+
+        $years = $employee->ldEntries()->pluck('date')
+            ->map(fn ($d) => (int) Carbon::parse($d)->year)
+            ->push(now()->year)
+            ->push($year)
+            ->unique()
+            ->sortDesc()
+            ->values();
+
+        return Inertia::render('Ld/Mine', [
+            'year'  => $year,
+            'years' => $years,
+            'competencies' => collect(LdEntry::COMPETENCIES)
+                ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
+                ->values(),
+            'summary' => [
+                'target'    => $target,
+                'hours'     => round($approved, 1),
+                'remaining' => round(max(0, $target - $approved), 1),
+                'met'       => $approved >= $target,
+                'pending'   => round((float) $entries->where('status', LdEntry::PENDING)->sum('hours'), 1),
+                'by_competency' => $byCompetency,
+            ],
+            'entries' => $entries->map(fn (LdEntry $l) => [
+                'id'         => $l->id,
+                'competency' => $l->competencyLabel(),
+                'title'      => $l->title,
+                'dates'      => $l->inclusive_dates_text,
+                'hours'      => (float) $l->hours,
+                'status'     => $l->status,
+                'remarks'    => $l->remarks,
+                'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
+            ])->values(),
+        ]);
+    }
+
     /** Employee submits a training for approval. */
     public function store(Request $request)
     {
         $employee = $request->user()->employee;
         abort_unless($employee, 403, 'Your account is not linked to an employee record.');
 
-        $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'hours' => ['required', 'numeric', 'min:0.5', 'max:999'],
-            'date'  => ['required', 'date', 'before_or_equal:today'],
-            'certificate' => ['nullable', 'required_without:photo', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'photo'       => ['nullable', 'required_without:certificate', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        ], [
-            'certificate.required_without' => 'Attach the certificate, a photo from the training, or both.',
-            'photo.required_without'       => 'Attach the certificate, a photo from the training, or both.',
+        $data = $request->validate([
+            'competency' => ['nullable', Rule::in(array_keys(LdEntry::COMPETENCIES))],
+            'title'   => ['required', 'string', 'max:255'],
+            // A training with no hours given is taken as one hour rather than
+            // refused — the office would rather have the row than the blank.
+            'hours'   => ['nullable', 'numeric', 'min:0.5', 'max:999'],
+            'date'    => ['required', 'date', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
+            // Proof is asked for, never required: it can follow later.
+            'certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'photo'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
         $dir = "ld/{$employee->id}";
 
         $employee->ldEntries()->create([
-            'title'  => $request->string('title'),
-            'hours'  => $request->input('hours'),
-            'date'   => $request->input('date'),
-            'status' => LdEntry::PENDING,
+            'competency' => $data['competency'] ?? null,
+            'title'   => $data['title'],
+            'hours'   => $data['hours'] ?? 1,
+            'date'    => $data['date'],
+            'date_to' => $data['date_to'] ?? null,
+            'status'  => LdEntry::PENDING,
             'certificate_path' => $request->file('certificate')?->store($dir),
             'photo_path'       => $request->file('photo')?->store($dir),
             'submitted_by'     => $request->user()->id,

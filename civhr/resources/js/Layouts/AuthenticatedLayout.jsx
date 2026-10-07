@@ -152,11 +152,12 @@ export default function AuthenticatedLayout({ header, children }) {
         },
         { label: 'IWOT', href: route('iwot.index'), on: route().current('iwot.*') },
         { label: 'IPCR', href: route('ipcr.index'), on: route().current('ipcr.*') },
-        isAdmin && {
-            // L&D roster — everyone's yearly training hours vs their target.
+        {
+            // Admins see the roster (everyone's hours against their target);
+            // everyone else sees their own trainings and files new ones.
             label: 'L&D',
-            href: route('ld.index'),
-            on: route().current('ld.index'),
+            href: route(isAdmin ? 'ld.index' : 'ld.mine'),
+            on: route().current('ld.*'),
         },
         isAdmin && {
             // Users + Employees live behind one "Personnel" tab.
