@@ -279,7 +279,7 @@ class CreditLedger
                 'kind'   => strtoupper($e->kind),
                 'amount' => (float) $e->amount,
                 'note'   => $e->note,
-                'date'   => $e->created_at->format('M j, Y'),
+                'date'   => $e->created_at->format('d F Y'),
             ]);
     }
 

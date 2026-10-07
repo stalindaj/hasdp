@@ -32,13 +32,13 @@ class InclusiveDatesTest extends TestCase
 
     public function test_a_range_across_months_says_the_year_once(): void
     {
-        $this->assertSame('30 July - 2 August 2026', $this->text('2026-07-30', '2026-08-02'));
+        $this->assertSame('30 July - 02 August 2026', $this->text('2026-07-30', '2026-08-02'));
     }
 
     public function test_a_range_across_years_spells_both_out(): void
     {
         $this->assertSame(
-            '30 December 2026 - 2 January 2027',
+            '30 December 2026 - 02 January 2027',
             $this->text('2026-12-30', '2027-01-02')
         );
     }

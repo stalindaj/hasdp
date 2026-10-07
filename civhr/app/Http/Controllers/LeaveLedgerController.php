@@ -40,8 +40,8 @@ class LeaveLedgerController extends Controller
             'employee'  => $employee,
             'office'    => $employee->office_department,
             'firstDay'  => $employee->date_orig_appt
-                ? Carbon::parse($employee->date_orig_appt)->format('F j, Y')
-                : optional($employee->credits_accrual_start)->format('F j, Y'),
+                ? Carbon::parse($employee->date_orig_appt)->format('d F Y')
+                : optional($employee->credits_accrual_start)->format('d F Y'),
             'rows'      => $rows,
             'vlBalance' => end($rows) ? $rows[array_key_last($rows)]['vl_bal'] : 0,
             'slBalance' => end($rows) ? $rows[array_key_last($rows)]['sl_bal'] : 0,

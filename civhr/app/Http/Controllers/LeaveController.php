@@ -846,7 +846,7 @@ class LeaveController extends Controller
                                 : $a->leaveType->name,
             'working_days'  => (float) $a->working_days,
             'inclusive'     => $a->inclusive_dates_text,
-            'date_filing'   => optional($a->date_filing)->format('M j, Y'),
+            'date_filing'   => optional($a->date_filing)->format('d F Y'),
             'status'        => $a->status,
             'status_label'  => LeaveWorkflow::label($a->status),
         ];
@@ -857,7 +857,7 @@ class LeaveController extends Controller
         return $this->summary($a) + [
             'signed_form' => [
                 'uploaded' => (bool) $a->signed_form_path,
-                'at'       => optional($a->signed_form_uploaded_at)->format('M j, Y g:i A'),
+                'at'       => optional($a->signed_form_uploaded_at)->format('d F Y g:i A'),
             ],
             'applicant'         => $a->applicant_name,
             'office_department' => $a->office_department,
@@ -877,7 +877,7 @@ class LeaveController extends Controller
             ],
             'certification' => [
                 'as_of'         => optional($a->cert_as_of)->format('Y-m-d'),   // for the date input
-                'as_of_display' => optional($a->cert_as_of)->format('j F Y'),   // day month year
+                'as_of_display' => optional($a->cert_as_of)->format('d F Y'),   // day month year
                 'vl_earned'  => $a->vl_earned,
                 'vl_less'    => $a->vl_less,
                 'vl_balance' => $a->vl_balance,
@@ -895,13 +895,13 @@ class LeaveController extends Controller
                 'days_others'      => $a->days_others,
                 'others_specify'   => $a->days_others_specify,
                 'reason'           => $a->disapproval_reason,
-                'at'               => optional($a->decided_at)->format('M j, Y g:i A'),
+                'at'               => optional($a->decided_at)->format('d F Y g:i A'),
             ],
             'history' => $a->actions->map(fn ($h) => [
                 'id'      => $h->id,
                 'action'  => $h->action,
                 'by'      => $h->user?->name ?? 'System',
-                'at'      => $h->created_at->format('M j, Y g:i A'),
+                'at'      => $h->created_at->format('d F Y g:i A'),
                 'remarks' => $h->remarks,
             ]),
         ];

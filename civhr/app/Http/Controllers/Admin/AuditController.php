@@ -99,7 +99,7 @@ class AuditController extends Controller
                 'details' => trim(implode(' · ', array_filter([
                     $l->title,
                     $l->hours.'h',
-                    $l->date->format('M j, Y'),
+                    $l->date->format('d F Y'),
                     $l->remarks,
                 ]))),
                 'link' => null,

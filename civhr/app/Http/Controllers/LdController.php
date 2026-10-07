@@ -77,7 +77,7 @@ class LdController extends Controller
                 'employee' => trim($l->employee?->first_name.' '.$l->employee?->last_name),
                 'title'    => $l->title,
                 'hours'    => (float) $l->hours,
-                'date'     => $l->date->format('M j, Y'),
+                'date'     => $l->date->format('d F Y'),
                 'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
                 'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
             ]);

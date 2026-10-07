@@ -22,6 +22,12 @@
     $sigH   = $sigHeight ?? 20;
     $sigGap = $sigGapAbove ?? 2;
 
+    // The ink normally spans the signature rule; a block may place it
+    // elsewhere (6.D signs over the right-hand side of its cell) without
+    // moving the rule or the caption.
+    $sigLeft  = $sigLeftArg ?? $left;
+    $sigWidth = $sigWidthArg ?? $width;
+
     $rank   = $sig['rank'] ?? '';
     // Some blocks (e.g. 6.D applicant) print no name — just a signature space.
     $name   = ($hideName ?? false) ? '' : ($sig['name'] ?? '');
@@ -93,9 +99,9 @@
     <img src="{{ $sig['signature'] }}" alt=""
          onerror="this.style.display='none'"
          style="position:absolute;
-                left:{{ $left }}pt;
+                left:{{ $sigLeft }}pt;
                 top:{{ $sigTop }}pt;
-                width:{{ $width }}pt;
+                width:{{ $sigWidth }}pt;
                 height:{{ round($sigH, 2) }}pt;
                 border:0;
                 object-fit:contain;

@@ -79,7 +79,7 @@ class DashboardController extends Controller
                 'employee' => trim($l->employee->first_name.' '.$l->employee->last_name),
                 'title'    => $l->title,
                 'hours'    => (float) $l->hours,
-                'date'     => $l->date->format('M j, Y'),
+                'date'     => $l->date->format('d F Y'),
                 'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
                 'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
             ]);
@@ -163,7 +163,7 @@ class DashboardController extends Controller
                 'ld_entries'    => $ldEntries->map(fn ($l) => [
                     'title'   => $l->title,
                     'hours'   => (float) $l->hours,
-                    'date'    => $l->date->format('M j, Y'),
+                    'date'    => $l->date->format('d F Y'),
                     'status'  => $l->status,
                     'remarks' => $l->remarks,
                     'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
@@ -197,8 +197,8 @@ class DashboardController extends Controller
                 'name'    => trim($employee->first_name.' '.$employee->last_name),
                 'position'=> $employee->position,
                 'contact' => $employee->contact_no,
-                'birthday'=> optional($employee->date_of_birth)->format('M j, Y'),
-                'last_ape'=> optional($employee->last_ape_date)->format('M j, Y'),
+                'birthday'=> optional($employee->date_of_birth)->format('d F Y'),
+                'last_ape'=> optional($employee->last_ape_date)->format('d F Y'),
             ],
             // Every year on record, so past compliance stays visible.
             'ipcr' => $employee->ipcrRecords()->orderByDesc('year')->get()
@@ -217,7 +217,7 @@ class DashboardController extends Controller
                     'id'      => $l->id,
                     'title'   => $l->title,
                     'hours'   => (float) $l->hours,
-                    'date'    => $l->date->format('M j, Y'),
+                    'date'    => $l->date->format('d F Y'),
                     'status'  => $l->status,
                     'remarks' => $l->remarks,
                     'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,

@@ -16,7 +16,8 @@
     $L = 102.4; $R = 538.7; $MID = 341.0;          // table edges + column divider
     $ROW = 12.6;                                    // checkbox row pitch
 
-    $d = fn ($date, $fmt = 'F j, Y') => $date ? Carbon::parse($date)->format($fmt) : '';
+    // Every date on the form reads the same way: 02 October 2026.
+    $d = fn ($date, $fmt = 'd F Y') => $date ? Carbon::parse($date)->format($fmt) : '';
     $num = fn ($v) => $v === null ? '' : rtrim(rtrim(number_format((float) $v, 3, '.', ''), '0'), '.');
 
     /**
@@ -85,7 +86,10 @@
 <meta charset="utf-8">
 <title>CS Form No. 6 — {{ $app->applicant_name }}</title>
 <style>
-    @page { size: 8.5in 11in; margin: 0; }
+    /* The office prints on A4. The sheet keeps the official Letter
+       geometry (612x792pt) and is scaled to A4's width on the way out, so
+       the form fills the paper instead of sitting small in the middle of it. */
+    @page { size: A4; margin: 0; }
 
     * { box-sizing: border-box; }
 
@@ -198,6 +202,16 @@
 
     @media print {
         html, body { background: #fff; }
+
+        /* A4 is narrower and taller than the Letter sheet the coordinates
+           come from (595.28x841.89 against 612x792), so each axis gets its
+           own factor and the form fills the page edge to edge. The 6pt of
+           extra height this stretches over is not visible on the printout. */
+        .sheet {
+            margin: 0;
+            transform: scale(0.97268, 1.06299);
+            transform-origin: top left;
+        }
         .toolbar { display: none !important; }
         .sigup { display: none !important; }
         .sheet { margin: 0; page-break-after: always; }
@@ -407,6 +421,13 @@
         'width'   => 190,
         'top'     => 485,
         'caption' => '(Signature of Applicant)',
+        // The ink gets a band of its own over the clear right-hand side of
+        // the cell: taller than the default 20pt one, and narrow enough that
+        // object-fit:contain is bound by the width rather than squashed into
+        // a strip. It rides over the rule the way a pen signature does.
+        'sigHeight' => 30,
+        'sigLeftArg' => 410,
+        'sigWidthArg' => 125,
         // The applicant's name already prints in box 2; 6.D is just their
         // signature over the line.
         'hideName' => true,
@@ -423,7 +444,7 @@
 
     <div class="row" style="left:156pt; top:538pt; width:130pt; height:13pt;">
         <span class="lbl f75">As of</span>
-        <span class="fill v">{{ $d($cert['cert_as_of'], 'j F Y') }}</span>
+        <span class="fill v">{{ $d($cert['cert_as_of']) }}</span>
     </div>
 
     {{-- Leave-credit grid: columns land on 119.3 / 189.1 / 256.5 / 323.8.
@@ -520,7 +541,7 @@
         'width'   => 190,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
-        'signedOn' => $app->recommended_at ? $d($app->recommended_at, 'd M Y') : null,
+        'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
     {{-- ── 7.C APPROVED FOR / 7.D DISAPPROVED DUE TO ── --}}
@@ -566,7 +587,7 @@
         'width'   => 199,
         'top'     => 686,
         'caption' => '(Authorized Official)',
-        'signedOn' => $decided ? $d($app->decided_at, 'd M Y') : null,
+        'signedOn' => $decided ? $d($app->decided_at) : null,
     ])
 
     {{-- ── On-screen signing controls (never printed) ──

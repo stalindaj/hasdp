@@ -21,7 +21,7 @@ class HolidayController extends Controller
                 ->map(fn ($h) => [
                     'id'    => $h->id,
                     'date'  => $h->date->toDateString(),
-                    'label' => $h->date->format('D · M j, Y'),
+                    'label' => $h->date->format('D · d F Y'),
                     'name'  => $h->name,
                     'year'  => $h->date->year,
                 ]),

@@ -75,7 +75,7 @@ class LeaveApplication extends Model
      *   one day            21 July 2026
      *   within a month     20-22 July 2026
      *   across months      30 July - 2 August 2026
-     *   across years       30 December 2026 - 2 January 2027
+     *   across years       30 December 2026 - 02 January 2027
      */
     public function getInclusiveDatesTextAttribute(): string
     {
@@ -87,20 +87,20 @@ class LeaveApplication extends Model
         $to   = Carbon::parse($this->date_to);
 
         if ($from->isSameDay($to)) {
-            return $from->format('j F Y');
+            return $from->format('d F Y');
         }
 
         // Same month and year: only the days differ.
         if ($from->isSameMonth($to, true)) {
-            return $from->format('j').'-'.$to->format('j F Y');
+            return $from->format('d').'-'.$to->format('d F Y');
         }
 
         // Same year: repeat the month but say the year once.
         if ($from->year === $to->year) {
-            return $from->format('j F').' - '.$to->format('j F Y');
+            return $from->format('d F').' - '.$to->format('d F Y');
         }
 
-        return $from->format('j F Y').' - '.$to->format('j F Y');
+        return $from->format('d F Y').' - '.$to->format('d F Y');
     }
 
 }
