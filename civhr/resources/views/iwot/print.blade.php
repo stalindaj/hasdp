@@ -25,6 +25,8 @@
         'poor' => 'Poor',
     ];
 
+    $period = \App\Support\RatingPeriod::display($form->rating_period, $form->year, $form->semester);
+
     $footer = [
         'prepared' => ['label' => 'PREPARED BY:', 'name' => $form->prepared_by ?: $employeeName, 'desig' => $form->prepared_designation ?: 'Employee'],
         'approved' => ['label' => 'APPROVED BY:', 'name' => $form->approved_by, 'desig' => $form->approved_designation ?: 'NCOIC'],
@@ -92,8 +94,8 @@
         <div class="nm">{{ $employeeName }}</div>
         <div class="ps">{{ $position }}</div>
         <div class="of">{{ $form->office_unit }}</div>
-        @if ($form->rating_period)
-            <div class="pd">{{ $form->rating_period }}</div>
+        @if ($period)
+            <div class="pd">{{ $period }}</div>
         @endif
     </div>
 

@@ -25,6 +25,20 @@ class RatingPeriod
         return self::SEMESTERS[$semester].' '.$year;
     }
 
+    /**
+     * What a saved form's period should read as. Wording someone typed is
+     * kept; anything this class generated itself — including the older
+     * "July - December 2026" phrasing — is re-labelled from the semester, so
+     * forms filed before the dates were spelled out still print them.
+     */
+    public static function display(?string $stored, ?int $year, ?int $semester): string
+    {
+        $stored = trim((string) $stored);
+        $generated = $stored === '' || preg_match('/^(January - June|July - December)\s+\d{4}$/', $stored) === 1;
+
+        return $generated ? (self::label($year, $semester) ?: $stored) : $stored;
+    }
+
     /** Short form for lists, e.g. "2026 · 1st sem". */
     public static function short(?int $year, ?int $semester): string
     {

@@ -35,6 +35,7 @@
     $rate = fn ($v) => $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
 
     $signedDate = optional($form->submitted_at ?? $form->updated_at)->format('d F Y');
+    $period = \App\Support\RatingPeriod::display($form->rating_period, $form->year, $form->semester);
 
     // Assessed by / Final Rating by are the same two supervisors as the top
     // block, so they carry the same designations.
@@ -145,7 +146,7 @@
                     I, {{ $rateeName ?: '________' }}, {{ $rateePosition ?: '________' }} of the
                     {{ $form->office_unit ?: '________' }}, commit to deliver and agree to be rated on the
                     attainment of the following targets in accordance with the indicated measures for the
-                    period {{ $form->rating_period }}.
+                    period {{ $period }}.
                 </div>
                 <div class="sign">
                     <div class="nm">
