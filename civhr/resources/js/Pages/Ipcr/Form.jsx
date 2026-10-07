@@ -35,6 +35,12 @@ function blankGroup() {
     };
 }
 
+/** Signatory cells that follow another one until they are typed over. */
+const MIRRORED = {
+    fe_reviewed_by: 'fe_assessed_by',
+    fe_approved_by: 'fe_final_rating_by',
+};
+
 /** The Form E entries a group carries — what the IPCR itself fills in. */
 const RATED = [
     'actual_accomplishment',
@@ -205,7 +211,19 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         defaults?.name ??
         '';
 
-    const patchData = (obj) => setData((d) => ({ ...d, ...obj }));
+    const patchData = (obj) =>
+        setData((d) => {
+            const next = { ...d, ...obj };
+            // The reviewer is the assessor and the approver gives the final
+            // rating, so the lower band follows the upper one — until someone
+            // types a different name there, which then stands.
+            for (const [from, to] of Object.entries(MIRRORED)) {
+                if (obj[from] !== undefined && (!d[to] || d[to] === d[from])) {
+                    next[to] = obj[from];
+                }
+            }
+            return next;
+        });
 
     const patchGroups = (gi, fn) =>
         setData((d) => ({ ...d, groups: d.groups.map((g, i) => (i === gi ? fn(g) : g)) }));
