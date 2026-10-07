@@ -25,7 +25,6 @@ function blankGroup() {
         remarks: '',
         rows: MEASURES.map((m) => ({
             performance_measure: m.measure,
-            performance_targets: '',
             outstanding: '',
             very_satisfactory: '',
             satisfactory: '',
@@ -88,24 +87,29 @@ function Card({ title, action, hint, scrolls = false, children }) {
 }
 
 /** Where Form E's outputs are coming from, or why they are typed by hand. */
-function IwotNotice({ iwot, hasRatee }) {
+function IwotNotice({ iwot, hasRatee, onPull }) {
     if (!hasRatee || iwot.loading) {
         return null;
     }
     if (iwot.found?.groups?.length) {
         return (
             <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-                Outputs and standards loaded from the{' '}
+                Outputs and success indicators come from the{' '}
                 <a href={route('iwot.show', iwot.found.id)} target="_blank" rel="noreferrer" className="font-semibold underline">
                     IWOT for this semester
                 </a>{' '}
-                ({iwot.found.status}). You can still adjust them here.
+                ({iwot.found.status}) — type the actual accomplishments and ratings below. You can edit the
+                wording here too, or{' '}
+                <button type="button" onClick={onPull} className="font-semibold underline">
+                    reload it from the IWOT
+                </button>
+                .
             </p>
         );
     }
     return (
         <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            No IWOT is on file for this ratee and semester, so there are no standards to rate against —{' '}
+            No IWOT is on file for this ratee and semester, so there are no outputs to carry over —{' '}
             <a href={route('iwot.create')} target="_blank" rel="noreferrer" className="font-semibold underline">
                 file the IWOT first
             </a>
@@ -186,6 +190,12 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
             live = false;
         };
     }, [data.user_id, data.year, data.semester]);
+
+    // A saved IPCR keeps its own text, so re-pulling the IWOT's wording is a
+    // deliberate click rather than something that happens behind the back.
+    const pullFromIwot = () =>
+        iwot.found?.groups?.length &&
+        setData((d) => ({ ...d, groups: fromIwot(iwot.found.groups, d.groups) }));
 
     const rateeName =
         form?.ratee ??
@@ -396,7 +406,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                             </>
                         }
                     >
-                        <IwotNotice iwot={iwot} hasRatee={Boolean(data.user_id)} />
+                        <IwotNotice iwot={iwot} hasRatee={Boolean(data.user_id)} onPull={pullFromIwot} />
                         <FormE
                             {...sheet}
                             setData={patchData}

@@ -101,14 +101,12 @@
         <tr>
             <th rowspan="2" style="width:16%">MAJOR FINAL OUTPUT</th>
             <th rowspan="2" style="width:9%">TIMELINESS</th>
-            <th style="width:9%">PERFORMANCE MEASURES</th>
-            <th style="width:11%">PERFORMANCE TARGETS</th>
+            <th style="width:11%">PERFORMANCE MEASURES</th>
             <th rowspan="2" style="width:16%">SUCCESS INDICATOR<br><span style="font-weight:400;font-style:italic">Measures+Targets</span></th>
             <th colspan="5">PERFORMANCE STANDARDS</th>
         </tr>
         <tr>
             <th style="font-weight:400;font-style:italic">(Measures)</th>
-            <th style="font-weight:400;font-style:italic">(Targets)</th>
             @foreach ($bands as $label)
                 <th style="width:7.8%">{{ $label }}</th>
             @endforeach
@@ -123,7 +121,6 @@
                         <td rowspan="{{ $span }}">{{ $g->timeliness }}</td>
                     @endif
                     <td class="measure">{{ $row->performance_measure }}</td>
-                    <td>{{ $row->performance_targets }}</td>
                     @if ($mi === 0)
                         <td rowspan="{{ $span }}" style="vertical-align:middle">{{ $g->success_indicator }}</td>
                     @endif
@@ -133,7 +130,7 @@
                 </tr>
             @endforeach
         @empty
-            <tr><td colspan="10" style="text-align:center;color:#777">No major final outputs recorded.</td></tr>
+            <tr><td colspan="9" style="text-align:center;color:#777">No major final outputs recorded.</td></tr>
         @endforelse
     </table>
 

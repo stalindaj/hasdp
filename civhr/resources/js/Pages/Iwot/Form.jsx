@@ -16,7 +16,6 @@ function blankGroup() {
         success_indicator: '',
         rows: MEASURES.map((m) => ({
             performance_measure: m.measure,
-            performance_targets: '',
             outstanding: '',
             very_satisfactory: '',
             satisfactory: '',

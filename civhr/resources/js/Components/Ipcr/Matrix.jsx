@@ -105,7 +105,7 @@ export default function Matrix({
                 <tbody>
                     {/* Ratee header block, live from the fields above. */}
                     <tr>
-                        <td colSpan={readOnly ? 10 : 11} className="py-3 text-center">
+                        <td colSpan={readOnly ? 9 : 10} className="py-3 text-center">
                             <div className="font-bold">{rateeName || '—'}</div>
                             <div className="mx-auto max-w-xl">
                                 <Line
@@ -138,7 +138,6 @@ export default function Matrix({
                             TIMELINESS
                         </th>
                         <th style={{ width: '12%', minWidth: 100 }}>PERFORMANCE MEASURES</th>
-                        <th style={{ width: '12%', minWidth: 100 }}>PERFORMANCE TARGETS</th>
                         <th rowSpan={2} style={{ width: '18%', minWidth: 140 }}>
                             SUCCESS INDICATOR
                             <br />
@@ -149,7 +148,6 @@ export default function Matrix({
                     </tr>
                     <tr>
                         <th className="font-normal italic">(Measures)</th>
-                        <th className="font-normal italic">(Targets)</th>
                         {BANDS.map((b) => (
                             <th key={b.band} style={{ width: '9%', minWidth: 75 }} className="text-[0.65rem]">
                                 {b.label}
@@ -159,7 +157,7 @@ export default function Matrix({
 
                     {groups.length === 0 && (
                         <tr>
-                            <td colSpan={readOnly ? 10 : 11} className="py-6 text-center text-gray-500">
+                            <td colSpan={readOnly ? 9 : 10} className="py-6 text-center text-gray-500">
                                 {readOnly
                                     ? 'No major final outputs recorded.'
                                     : 'No outputs yet — use “Add Major Output Group” above to start.'}
@@ -194,14 +192,6 @@ export default function Matrix({
                                 <td className="measure-cell text-center align-middle font-semibold">
                                     {m.measure}
                                 </td>
-                                <td>
-                                    <Cell
-                                        readOnly={readOnly}
-                                        value={g.rows?.[mi]?.performance_targets}
-                                        onChange={(v) => setRow(gi, mi, { performance_targets: v })}
-                                    />
-                                </td>
-
                                 {mi === 0 && (
                                     <td rowSpan={3} className="align-middle">
                                         <Cell
