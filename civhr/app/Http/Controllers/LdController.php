@@ -163,8 +163,11 @@ class LdController extends Controller
             'entries' => $entries->map(fn (LdEntry $l) => [
                 'id'         => $l->id,
                 'competency' => $l->competencyLabel(),
+                'competency_key' => $l->competency,
                 'title'      => $l->title,
                 'dates'      => $l->inclusive_dates_text,
+                'date'       => optional($l->date)->toDateString(),
+                'date_to'    => optional($l->date_to)->toDateString(),
                 'hours'      => (float) $l->hours,
                 'status'     => $l->status,
                 'remarks'    => $l->remarks,
@@ -180,18 +183,7 @@ class LdController extends Controller
         $employee = $request->user()->employee;
         abort_unless($employee, 403, 'Your account is not linked to an employee record.');
 
-        $data = $request->validate([
-            'competency' => ['nullable', Rule::in(array_keys(LdEntry::COMPETENCIES))],
-            'title'   => ['required', 'string', 'max:255'],
-            // A training with no hours given is taken as one hour rather than
-            // refused — the office would rather have the row than the blank.
-            'hours'   => ['nullable', 'numeric', 'min:0.5', 'max:999'],
-            'date'    => ['required', 'date', 'before_or_equal:today'],
-            'date_to' => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
-            // Proof is asked for, never required: it can follow later.
-            'certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'photo'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-        ]);
+        $data = $this->validatedEntry($request);
 
         $dir = "ld/{$employee->id}";
 
@@ -208,6 +200,63 @@ class LdController extends Controller
         ]);
 
         return back()->with('success', 'Training submitted. The hours will count once an admin approves it.');
+    }
+
+    /**
+     * The employee corrects one of their own entries. Any change puts it back
+     * in the queue: an approved row's hours already count toward the target,
+     * so they must not be editable behind the approver's back. Proof files
+     * are only touched when a new one is attached.
+     */
+    public function update(Request $request, LdEntry $entry)
+    {
+        $employee = $request->user()->employee;
+        abort_unless($employee && (int) $entry->employee_id === (int) $employee->id, 403);
+
+        $data = $this->validatedEntry($request);
+
+        $dir = "ld/{$employee->id}";
+
+        foreach (['certificate', 'photo'] as $kind) {
+            if ($file = $request->file($kind)) {
+                $old = $entry->{$kind.'_path'};
+                $entry->{$kind.'_path'} = $file->store($dir);
+                if ($old) {
+                    Storage::delete($old);
+                }
+            }
+        }
+
+        $entry->fill([
+            'competency' => $data['competency'] ?? null,
+            'title'   => $data['title'],
+            'hours'   => $data['hours'] ?? 1,
+            'date'    => $data['date'],
+            'date_to' => $data['date_to'] ?? null,
+            'status'  => LdEntry::PENDING,
+            'remarks' => null,
+            'decided_by' => null,
+            'decided_at' => null,
+        ])->save();
+
+        return back()->with('success', 'Training updated — it goes back to the approver.');
+    }
+
+    /** The employee removes one of their own entries (a duplicate, say). */
+    public function destroy(Request $request, LdEntry $entry)
+    {
+        $employee = $request->user()->employee;
+        abort_unless($employee && (int) $entry->employee_id === (int) $employee->id, 403);
+
+        foreach ([$entry->certificate_path, $entry->photo_path] as $path) {
+            if ($path) {
+                Storage::delete($path);
+            }
+        }
+
+        $entry->delete();
+
+        return back()->with('success', 'Training removed.');
     }
 
     /** Admin approves or rejects a submission (re-decidable any time). */
@@ -230,6 +279,23 @@ class LdController extends Controller
         return back()->with('success', $data['decision'] === LdEntry::APPROVED
             ? 'L&D approved — the hours now count.'
             : 'L&D rejected.');
+    }
+
+    /** What an employee may say about a training, filing or correcting it. */
+    private function validatedEntry(Request $request): array
+    {
+        return $request->validate([
+            'competency' => ['nullable', Rule::in(array_keys(LdEntry::COMPETENCIES))],
+            'title'   => ['required', 'string', 'max:255'],
+            // A training with no hours given is taken as one hour rather than
+            // refused — the office would rather have the row than the blank.
+            'hours'   => ['nullable', 'numeric', 'min:0.5', 'max:999'],
+            'date'    => ['required', 'date', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
+            // Proof is asked for, never required: it can follow later.
+            'certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'photo'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
     }
 
     /** Serve a proof image to the owner or an admin. */

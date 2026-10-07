@@ -162,6 +162,50 @@ class LdAndUploadsTest extends TestCase
                 ->where('entries.0.dates', '10 July 2026'));
     }
 
+    public function test_an_employee_corrects_their_own_entry_and_it_goes_back_to_pending(): void
+    {
+        $user = $this->employeeUser();
+
+        $this->actingAs($user)->post(route('ld.store'), [
+            'competency' => 'technical', 'title' => 'Dat Analytcs', 'date' => '2026-07-10', 'hours' => 8,
+        ])->assertRedirect();
+        $entry = LdEntry::firstOrFail();
+        $this->actingAs($this->adminUser())
+            ->patch(route('ld.decide', $entry), ['decision' => 'approved'])->assertRedirect();
+
+        $this->actingAs($user)->post(route('ld.update', $entry), [
+            'competency' => 'managerial', 'title' => 'Data Analytics Essentials',
+            'date' => '2026-07-10', 'date_to' => '2026-07-11', 'hours' => 16,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $entry->refresh();
+        $this->assertSame('Data Analytics Essentials', $entry->title);
+        $this->assertSame('managerial', $entry->competency);
+        $this->assertEquals(16.0, (float) $entry->hours);
+        // The hours counted while it was approved, so an edit re-queues it.
+        $this->assertSame(LdEntry::PENDING, $entry->status);
+        $this->assertNull($entry->decided_at);
+    }
+
+    public function test_an_employee_removes_their_own_duplicate_but_not_someone_elses(): void
+    {
+        $owner = $this->employeeUser();
+        $this->actingAs($owner)->post(route('ld.store'), [
+            'title' => 'Seminar', 'date' => '2026-07-10', 'hours' => 4,
+        ])->assertRedirect();
+        $entry = LdEntry::firstOrFail();
+
+        $other = $this->userWithRoles(['employee'], ['emp_no' => '9001', 'first_name' => 'Nosy', 'last_name' => 'Neighbour']);
+        $this->actingAs($other)->delete(route('ld.destroy', $entry))->assertForbidden();
+        $this->actingAs($other)->post(route('ld.update', $entry), [
+            'title' => 'Hijacked', 'date' => '2026-07-10',
+        ])->assertForbidden();
+        $this->assertSame(1, LdEntry::count());
+
+        $this->actingAs($owner)->delete(route('ld.destroy', $entry))->assertRedirect();
+        $this->assertSame(0, LdEntry::count());
+    }
+
     public function test_pending_hours_do_not_count_until_approved(): void
     {
         $user = $this->employeeUser();

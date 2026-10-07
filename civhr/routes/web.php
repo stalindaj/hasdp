@@ -128,6 +128,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/my-ld', [LdController::class, 'mine'])
         ->middleware('employee')->name('ld.mine');
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
+    // The employee corrects or drops one of their own; either way it goes
+    // back to the approver.
+    Route::post('/ld/{entry}', [LdController::class, 'update'])->name('ld.update');
+    Route::delete('/ld/{entry}', [LdController::class, 'destroy'])->name('ld.destroy');
     Route::patch('/ld/{entry}/decide', [LdController::class, 'decide'])->name('ld.decide');
     Route::get('/ld/{entry}/file/{kind}', [LdController::class, 'file'])
         ->whereIn('kind', ['certificate', 'photo'])->name('ld.file');
