@@ -122,7 +122,7 @@ export default function Matrix({
                                 />
                                 <Line
                                     className="text-[0.7em]"
-                                    placeholder="Period covered, e.g. January - June 2026"
+                                    placeholder="Period covered, e.g. 01 January to 30 June 2026"
                                     value={data.rating_period}
                                     onChange={set && ((v) => set({ rating_period: v }))}
                                 />

@@ -11,11 +11,11 @@ namespace App\Support;
 class RatingPeriod
 {
     public const SEMESTERS = [
-        1 => 'January - June',
-        2 => 'July - December',
+        1 => '01 January to 30 June',
+        2 => '01 July to 31 December',
     ];
 
-    /** The printed period, e.g. "January - June 2026". */
+    /** The printed period, e.g. "01 January to 30 June 2026". */
     public static function label(?int $year, ?int $semester): string
     {
         if (! $year || ! isset(self::SEMESTERS[$semester])) {

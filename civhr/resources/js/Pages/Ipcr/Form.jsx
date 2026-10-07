@@ -140,7 +140,9 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         strategic_priority: form?.strategic_priority ?? '',
         core_function: form?.core_function ?? '',
         status: form?.status ?? 'draft',
-        discussed_with: form?.discussed_with ?? '',
+        // "Discussed with" is the ratee themselves — filled in from the start,
+        // not typed (a manager's pick fills it in setRatee).
+        discussed_with: form?.discussed_with ?? (isManager ? '' : (defaults?.name ?? '')),
         discussed_date: form?.discussed_date ?? periodEnd,
         fe_reviewed_by: form?.fe_reviewed_by ?? '',
         fe_reviewed_date: form?.fe_reviewed_date ?? periodStart,
@@ -345,7 +347,7 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 <label className={label}>Rating period (as printed)</label>
                                 <input
                                     className={input}
-                                    placeholder="e.g. January - June 2026"
+                                    placeholder="e.g. 01 January to 30 June 2026"
                                     value={data.rating_period}
                                     onChange={(e) => setRatingPeriod(e.target.value)}
                                 />
