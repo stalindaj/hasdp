@@ -421,13 +421,13 @@
         'width'   => 190,
         'top'     => 485,
         'caption' => '(Signature of Applicant)',
-        // The ink gets a band of its own over the clear right-hand side of
-        // the cell: taller than the default 20pt one, and narrow enough that
-        // object-fit:contain is bound by the width rather than squashed into
-        // a strip. It rides over the rule the way a pen signature does.
+        // The ink gets a band of its own, centred on the rule: taller than
+        // the default 20pt one, and narrow enough that object-fit:contain is
+        // bound by the width rather than squashed into a strip. It rides over
+        // the rule — and across the checkbox labels — the way a pen does.
         'sigHeight' => 30,
-        'sigLeftArg' => 410,
-        'sigWidthArg' => 125,
+        'sigLeftArg' => $MID + 5 + (190 - 126) / 2,
+        'sigWidthArg' => 126,
         // The applicant's name already prints in box 2; 6.D is just their
         // signature over the line.
         'hideName' => true,
