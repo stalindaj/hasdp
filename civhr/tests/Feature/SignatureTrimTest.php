@@ -87,4 +87,36 @@ class SignatureTrimTest extends TestCase
         // No ink to crop to — store what they gave us rather than fail.
         $this->assertNull(SignatureImage::trimmed($this->sheet(600, 400, null)));
     }
+
+    public function test_a_signature_stored_before_trimming_is_served_tight(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        // Stored raw, the way uploads were before trimming existed: a small
+        // squiggle in the middle of a big sheet.
+        $raw = $this->sheet(1200, 900, [500, 420, 700, 480]);
+        \Illuminate\Support\Facades\Storage::put('signatures/old.png', file_get_contents($raw->getRealPath()));
+
+        $served = SignatureImage::servable('signatures/old.png');
+
+        $this->assertSame('signatures/old.png.tight.png', $served);
+        [$w, $h] = getimagesizefromstring(\Illuminate\Support\Facades\Storage::get($served));
+        $this->assertLessThan(400, $w);
+        $this->assertLessThan(200, $h);
+
+        // Cut once, then reused.
+        $this->assertSame($served, SignatureImage::servable('signatures/old.png'));
+    }
+
+    public function test_an_already_tight_signature_is_served_as_it_is(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $tight = $this->sheet(300, 100, [0, 0, 299, 99]);
+        \Illuminate\Support\Facades\Storage::put('signatures/tight.png', file_get_contents($tight->getRealPath()));
+
+        $this->assertSame('signatures/tight.png', SignatureImage::servable('signatures/tight.png'));
+        // Remembered, so the scan is not repeated on every print.
+        \Illuminate\Support\Facades\Storage::assertExists('signatures/tight.png.tight.none');
+    }
 }

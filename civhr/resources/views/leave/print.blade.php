@@ -579,14 +579,15 @@
         'width'   => 204,
         'top'     => 602.5,
         'caption' => '(Authorized Officer)',
-        // Tight cell. The ink sits ABOVE the printed name, in the gap the grid
-        // leaves — so every point of that gap is worth having. The name stack
-        // is pushed as far down as the cell bottom (629pt) allows and its lines
-        // tightened, which buys the band 16.5pt between the grid (ends 584pt)
-        // and the name. Uploads are cropped to the ink on the way in, so that
-        // band is filled by signature rather than by blank paper.
-        'sigHeight' => 16.5,
-        'sigGapAbove' => 1.0,
+        // Tight cell: only ~18pt between the grid (ends 584pt) and the name.
+        // Kept to that gap, the ink printed as a speck — so, like a pen, it
+        // runs from just under the grid down into the top of the printed
+        // name: a 24pt band centred on the name, narrow enough that
+        // object-fit:contain is bound by the height, not squashed flat.
+        'sigHeight' => 24,
+        'sigGapAbove' => -6.5,
+        'sigLeftArg' => 120 + (204 - 140) / 2,
+        'sigWidthArg' => 140,
         // Never up into the grid, whatever the signatory's name stack does.
         'sigTopMinArg' => $gTop + $gPitch * 4 + 1,
         'nameGapArg' => 6.2,

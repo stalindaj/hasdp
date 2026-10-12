@@ -139,9 +139,10 @@ class BlockSignatureTest extends TestCase
     }
 
     /**
-     * 7.A is the tightest cell on the form and has been re-tuned often. The ink
-     * belongs in the gap between the leave-credit grid (which ends at 584pt)
-     * and the printed name: over neither of them, and filling that gap.
+     * 7.A is the tightest cell on the form and has been re-tuned often. Kept
+     * to the gap between the leave-credit grid (which ends at 584pt) and the
+     * printed name (602.5pt), the ink came out a speck. It now signs the way a
+     * pen does: clear of the grid, running down into the top of the name.
      */
     public function test_the_7a_signature_sits_above_the_name_and_clears_the_grid(): void
     {
@@ -166,12 +167,13 @@ class BlockSignatureTest extends TestCase
         $inkTop = (float) $top[1];
         $inkBottom = $inkTop + (float) $height[1];
 
-        // Below the grid…
+        // Below the grid — the balances stay readable…
         $this->assertGreaterThan(584.0, $inkTop);
-        // …above the printed name, never across it…
-        $this->assertLessThanOrEqual(602.5, $inkBottom);
-        // …and filling what is left, rather than a sliver of it.
-        $this->assertGreaterThanOrEqual(16.0, (float) $height[1]);
+        // …dipping into the name's top, not past its baseline…
+        $this->assertGreaterThan(602.5, $inkBottom);
+        $this->assertLessThanOrEqual(610.0, $inkBottom);
+        // …and big enough to read as a signature.
+        $this->assertGreaterThanOrEqual(22.0, (float) $height[1]);
     }
 
     public function test_removing_a_signature_clears_it(): void

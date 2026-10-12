@@ -255,7 +255,7 @@ class IwotController extends Controller
         abort_unless(IwotAccess::canView($request->user(), $iwot), 403);
         abort_unless(FormSignatures::has($iwot, $slot), 404);
 
-        return response()->file(Storage::path(FormSignatures::path($iwot, $slot)));
+        return response()->file(Storage::path(\App\Support\SignatureImage::servable(FormSignatures::path($iwot, $slot))));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

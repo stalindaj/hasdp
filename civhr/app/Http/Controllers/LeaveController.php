@@ -648,7 +648,7 @@ class LeaveController extends Controller
         $path = ($application->signature_uploads ?? [])[$slot] ?? null;
         abort_unless($path && \Illuminate\Support\Facades\Storage::exists($path), 404);
 
-        return response()->file(\Illuminate\Support\Facades\Storage::path($path));
+        return response()->file(\Illuminate\Support\Facades\Storage::path(\App\Support\SignatureImage::servable($path)));
     }
 
     /** The uploaded signed form, visible to the owner and admins. */

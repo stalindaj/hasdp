@@ -263,7 +263,7 @@ class IpcrController extends Controller
         abort_unless(IpcrAccess::canView($request->user(), $ipcr), 403);
         abort_unless(FormSignatures::has($ipcr, $slot), 404);
 
-        return response()->file(Storage::path(FormSignatures::path($ipcr, $slot)));
+        return response()->file(Storage::path(\App\Support\SignatureImage::servable(FormSignatures::path($ipcr, $slot))));
     }
 
     public function destroy(Request $request, IpcrForm $ipcr)

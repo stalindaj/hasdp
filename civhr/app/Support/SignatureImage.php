@@ -51,12 +51,46 @@ class SignatureImage
      */
     public static function trimmed(UploadedFile $file): ?string
     {
-        if (! function_exists('imagecreatefromstring')) {
-            return null;
+        $raw = @file_get_contents($file->getRealPath());
+
+        return $raw === false ? null : self::trimBytes($raw);
+    }
+
+    /**
+     * The file to serve for a stored signature. Signatures uploaded before
+     * trimming existed still carry their sheet of blank paper, which prints
+     * them as a speck; the first time one is served a tight copy is cut and
+     * kept beside it (or a marker saying it was already tight), so every
+     * form picks up the fix without anyone re-uploading.
+     */
+    public static function servable(string $path): string
+    {
+        $tight = $path.'.tight.png';
+        $none = $path.'.tight.none';
+
+        if (Storage::exists($tight)) {
+            return $tight;
+        }
+        if (Storage::exists($none)) {
+            return $path;
         }
 
-        $raw = @file_get_contents($file->getRealPath());
-        if ($raw === false) {
+        $png = self::trimBytes((string) Storage::get($path));
+        if ($png === null) {
+            Storage::put($none, '');
+
+            return $path;
+        }
+
+        Storage::put($tight, $png);
+
+        return $tight;
+    }
+
+    /** Trim raw image bytes; null when unreadable, blank or already tight. */
+    private static function trimBytes(string $raw): ?string
+    {
+        if (! function_exists('imagecreatefromstring')) {
             return null;
         }
 

@@ -58,7 +58,7 @@ class SignatureController extends Controller
     {
         abort_unless($user->signature_path && Storage::exists($user->signature_path), 404);
 
-        return response()->file(Storage::path($user->signature_path));
+        return response()->file(Storage::path(\App\Support\SignatureImage::servable($user->signature_path)));
     }
 
     /** Your own signature, or anyone's if you are an admin. */
