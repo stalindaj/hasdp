@@ -41,6 +41,13 @@ class IwotForm extends Model
     public const APPROVED = 'approved';
     public const RETURNED = 'returned';
 
+    /**
+     * What is waiting on an admin. There is no submit step: an employee's
+     * draft is on the queue from the moment it is saved. A returned form is
+     * back with its owner, and an approved one is done, so neither counts.
+     */
+    public const AWAITING = [self::DRAFT, self::SUBMITTED];
+
     /** The blocks that can carry an e-signature image on the printed sheet. */
     public const SIGNATURE_SLOTS = ['prepared', 'approved'];
 

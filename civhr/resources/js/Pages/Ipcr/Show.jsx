@@ -35,7 +35,6 @@ export default function Show({ form, canEdit, canDelete, canSubmit, canDecide, c
             router.delete(route('ipcr.destroy', form.id));
         }
     };
-    const submitForApproval = () => router.post(route('ipcr.submit', form.id));
     const decide = (decision) => router.post(route('ipcr.decide', form.id), { decision });
     const uploadScan = (e) => {
         e.preventDefault();
@@ -107,13 +106,10 @@ export default function Show({ form, canEdit, canDelete, canSubmit, canDecide, c
                             )}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {canSubmit && (
-                                <button
-                                    onClick={submitForApproval}
-                                    className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
-                                >
-                                    Submit for approval
-                                </button>
+                            {canSubmit && !canDecide && (
+                                <span className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
+                                    Saved — your IPCR is on the admin's queue. Keep editing until they approve it.
+                                </span>
                             )}
                             {canDecide && (
                                 <>

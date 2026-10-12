@@ -48,10 +48,14 @@ class IwotAccess
         return self::isManager($user) || $form->user_id === $user->id;
     }
 
-    /** Nobody approves their own targets. */
+    /**
+     * Nobody approves their own targets. An employee's draft is on the
+     * admin's queue as soon as it is saved — there is no submission step —
+     * so anything not yet approved can be decided.
+     */
     public static function canDecide(User $user, IwotForm $form): bool
     {
-        return $form->status === IwotForm::SUBMITTED
+        return $form->status !== IwotForm::APPROVED
             && $form->user_id !== $user->id
             && self::isManager($user);
     }

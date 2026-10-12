@@ -528,31 +528,52 @@ class IpcrTest extends TestCase
         $this->assertSame(2, IpcrForm::where('user_id', $ratee->id)->count());
     }
 
-    public function test_submitted_forms_land_in_the_pending_queue(): void
+    public function test_a_ratees_draft_is_on_the_queue_without_being_submitted(): void
     {
         $manager = $this->manager();
         $ratee = $this->employee();
 
-        $draft = IpcrForm::create([
-            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 1, 'status' => 'draft',
-        ]);
-        $waiting = IpcrForm::create([
-            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 2, 'status' => IpcrForm::SUBMITTED,
+        // Filed by the ratee: it saves as a draft, nothing is submitted.
+        $this->actingAs($ratee)->post(route('ipcr.store'), [
+            ...$this->payload($ratee->id, 2026, 1),
+            'status' => 'submitted',
+        ])->assertRedirect();
+        $draft = IpcrForm::firstOrFail();
+        $this->assertSame('draft', $draft->status);
+
+        $returned = IpcrForm::create([
+            'user_id' => $ratee->id, 'year' => 2026, 'semester' => 2, 'status' => IpcrForm::RETURNED,
         ]);
 
-        // Default view for a manager is the pending queue.
+        // The manager's queue holds the draft; a returned form is back with
+        // the ratee, so it waits on them instead.
         $this->actingAs($manager)->get(route('ipcr.index'))
             ->assertInertia(fn ($page) => $page
                 ->where('filter', 'pending')
                 ->where('pendingCount', 1)
                 ->has('forms', 1)
-                ->where('forms.0.id', $waiting->id));
+                ->where('forms.0.id', $draft->id));
 
-        // "All records" shows both.
         $this->actingAs($manager)->get(route('ipcr.index', ['filter' => 'all']))
             ->assertInertia(fn ($page) => $page->has('forms', 2));
 
-        $this->assertSame('draft', $draft->fresh()->status);
+        $this->assertSame('returned', $returned->fresh()->status);
+    }
+
+    public function test_a_manager_approves_a_draft_without_waiting_for_a_submission(): void
+    {
+        $manager = $this->manager();
+        $ratee = $this->employee();
+
+        $this->actingAs($ratee)->post(route('ipcr.store'), $this->payload($ratee->id, 2026, 1))
+            ->assertRedirect();
+        $form = IpcrForm::firstOrFail();
+        $this->assertSame('draft', $form->status);
+
+        $this->actingAs($manager)->post(route('ipcr.decide', $form), ['decision' => 'approve'])
+            ->assertRedirect();
+
+        $this->assertSame('approved', $form->fresh()->status);
     }
 
     public function test_approval_ticks_the_semester_compliance_flag(): void

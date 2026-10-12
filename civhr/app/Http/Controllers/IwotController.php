@@ -29,14 +29,15 @@ class IwotController extends Controller
         $user = $request->user();
         $isManager = IwotAccess::isManager($user);
 
-        // A manager lands on the queue — what is waiting on them.
+        // A manager lands on the queue — what is waiting on them. An
+        // employee's draft counts as waiting: they file nothing for approval.
         $filter = $request->query('filter') === 'all' || ! $isManager ? 'all' : 'pending';
 
         $mine = fn ($q) => $q->when(! $isManager, fn ($qq) => $qq->where('user_id', $user->id));
 
         $forms = IwotForm::with('employee:id,name')
             ->tap($mine)
-            ->when($filter === 'pending', fn ($q) => $q->where('status', IwotForm::SUBMITTED))
+            ->when($filter === 'pending', fn ($q) => $q->whereIn('status', IwotForm::AWAITING))
             ->withCount('groups')
             ->latest('updated_at')
             ->get()
@@ -58,7 +59,7 @@ class IwotController extends Controller
             'filter' => $filter,
             'pendingCount' => IwotForm::query()
                 ->tap($mine)
-                ->where('status', IwotForm::SUBMITTED)
+                ->whereIn('status', IwotForm::AWAITING)
                 ->count(),
         ]);
     }
@@ -277,9 +278,9 @@ class IwotController extends Controller
     /** The owner can only leave their own sheet as a draft or submit it. */
     private function ownerStatus(?string $status): string
     {
-        return in_array($status, [IwotForm::DRAFT, IwotForm::SUBMITTED], true)
-            ? $status
-            : IwotForm::DRAFT;
+        // The employee has no submit step: what they save is a draft, which
+        // the admin sees and approves. Whatever the form posts is ignored.
+        return IwotForm::DRAFT;
     }
 
     /**

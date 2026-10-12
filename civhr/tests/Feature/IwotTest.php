@@ -285,24 +285,37 @@ class IwotTest extends TestCase
         $this->assertSame(2, IwotForm::where('user_id', $employee->id)->count());
     }
 
-    public function test_submitted_iwots_land_in_the_pending_queue(): void
+    public function test_an_employees_draft_is_on_the_queue_without_being_submitted(): void
     {
         $manager = $this->manager();
         $employee = $this->employee();
 
-        IwotForm::create(['user_id' => $employee->id, 'year' => 2026, 'semester' => 1, 'status' => 'draft']);
-        $waiting = IwotForm::create([
-            'user_id' => $employee->id, 'year' => 2026, 'semester' => 2, 'status' => IwotForm::SUBMITTED,
-        ]);
+        $draft = IwotForm::create(['user_id' => $employee->id, 'year' => 2026, 'semester' => 1, 'status' => 'draft']);
+        IwotForm::create(['user_id' => $employee->id, 'year' => 2026, 'semester' => 2, 'status' => IwotForm::RETURNED]);
 
         $this->actingAs($manager)->get(route('iwot.index'))
             ->assertInertia(fn ($page) => $page
                 ->where('filter', 'pending')
                 ->where('pendingCount', 1)
                 ->has('forms', 1)
-                ->where('forms.0.id', $waiting->id));
+                ->where('forms.0.id', $draft->id));
 
         $this->actingAs($manager)->get(route('iwot.index', ['filter' => 'all']))
             ->assertInertia(fn ($page) => $page->has('forms', 2));
+    }
+
+    public function test_a_manager_approves_a_draft_without_waiting_for_a_submission(): void
+    {
+        $manager = $this->manager();
+        $employee = $this->employee();
+
+        $this->actingAs($employee)->post(route('iwot.store'), $this->payload($employee->id))->assertRedirect();
+        $form = IwotForm::firstOrFail();
+        $this->assertSame('draft', $form->status);
+
+        $this->actingAs($manager)->post(route('iwot.decide', $form), ['decision' => 'approve'])
+            ->assertRedirect();
+
+        $this->assertSame('approved', $form->fresh()->status);
     }
 }

@@ -29,14 +29,15 @@ class IpcrController extends Controller
         $isManager = IpcrAccess::isManager($user);
 
         // A manager lands on the queue — what is waiting on them; everyone
-        // else just sees their own.
+        // else just sees their own. A ratee's draft counts as waiting: they
+        // file nothing, so the queue is "not approved yet, not returned".
         $filter = $request->query('filter') === 'all' || ! $isManager ? 'all' : 'pending';
 
         $mine = fn ($q) => $q->when(! $isManager, fn ($qq) => $qq->where('user_id', $user->id));
 
         $forms = IpcrForm::with('ratee:id,name,username')
             ->tap($mine)
-            ->when($filter === 'pending', fn ($q) => $q->where('status', IpcrForm::SUBMITTED))
+            ->when($filter === 'pending', fn ($q) => $q->whereIn('status', IpcrForm::AWAITING))
             ->latest('updated_at')
             ->get()
             ->map(fn (IpcrForm $f) => [
@@ -57,7 +58,7 @@ class IpcrController extends Controller
             'filter' => $filter,
             'pendingCount' => IpcrForm::query()
                 ->tap($mine)
-                ->where('status', IpcrForm::SUBMITTED)
+                ->whereIn('status', IpcrForm::AWAITING)
                 ->count(),
         ]);
     }
@@ -548,9 +549,9 @@ class IpcrController extends Controller
     /** A ratee can only leave their own form as a draft or submit it. */
     private function rateeStatus(?string $status): string
     {
-        return in_array($status, [IpcrForm::DRAFT, IpcrForm::SUBMITTED], true)
-            ? $status
-            : IpcrForm::DRAFT;
+        // A ratee has no submit step: what they save is a draft, and the
+        // admin picks it up from there. Whatever the form posts is ignored.
+        return IpcrForm::DRAFT;
     }
 
     /**

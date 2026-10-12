@@ -64,12 +64,14 @@ class IpcrAccess
     }
 
     /**
-     * A manager (or the named approver) approves / returns a submitted form.
-     * Nobody approves their own IPCR — the same rule Leave holds to.
+     * A manager (or the named approver) approves / returns a form. A ratee
+     * files nothing for approval — their draft is on the admin's queue from
+     * the moment it is saved — so anything not yet approved can be decided.
+     * Nobody approves their own IPCR, the same rule Leave holds to.
      */
     public static function canDecide(User $user, IpcrForm $form): bool
     {
-        if ($form->status !== IpcrForm::SUBMITTED || $form->user_id === $user->id) {
+        if ($form->status === IpcrForm::APPROVED || $form->user_id === $user->id) {
             return false;
         }
 

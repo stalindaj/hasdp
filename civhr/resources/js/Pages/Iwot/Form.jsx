@@ -187,23 +187,25 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
                                 )}
                             </div>
 
-                            <div>
-                                <label className={label}>Status</label>
-                                <select
-                                    className={input}
-                                    value={data.status}
-                                    onChange={(e) => patchData({ status: e.target.value })}
-                                >
-                                    {(isManager
-                                        ? ['draft', 'submitted', 'approved']
-                                        : ['draft', 'submitted']
-                                    ).map((s) => (
-                                        <option key={s} value={s}>
-                                            {s[0].toUpperCase() + s.slice(1)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            {isManager && (
+                                <div>
+                                    <label className={label}>Status</label>
+                                    <select
+                                        className={input}
+                                        value={data.status}
+                                        onChange={(e) => patchData({ status: e.target.value })}
+                                    >
+                                        {(isManager
+                                            ? ['draft', 'submitted', 'approved']
+                                            : ['draft', 'submitted']
+                                        ).map((s) => (
+                                            <option key={s} value={s}>
+                                                {s[0].toUpperCase() + s.slice(1)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     </Card>
 
