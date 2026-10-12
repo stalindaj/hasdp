@@ -209,7 +209,6 @@ export default function FormE({
                                     <input
                                         type="text"
                                         value={data.strategic_priority ?? ''}
-                                        placeholder="e.g. Territorial defense, security and stability services"
                                         onChange={(e) => setData({ strategic_priority: e.target.value })}
                                         className="min-w-[16rem] flex-1 border-0 border-b border-gray-300 bg-transparent p-0 text-[0.75rem] font-normal focus:ring-0"
                                     />
@@ -223,7 +222,6 @@ export default function FormE({
                                     <input
                                         type="text"
                                         value={data.core_function ?? ''}
-                                        placeholder="e.g. Administration of PAF Civ HRs"
                                         onChange={(e) => setData({ core_function: e.target.value })}
                                         className="min-w-[16rem] flex-1 border-0 border-b border-gray-300 bg-transparent p-0 text-[0.75rem] font-normal focus:ring-0"
                                     />

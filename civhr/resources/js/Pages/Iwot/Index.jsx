@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 
 const STATUS_STYLES = {
     draft: 'bg-gray-100 text-gray-600',
@@ -135,6 +135,21 @@ export default function Index({ forms, isManager, filter, pendingCount }) {
                                                     >
                                                         View
                                                     </Link>
+                                                    {isManager && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm('Delete this IWOT? This cannot be undone.')) {
+                                                                    router.delete(route('iwot.destroy', f.id), {
+                                                                        preserveScroll: true,
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="ml-4 font-medium text-rose-600 hover:underline"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

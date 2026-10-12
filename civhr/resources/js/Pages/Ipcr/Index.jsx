@@ -139,6 +139,21 @@ export default function Index({ forms, isManager, filter, pendingCount }) {
                                                     >
                                                         View
                                                     </Link>
+                                                    {isManager && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm('Delete this IPCR? This cannot be undone.')) {
+                                                                    router.delete(route('ipcr.destroy', f.id), {
+                                                                        preserveScroll: true,
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="ml-4 font-medium text-rose-600 hover:underline"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

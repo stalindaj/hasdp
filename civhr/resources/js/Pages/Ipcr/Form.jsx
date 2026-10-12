@@ -143,8 +143,10 @@ export default function Form({ form, personnel, isManager, currentUserId, defaul
         // sensible default — it arrives when they pick the ratee.
         position_title: form?.position_title ?? (isManager ? '' : (defaults?.position ?? '')),
         office_unit: form?.office_unit ?? '',
-        strategic_priority: form?.strategic_priority ?? '',
-        core_function: form?.core_function ?? '',
+        // The wing's usual priority and core function start filled in on a
+        // new form; they stay ordinary editable text.
+        strategic_priority: form ? (form.strategic_priority ?? '') : 'Territorial defense, security and stability services',
+        core_function: form ? (form.core_function ?? '') : 'Administration of PAF Civ HRs',
         status: form?.status ?? 'draft',
         // "Discussed with" is the ratee themselves — filled in from the start,
         // not typed (a manager's pick fills it in setRatee).

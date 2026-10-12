@@ -265,6 +265,17 @@ class IwotTest extends TestCase
         $this->actingAs($employee)->delete(route('iwot.destroy', IwotForm::first()))->assertForbidden();
     }
 
+    public function test_a_manager_deletes_anyones_sheet_even_once_approved(): void
+    {
+        $form = IwotForm::create(['user_id' => $this->employee()->id, 'status' => 'approved']);
+
+        $this->actingAs($this->manager())
+            ->delete(route('iwot.destroy', $form))
+            ->assertRedirect(route('iwot.index'));
+
+        $this->assertModelMissing($form);
+    }
+
     public function test_only_one_iwot_per_person_per_semester(): void
     {
         $employee = $this->employee();
