@@ -58,11 +58,14 @@
     <title>IPCR (Form E) — {{ $rateeName }}</title>
     <style>
         * { box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #f3f4f6; margin: 0; padding: 16px; font-size: 8pt; }
-        /* Landscape, like the office template — Form E is a wide sheet. */
-        .sheet { width: 10.4in; margin: 0 auto; background: #fff; padding: 0.35in 0.4in; box-shadow: 0 2px 14px rgba(0,0,0,.15); }
+        body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #f3f4f6; margin: 0; padding: 16px; font-size: 8.5pt; }
+        /* A4 landscape, like the office template — Form E is a wide sheet. One
+           .sheet is one page; partials.paginate runs a long grid on to a
+           second, so the screen shows exactly what prints. */
+        .sheet { width: 297mm; height: 210mm; margin: 0 auto 16px; background: #fff; padding: 10mm 12mm; box-shadow: 0 2px 14px rgba(0,0,0,.15); overflow: hidden; }
+        .sheet.flow { height: auto; min-height: 210mm; }
 
-        @page { size: Letter landscape; margin: 10mm; }
+        @page { size: A4 landscape; margin: 0; }
 
         .form-e { text-align: right; font-weight: 700; font-size: 9pt; }
         .title { text-align: center; font-weight: 700; font-size: 9pt; margin: 10px 0 14px; }
@@ -126,17 +129,20 @@
 
         @media print {
             body { background: #fff; padding: 0; }
-            .sheet { width: auto; box-shadow: none; padding: 0; }
+            .sheet { margin: 0; box-shadow: none; break-after: page; }
+            .sheet:last-of-type { break-after: auto; }
             .noprint, .sigup { display: none !important; }
             .band, .head { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
     </style>
 </head>
 <body>
-<div class="sheet">
+<div class="sheet flow">
 
-    <div class="form-e">(FORM E)</div>
-    <div class="title">INDIVIDUAL PERFORMANCE COMMITMENT AND REVIEW (IPCR)</div>
+    <div>
+        <div class="form-e">(FORM E)</div>
+        <div class="title">INDIVIDUAL PERFORMANCE COMMITMENT AND REVIEW (IPCR)</div>
+    </div>
 
     {{-- Commitment across the full width, the ratee signing underneath --}}
     <table class="commit">
@@ -222,8 +228,9 @@
         </tr>
     </table>
 
-    {{-- The rating grid --}}
-    <table style="margin-top:10px">
+    {{-- The rating grid — it may break between outputs, never inside one --}}
+    <table class="split" style="margin-top:10px">
+        <thead>
         <tr>
             <td rowspan="2" class="head" style="width:15%">Output</td>
             <td rowspan="2" class="head" style="width:26%">Success Indicator (Target + Measure)</td>
@@ -237,11 +244,15 @@
             <td class="head" style="width:5%">T3</td>
             <td class="head" style="width:5%">A4</td>
         </tr>
+        </thead>
 
+        <tbody>
         <tr><td colspan="8" style="font-weight:700">Strategic Priority No.: {{ $form->strategic_priority }}</td></tr>
         <tr><td colspan="8" style="font-weight:700">Core Function: {{ $form->core_function }}</td></tr>
+        </tbody>
 
         @forelse ($form->groups as $g)
+            <tbody>
             <tr>
                 <td>{{ $g->major_final_output }}</td>
                 <td>{{ $g->success_indicator }}</td>
@@ -252,9 +263,12 @@
                 <td class="ctr mid">{{ $num($g->average_rating) }}</td>
                 <td>{{ $g->remarks }}</td>
             </tr>
+            </tbody>
         @empty
-            <tr><td colspan="8" class="ctr" style="color:#777">No outputs recorded.</td></tr>
+            <tbody><tr><td colspan="8" class="ctr" style="color:#777">No outputs recorded.</td></tr></tbody>
         @endforelse
+
+        <tbody>
 
         {{-- The label runs across the three text columns, its figure across the
              four rating columns, exactly as the office sheet has it. --}}
@@ -290,9 +304,11 @@
         </tr>
         <tr><td colspan="8" class="band">Comments and Recommendations for Development Purposes</td></tr>
         <tr><td colspan="8" style="height:0.42in">{{ $form->fe_comments }}</td></tr>
+        </tbody>
     </table>
 
-    {{-- The rater's block --}}
+    {{-- The rater's block, kept with its legend --}}
+    <div>
     <table style="margin-top:10px">
         <tr>
             <td class="band ctr" style="width:24%">Discussed with</td>
@@ -338,12 +354,15 @@
         Legend: &nbsp;&nbsp; 1 - Quality (Ql) &nbsp;&nbsp; 2 - Quantity (Qn) &nbsp;&nbsp;
         3 - Timeliness (T) &nbsp;&nbsp; 4 - Average (A)
     </div>
+    </div>
 </div>
 
 <div class="noprint">
     <button onclick="window.print()">Print Form E</button>
     <a class="ghost" href="{{ route('ipcr.show', $form) }}">Back to the IPCR</a>
 </div>
+
+@include('partials.paginate')
 
 @include('partials.signature-picker', [
     'base' => parse_url(url('ipcr/'.$form->id.'/signature'), PHP_URL_PATH),
