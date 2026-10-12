@@ -510,6 +510,10 @@
         // bound by the width rather than squashed into a strip. It rides over
         // the rule — and across the checkbox labels — the way a pen does.
         'sigHeight' => 30,
+        // Sits ON the line, not hovering over it: the band runs a few points
+        // past the rule, which also swallows the small margin left around
+        // the ink when an upload is trimmed.
+        'sigGapAbove' => -5.5,
         'sigLeftArg' => $MID + 5 + (190 - 126) / 2,
         'sigWidthArg' => 126,
         // The applicant's name already prints in box 2; 6.D is just their
