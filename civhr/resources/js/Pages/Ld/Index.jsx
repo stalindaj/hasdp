@@ -67,6 +67,15 @@ export default function Index({ year, years, rows, pending, summary }) {
                     <h2 className="text-xl font-semibold leading-tight text-gray-800">
                         Learning &amp; Development
                     </h2>
+                    <div className="flex items-center gap-3">
+                    <a
+                        href={route('ld.courses', { year })}
+                        target="_blank"
+                        rel="noopener"
+                        className="rounded-md border border-[#0b2a52] px-3 py-1.5 text-sm font-medium text-[#0b2a52] hover:bg-slate-50"
+                    >
+                        Table 2 · Career courses
+                    </a>
                     <label className="flex items-center gap-2 text-sm text-slate-600">
                         Year
                         <select
@@ -79,6 +88,7 @@ export default function Index({ year, years, rows, pending, summary }) {
                             ))}
                         </select>
                     </label>
+                    </div>
                 </div>
             }
         >
@@ -110,10 +120,21 @@ export default function Index({ year, years, rows, pending, summary }) {
                                     <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                                         <div className="min-w-0">
                                             <p className="text-sm font-medium text-slate-800">{l.employee}</p>
-                                            <p className="text-xs text-slate-500">
-                                                {l.title} · {l.hours}h · {l.date}
-                                                {l.competency ? ` · ${l.competency}` : ''}
-                                            </p>
+                                            {l.kind === 'career_course' ? (
+                                                <p className="text-xs text-slate-500">
+                                                    <span className="mr-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-indigo-700">
+                                                        Career course
+                                                    </span>
+                                                    {l.title}
+                                                    {l.batch ? ` · Batch ${l.batch}` : ''} · {l.date}
+                                                    {l.conducted_by ? ` · ${l.conducted_by}` : ''}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-slate-500">
+                                                    {l.title} · {l.hours}h · {l.date}
+                                                    {l.competency ? ` · ${l.competency}` : ''}
+                                                </p>
+                                            )}
                                             <ProofLinks entry={l} />
                                         </div>
                                         <div className="flex shrink-0 gap-3 text-sm font-medium">

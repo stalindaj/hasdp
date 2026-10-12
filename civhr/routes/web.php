@@ -127,6 +127,9 @@ Route::middleware('auth')->group(function () {
     // The employee's own L&D page — their trainings and the form to file one.
     Route::get('/my-ld', [LdController::class, 'mine'])
         ->middleware('employee')->name('ld.mine');
+    // Table 2 — local career courses & seminars, from the approved filings.
+    Route::get('/ld/courses', [LdController::class, 'courses'])
+        ->middleware('admin')->name('ld.courses');
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
     // The employee corrects or drops one of their own; either way it goes
     // back to the approver.

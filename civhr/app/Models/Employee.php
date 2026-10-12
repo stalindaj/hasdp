@@ -54,9 +54,20 @@ class Employee extends Model
         return $this->hasMany(IpcrRecord::class);
     }
 
+    /**
+     * L&D trainings — the certificate-backed entries whose hours count toward
+     * the yearly target. Local career courses share the table but not this
+     * relation, so no hours total ever picks them up.
+     */
     public function ldEntries()
     {
-        return $this->hasMany(LdEntry::class);
+        return $this->hasMany(LdEntry::class)->where('kind', LdEntry::TRAINING);
+    }
+
+    /** Local career courses and seminars attended (Table 2). */
+    public function careerCourses()
+    {
+        return $this->hasMany(LdEntry::class)->where('kind', LdEntry::COURSE);
     }
 
     public function creditEntries()

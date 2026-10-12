@@ -22,6 +22,11 @@ use Inertia\Inertia;
  * recorded and the paper brought later. An admin approves or rejects it, and
  * only approved hours count toward the yearly target.
  *
+ * Local career courses and seminars are filed and approved the same way
+ * (kind = career_course) but kept apart: they carry a batch and who conducted
+ * them instead of hours, never count toward the target, and are reported on
+ * their own as Table 2 (courses()).
+ *
  * Proof images hold personal data, so they are stored on the private disk and
  * served only to the owner and admins through the file route below — never as
  * public files.
@@ -78,7 +83,10 @@ class LdController extends Controller
             ->map(fn ($l) => [
                 'id'       => $l->id,
                 'employee' => trim($l->employee?->first_name.' '.$l->employee?->last_name),
+                'kind'     => $l->kind,
                 'title'    => $l->title,
+                'batch'    => $l->batch,
+                'conducted_by' => $l->conducted_by,
                 'competency' => $l->competencyLabel(),
                 'hours'    => (float) $l->hours,
                 'date'     => $l->inclusive_dates_text,
@@ -138,7 +146,12 @@ class LdController extends Controller
             ])
             ->values();
 
-        $years = $employee->ldEntries()->pluck('date')
+        $courses = $employee->careerCourses()
+            ->whereYear('date', $year)
+            ->orderByDesc('date')
+            ->get();
+
+        $years = LdEntry::where('employee_id', $employee->id)->pluck('date')
             ->map(fn ($d) => (int) Carbon::parse($d)->year)
             ->push(now()->year)
             ->push($year)
@@ -174,32 +187,46 @@ class LdController extends Controller
                 'certificate' => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
                 'photo'       => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
             ])->values(),
+            'courses' => $courses->map(fn (LdEntry $l) => [
+                'id'           => $l->id,
+                'title'        => $l->title,
+                'batch'        => $l->batch,
+                'conducted_by' => $l->conducted_by,
+                'dates'        => $l->inclusive_dates_text,
+                'date'         => optional($l->date)->toDateString(),
+                'date_to'      => optional($l->date_to)->toDateString(),
+                'status'       => $l->status,
+                'remarks'      => $l->remarks,
+                'certificate'  => $l->certificate_path ? route('ld.file', [$l, 'certificate']) : null,
+                'photo'        => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
+            ])->values(),
         ]);
     }
 
-    /** Employee submits a training for approval. */
+    /** Employee submits a training (or a career course) for approval. */
     public function store(Request $request)
     {
         $employee = $request->user()->employee;
         abort_unless($employee, 403, 'Your account is not linked to an employee record.');
 
-        $data = $this->validatedEntry($request);
+        $course = $request->input('kind') === LdEntry::COURSE;
+        $data = $this->validatedEntry($request, $course);
 
         $dir = "ld/{$employee->id}";
 
-        $employee->ldEntries()->create([
-            'competency' => $data['competency'] ?? null,
-            'title'   => $data['title'],
-            'hours'   => $data['hours'] ?? 1,
-            'date'    => $data['date'],
-            'date_to' => $data['date_to'] ?? null,
+        LdEntry::create([
+            'employee_id' => $employee->id,
+            'kind'    => $course ? LdEntry::COURSE : LdEntry::TRAINING,
+            ...$this->fields($data, $course),
             'status'  => LdEntry::PENDING,
             'certificate_path' => $request->file('certificate')?->store($dir),
             'photo_path'       => $request->file('photo')?->store($dir),
             'submitted_by'     => $request->user()->id,
         ]);
 
-        return back()->with('success', 'Training submitted. The hours will count once an admin approves it.');
+        return back()->with('success', $course
+            ? 'Course submitted. It goes on the report once an admin approves it.'
+            : 'Training submitted. The hours will count once an admin approves it.');
     }
 
     /**
@@ -213,7 +240,9 @@ class LdController extends Controller
         $employee = $request->user()->employee;
         abort_unless($employee && (int) $entry->employee_id === (int) $employee->id, 403);
 
-        $data = $this->validatedEntry($request);
+        // A row stays what it was filed as; only its details change.
+        $course = $entry->isCourse();
+        $data = $this->validatedEntry($request, $course);
 
         $dir = "ld/{$employee->id}";
 
@@ -228,18 +257,14 @@ class LdController extends Controller
         }
 
         $entry->fill([
-            'competency' => $data['competency'] ?? null,
-            'title'   => $data['title'],
-            'hours'   => $data['hours'] ?? 1,
-            'date'    => $data['date'],
-            'date_to' => $data['date_to'] ?? null,
+            ...$this->fields($data, $course),
             'status'  => LdEntry::PENDING,
             'remarks' => null,
             'decided_by' => null,
             'decided_at' => null,
         ])->save();
 
-        return back()->with('success', 'Training updated — it goes back to the approver.');
+        return back()->with('success', ($course ? 'Course' : 'Training').' updated — it goes back to the approver.');
     }
 
     /** The employee removes one of their own entries (a duplicate, say). */
@@ -281,9 +306,25 @@ class LdController extends Controller
             : 'L&D rejected.');
     }
 
-    /** What an employee may say about a training, filing or correcting it. */
-    private function validatedEntry(Request $request): array
+    /** What an employee may say about a training or course, filing or correcting it. */
+    private function validatedEntry(Request $request, bool $course = false): array
     {
+        $proof = [
+            // Proof is asked for, never required: it can follow later.
+            'certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'photo'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ];
+
+        if ($course) {
+            return $request->validate([
+                'title'        => ['required', 'string', 'max:255'],
+                'batch'        => ['nullable', 'string', 'max:50'],
+                'conducted_by' => ['nullable', 'string', 'max:191'],
+                'date'         => ['required', 'date', 'before_or_equal:today'],
+                'date_to'      => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
+            ] + $proof);
+        }
+
         return $request->validate([
             'competency' => ['nullable', Rule::in(array_keys(LdEntry::COMPETENCIES))],
             'title'   => ['required', 'string', 'max:255'],
@@ -292,9 +333,69 @@ class LdController extends Controller
             'hours'   => ['nullable', 'numeric', 'min:0.5', 'max:999'],
             'date'    => ['required', 'date', 'before_or_equal:today'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
-            // Proof is asked for, never required: it can follow later.
-            'certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'photo'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ] + $proof);
+    }
+
+    /** The columns a filing writes. A course carries no hours or competency. */
+    private function fields(array $data, bool $course): array
+    {
+        $common = [
+            'title'   => $data['title'],
+            'date'    => $data['date'],
+            'date_to' => $data['date_to'] ?? null,
+        ];
+
+        return $course
+            ? $common + [
+                'batch'        => $data['batch'] ?? null,
+                'conducted_by' => $data['conducted_by'] ?? null,
+                'hours'        => 0,
+            ]
+            : $common + [
+                'competency' => $data['competency'] ?? null,
+                'hours'      => $data['hours'] ?? 1,
+            ];
+    }
+
+    /**
+     * Table 2 — Civilian Human Resources Sent to Local Career Courses and
+     * Seminars. One row per course batch from the approved filings: the
+     * number of graduates is how many civilians filed it and were approved,
+     * and the dates run from the earliest start to the latest end.
+     */
+    public function courses(Request $request)
+    {
+        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
+
+        $year = (int) $request->integer('year', now()->year);
+
+        $rows = LdEntry::approved()
+            ->where('kind', LdEntry::COURSE)
+            ->whereYear('date', $year)
+            ->orderBy('date')
+            ->get()
+            ->groupBy(fn (LdEntry $l) => mb_strtolower(trim($l->title)).'|'.mb_strtolower(trim((string) $l->batch)))
+            ->map(function ($group) {
+                $first = $group->first();
+                $span = new LdEntry([
+                    'date'    => $group->min('date'),
+                    'date_to' => $group->map(fn ($l) => $l->date_to ?? $l->date)->max(),
+                ]);
+
+                return [
+                    'title'        => $first->title,
+                    'batch'        => $first->batch,
+                    'dates'        => $span->inclusive_dates_text,
+                    'graduates'    => $group->pluck('employee_id')->unique()->count(),
+                    'conducted_by' => $group->pluck('conducted_by')->filter()->first(),
+                ];
+            })
+            ->values();
+
+        return view('ld.courses', [
+            'year'  => $year,
+            'rows'  => $rows,
+            'total' => $rows->sum('graduates'),
         ]);
     }
 

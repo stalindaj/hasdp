@@ -77,6 +77,7 @@ class DashboardController extends Controller
             ->map(fn ($l) => [
                 'id'       => $l->id,
                 'employee' => trim($l->employee->first_name.' '.$l->employee->last_name),
+                'kind'     => $l->kind,
                 'title'    => $l->title,
                 'hours'    => (float) $l->hours,
                 'date'     => $l->date->format('d F Y'),

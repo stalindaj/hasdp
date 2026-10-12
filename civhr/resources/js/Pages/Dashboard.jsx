@@ -294,7 +294,9 @@ function AdminDashboard({ year, ldTarget, rows, boxes, pendingLeaves, pendingLd 
                                         <li key={l.id} className="p-item">
                                             <p className="text-sm font-medium">{l.employee}</p>
                                             <p className="dim text-xs">
-                                                {l.title} · {l.hours}h · {l.date}
+                                                {l.kind === 'career_course'
+                                                    ? `Career course · ${l.title} · ${l.date}`
+                                                    : `${l.title} · ${l.hours}h · ${l.date}`}
                                             </p>
                                             <div className="mt-1.5 flex items-center justify-between">
                                                 <LdProofLinks entry={l} dark />

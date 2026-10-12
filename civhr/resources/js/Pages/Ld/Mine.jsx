@@ -23,6 +23,11 @@ const STATUS = {
 };
 
 const blank = {
+    // 'training' counts hours toward the target; 'career_course' is a local
+    // career course or seminar, reported on its own (Table 2).
+    kind: 'training',
+    batch: '',
+    conducted_by: '',
     competency: 'technical',
     title: '',
     date: '',
@@ -68,18 +73,23 @@ function Proof({ entry }) {
     );
 }
 
-export default function Mine({ year, years, competencies, summary, entries }) {
+export default function Mine({ year, years, competencies, summary, entries, courses = [] }) {
     const flash = usePage().props.flash;
 
     // null = closed, {} = recording a new one, an entry = correcting it.
     const [editing, setEditing] = useState(null);
     const form = useForm(blank);
+    const isCourse = form.data.kind === 'career_course';
 
-    const open = (entry) => {
+    const open = (entry, kind = 'training') => {
         form.clearErrors();
         form.setData(
             entry
                 ? {
+                      ...blank,
+                      kind,
+                      batch: entry.batch ?? '',
+                      conducted_by: entry.conducted_by ?? '',
                       competency: entry.competency_key ?? 'technical',
                       title: entry.title,
                       date: entry.date ?? '',
@@ -88,7 +98,7 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                       certificate: null,
                       photo: null,
                   }
-                : blank,
+                : { ...blank, kind },
         );
         setEditing(entry ?? {});
     };
@@ -134,8 +144,14 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                             ))}
                         </select>
                         <button
+                            onClick={() => open(null, 'career_course')}
+                            className="whitespace-nowrap rounded-md border border-[#0b2a52] px-4 py-2 text-sm font-medium text-[#0b2a52] hover:bg-slate-50"
+                        >
+                            + Record course
+                        </button>
+                        <button
                             onClick={() => open(null)}
-                            className="rounded-md bg-[#0b2a52] px-4 py-2 text-sm font-medium text-white hover:bg-[#071b35]"
+                            className="whitespace-nowrap rounded-md bg-[#0b2a52] px-4 py-2 text-sm font-medium text-white hover:bg-[#071b35]"
                         >
                             + Record training
                         </button>
@@ -259,23 +275,155 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                             </div>
                         )}
                     </section>
+
+                    {/* Local career courses & seminars — filed and approved
+                        like a training, but no hours; they go on Table 2. */}
+                    <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                        <div className="flex items-center justify-between bg-[#0b2a52] px-6 py-3 text-sm font-semibold text-white">
+                            <span>Local career courses &amp; seminars · {year}</span>
+                            <span className="text-xs font-normal text-white/70">
+                                {courses.length} {courses.length === 1 ? 'course' : 'courses'}
+                            </span>
+                        </div>
+
+                        {courses.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-sm text-slate-400">No career course recorded for {year}.</p>
+                                <button
+                                    onClick={() => open(null, 'career_course')}
+                                    className="mt-3 rounded-md border border-[#0b2a52] px-4 py-2 text-sm font-medium text-[#0b2a52] hover:bg-slate-50"
+                                >
+                                    + Record course
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                            <th className="px-6 py-2 font-semibold">Course title</th>
+                                            <th className="px-4 py-2 font-semibold">Batch</th>
+                                            <th className="px-4 py-2 font-semibold">Inclusive dates</th>
+                                            <th className="px-4 py-2 font-semibold">Conducted by</th>
+                                            <th className="px-4 py-2 font-semibold">Proof</th>
+                                            <th className="px-4 py-2 font-semibold">Status</th>
+                                            <th className="px-6 py-2 text-right font-semibold">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {courses.map((c) => (
+                                            <tr key={c.id} className="align-top hover:bg-slate-50/60">
+                                                <td className="px-6 py-3">
+                                                    <span className="font-medium text-slate-800">{c.title}</span>
+                                                    {c.remarks && (
+                                                        <p className="mt-0.5 text-xs text-rose-600">
+                                                            Returned: {c.remarks}
+                                                        </p>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600">{c.batch || '—'}</td>
+                                                <td className="px-4 py-3 text-slate-600">{c.dates}</td>
+                                                <td className="px-4 py-3 text-slate-600">{c.conducted_by || '—'}</td>
+                                                <td className="px-4 py-3">
+                                                    <Proof entry={c} />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span
+                                                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${STATUS[c.status] ?? ''}`}
+                                                    >
+                                                        {c.status}
+                                                    </span>
+                                                </td>
+                                                <td className="space-x-3 whitespace-nowrap px-6 py-3 text-right text-xs font-medium">
+                                                    <button
+                                                        onClick={() => open(c, 'career_course')}
+                                                        className="text-blue-600 hover:underline"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => remove(c)}
+                                                        className="text-rose-600 hover:underline"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </section>
                 </div>
             </div>
 
-            {/* Record / correct a training */}
+            {/* Record / correct a training or a career course */}
             <Modal show={editing !== null} onClose={close} maxWidth="2xl">
                 <form onSubmit={submit} className="p-6">
                     <h3 className="text-lg font-semibold text-slate-800">
-                        {editing?.id ? 'Edit training' : 'Record a training'}
+                        {isCourse
+                            ? editing?.id ? 'Edit career course' : 'Record a local career course or seminar'
+                            : editing?.id ? 'Edit training' : 'Record a training'}
                     </h3>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                        {editing?.id
-                            ? 'Saving sends this entry back to the approver, so its hours stop counting until it is approved again.'
-                            : 'Attach the certificate and a photo from the training if you have them — a training can be recorded without them and the proof added later.'}{' '}
-                        Leave the hours blank and it counts as <strong>1 hour</strong>.
-                    </p>
+                    {isCourse ? (
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                            A course you were sent to and graduated from. It goes on the office report once an
+                            admin approves it{editing?.id ? ' — saving sends it back for approval' : ''}. It does
+                            not add L&amp;D hours.
+                        </p>
+                    ) : (
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                            {editing?.id
+                                ? 'Saving sends this entry back to the approver, so its hours stop counting until it is approved again.'
+                                : 'Attach the certificate and a photo from the training if you have them — a training can be recorded without them and the proof added later.'}{' '}
+                            Leave the hours blank and it counts as <strong>1 hour</strong>.
+                        </p>
+                    )}
 
                     <div className="mt-5 space-y-4">
+                        {isCourse && (
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <div className="md:col-span-3">
+                                    <label className={label}>Course title *</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. Civilian Human Resource Supervisory Course"
+                                        value={form.data.title}
+                                        onChange={(e) => form.setData('title', e.target.value)}
+                                    />
+                                    {form.errors.title && (
+                                        <p className="mt-1 text-xs text-rose-600">{form.errors.title}</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className={label}>Batch</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. 2026-01"
+                                        value={form.data.batch}
+                                        onChange={(e) => form.setData('batch', e.target.value)}
+                                    />
+                                    {form.errors.batch && (
+                                        <p className="mt-1 text-xs text-rose-600">{form.errors.batch}</p>
+                                    )}
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className={label}>Conducted by</label>
+                                    <input
+                                        className={input}
+                                        placeholder="e.g. PAFCHRS"
+                                        value={form.data.conducted_by}
+                                        onChange={(e) => form.setData('conducted_by', e.target.value)}
+                                    />
+                                    {form.errors.conducted_by && (
+                                        <p className="mt-1 text-xs text-rose-600">{form.errors.conducted_by}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {!isCourse && (
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
                                 <label className={label}>Competency</label>
@@ -307,6 +455,7 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                                 )}
                             </div>
                         </div>
+                        )}
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
@@ -329,11 +478,14 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                                     value={form.data.date_to}
                                     onChange={(e) => form.setData('date_to', e.target.value)}
                                 />
-                                <p className="mt-1 text-xs text-gray-500">Blank for a one-day training.</p>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Blank for a one-day {isCourse ? 'course' : 'training'}.
+                                </p>
                                 {form.errors.date_to && (
                                     <p className="mt-1 text-xs text-rose-600">{form.errors.date_to}</p>
                                 )}
                             </div>
+                            {!isCourse && (
                             <div>
                                 <label className={label}>Number of hours</label>
                                 <input
@@ -349,6 +501,7 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                                     <p className="mt-1 text-xs text-rose-600">{form.errors.hours}</p>
                                 )}
                             </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -370,7 +523,7 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                                 )}
                             </div>
                             <div>
-                                <label className={label}>Photo during the training</label>
+                                <label className={label}>Photo during the {isCourse ? 'course' : 'training'}</label>
                                 <input
                                     type="file"
                                     accept="image/jpeg,image/png,image/webp"
@@ -402,7 +555,7 @@ export default function Mine({ year, years, competencies, summary, entries }) {
                             disabled={form.processing}
                             className="rounded-md bg-[#0b2a52] px-6 py-2 text-sm font-medium text-white hover:bg-[#071b35] disabled:opacity-50"
                         >
-                            {editing?.id ? 'Save changes' : 'Submit training'}
+                            {editing?.id ? 'Save changes' : isCourse ? 'Submit course' : 'Submit training'}
                         </button>
                     </div>
                 </form>

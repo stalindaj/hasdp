@@ -28,6 +28,14 @@ class LdEntry extends Model
         'other'        => 'Other',
     ];
 
+    /**
+     * What a row is: an L&D training (hours, toward the target) or a local
+     * career course / seminar — filed and approved the same way, but reported
+     * on its own (Table 2) and never counted as training hours.
+     */
+    public const TRAINING = 'training';
+    public const COURSE   = 'career_course';
+
     public const PENDING  = 'pending';
     public const APPROVED = 'approved';
     public const REJECTED = 'rejected';
@@ -40,6 +48,11 @@ class LdEntry extends Model
     public function submitter()
     {
         return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    public function isCourse(): bool
+    {
+        return $this->kind === self::COURSE;
     }
 
     public function competencyLabel(): string

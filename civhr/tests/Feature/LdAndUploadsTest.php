@@ -206,6 +206,89 @@ class LdAndUploadsTest extends TestCase
         $this->assertSame(0, LdEntry::count());
     }
 
+    // ── Local career courses & seminars ──────────────────────────────
+
+    private function fileCourse(User $user, array $over = []): LdEntry
+    {
+        $this->actingAs($user)->post(route('ld.store'), $over + [
+            'kind' => LdEntry::COURSE,
+            'title' => 'Civilian Human Resource Supervisory Course',
+            'batch' => '2026-01',
+            'conducted_by' => 'PAFCHRS',
+            'date' => '2026-07-01', 'date_to' => '2026-07-31',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        return LdEntry::latest('id')->firstOrFail();
+    }
+
+    public function test_an_employee_files_a_career_course_and_it_waits_for_approval(): void
+    {
+        $user = $this->employeeUser();
+        $course = $this->fileCourse($user);
+
+        $this->assertSame(LdEntry::COURSE, $course->kind);
+        $this->assertSame(LdEntry::PENDING, $course->status);
+        $this->assertSame('2026-01', $course->batch);
+        $this->assertSame('PAFCHRS', $course->conducted_by);
+
+        $this->actingAs($this->adminUser())
+            ->patch(route('ld.decide', $course), ['decision' => 'approved'])->assertRedirect();
+
+        // It lists under courses, never under trainings, and adds no hours.
+        $this->actingAs($user)->get(route('ld.mine', ['year' => 2026]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.hours', 0)
+                ->has('entries', 0)
+                ->where('courses.0.title', 'Civilian Human Resource Supervisory Course')
+                ->where('courses.0.dates', '01-31 July 2026')
+                ->where('courses.0.status', LdEntry::APPROVED));
+    }
+
+    public function test_editing_a_course_keeps_it_a_course_and_requeues_it(): void
+    {
+        $user = $this->employeeUser();
+        $course = $this->fileCourse($user);
+        $this->actingAs($this->adminUser())
+            ->patch(route('ld.decide', $course), ['decision' => 'approved'])->assertRedirect();
+
+        $this->actingAs($user)->post(route('ld.update', $course), [
+            'title' => 'Civilian HR Supervisory Course', 'batch' => '2026-02',
+            'conducted_by' => 'PAFCHRS', 'date' => '2026-07-01',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $course->refresh();
+        $this->assertSame(LdEntry::COURSE, $course->kind);
+        $this->assertSame('2026-02', $course->batch);
+        $this->assertSame(LdEntry::PENDING, $course->status);
+    }
+
+    public function test_table_2_counts_approved_graduates_per_course_batch(): void
+    {
+        $justin = $this->employeeUser();
+        $jean = $this->userWithRoles(['employee'], ['emp_no' => '5038', 'first_name' => 'Jean', 'last_name' => 'Tubat']);
+        $admin = $this->adminUser();
+
+        $helo = ['title' => 'Helicopter Mechanic Apprentice Course', 'batch' => '2026-01',
+            'conducted_by' => '19th CTTS, 15th SW', 'date' => '2026-02-24', 'date_to' => '2026-07-28'];
+
+        foreach ([$this->fileCourse($justin, $helo), $this->fileCourse($jean, $helo), $this->fileCourse($jean)] as $c) {
+            $this->actingAs($admin)->patch(route('ld.decide', $c), ['decision' => 'approved']);
+        }
+        // Still pending: not on the report.
+        $this->fileCourse($justin, ['title' => 'Not Yet Approved Seminar']);
+
+        $this->actingAs($admin)->get(route('ld.courses', ['year' => 2026]))
+            ->assertOk()
+            ->assertSee('Table 2. Civilian Human Resources Sent to Local Career Courses and Seminars')
+            ->assertSeeInOrder(['Helicopter Mechanic Apprentice Course', '2026-01', '24 February - 28 July 2026', '2', '19th CTTS, 15th SW'])
+            ->assertSeeInOrder(['Civilian Human Resource Supervisory Course', '01-31 July 2026', '1', 'PAFCHRS'])
+            ->assertSeeInOrder(['TOTAL', '3'])
+            ->assertDontSee('Not Yet Approved Seminar');
+
+        $this->actingAs($justin)->get(route('ld.courses'))->assertForbidden();
+    }
+
     public function test_pending_hours_do_not_count_until_approved(): void
     {
         $user = $this->employeeUser();
