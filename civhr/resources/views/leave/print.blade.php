@@ -330,6 +330,71 @@
 
             return $fit($value, max($width, 20), 7.0);
         };
+
+        /**
+         * Arial advance widths (1/1000 em), close enough to place a line
+         * break the way the printed text will actually run.
+         */
+        $arial = [
+            ' ' => 278, 'a' => 556, 'b' => 556, 'c' => 500, 'd' => 556, 'e' => 556, 'f' => 278,
+            'g' => 556, 'h' => 556, 'i' => 222, 'j' => 222, 'k' => 500, 'l' => 222, 'm' => 833,
+            'n' => 556, 'o' => 556, 'p' => 556, 'q' => 556, 'r' => 333, 's' => 500, 't' => 278,
+            'u' => 556, 'v' => 500, 'w' => 722, 'x' => 500, 'y' => 500, 'z' => 500,
+            'A' => 667, 'B' => 667, 'C' => 722, 'D' => 722, 'E' => 667, 'F' => 611, 'G' => 778,
+            'H' => 722, 'I' => 278, 'J' => 500, 'K' => 667, 'L' => 556, 'M' => 833, 'N' => 722,
+            'O' => 778, 'P' => 667, 'Q' => 778, 'R' => 722, 'S' => 667, 'T' => 611, 'U' => 722,
+            'V' => 667, 'W' => 944, 'X' => 667, 'Y' => 667, 'Z' => 611,
+            '.' => 278, ',' => 278, '-' => 333, '(' => 333, ')' => 333, '/' => 278, "'" => 191,
+        ];
+        $textW = function (string $text, float $size) use ($arial) {
+            $em = 0;
+            foreach (mb_str_split($text) as $ch) {
+                $em += $arial[$ch] ?? 556;
+            }
+
+            return $em / 1000 * $size;
+        };
+
+        /**
+         * A 6.B illness that is too long for the blank after its label runs
+         * on to the spare ruled line beneath, the way it is written by hand:
+         * whole words on the first rule, the rest on the next. Returns
+         * [first line, second line, second line's size].
+         */
+        $bWrap = function (?string $value, string $label, bool $checkbox = true) use ($bW, $textW) {
+            $value = trim((string) $value);
+            $size = 7.0;
+            $room = $bW - ($checkbox ? 10.1 : 0) - $textW($label, 7.5) - 3 - 4;
+
+            if ($value === '' || $textW($value, $size) <= $room) {
+                return [$value, '', $size];
+            }
+
+            $first = '';
+            $words = preg_split('/\s+/', $value);
+            while ($words && $textW(trim($first.' '.$words[0]), $size) <= $room) {
+                $first = trim($first.' '.array_shift($words));
+            }
+            $rest = implode(' ', $words);
+
+            // A second line that still overruns its rule comes down in size
+            // rather than spilling past the edge of the cell.
+            $restW = $textW($rest, $size);
+            $restSize = $restW > $bW - 4 ? max(4.8, round($size * ($bW - 4) / $restW, 2)) : $size;
+
+            return [$first, $rest, $restSize];
+        };
+
+        $sickValue = $app->detail_sick_illness;
+        [$hosp1, $hosp2, $hospSize] = $det('detail_sick', 'in_hospital')
+            ? $bWrap($sickValue, 'In Hospital (Specify Illness)') : ['', '', 7.0];
+        [$out1, $out2, $outSize] = $det('detail_sick', 'out_patient')
+            ? $bWrap($sickValue, 'Out Patient (Specify Illness)') : ['', '', 7.0];
+        // Only one of the two is ever ticked, so they share the spare line.
+        $sick2 = $hosp2 !== '' ? $hosp2 : $out2;
+        $sick2Size = $hosp2 !== '' ? $hospSize : $outSize;
+
+        [$women1, $women2, $women2Size] = $bWrap($app->detail_women_illness, '(Specify Illness)', false);
     @endphp
 
     {{-- In case of Vacation/Special Privilege Leave --}}
@@ -353,25 +418,32 @@
     <div class="row" style="left:350.7pt; top:{{ $bRow(4) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_sick', 'in_hospital') ? '✓' : '' }}</span>
         <span class="lbl f75">In Hospital (Specify Illness)</span>
-        <span class="fill v" style="font-size:{{ $bFit($det('detail_sick', 'in_hospital') ? $app->detail_sick_illness : '', 'In Hospital (Specify Illness)') }}pt">{{ $det('detail_sick', 'in_hospital') ? $app->detail_sick_illness : '' }}</span>
+        <span class="fill v">{{ $hosp1 }}</span>
     </div>
 
     <div class="row" style="left:350.7pt; top:{{ $bRow(5) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_sick', 'out_patient') ? '✓' : '' }}</span>
         <span class="lbl f75">Out Patient (Specify Illness)</span>
-        <span class="fill v" style="font-size:{{ $bFit($det('detail_sick', 'out_patient') ? $app->detail_sick_illness : '', 'Out Patient (Specify Illness)') }}pt">{{ $det('detail_sick', 'out_patient') ? $app->detail_sick_illness : '' }}</span>
+        <span class="fill v">{{ $out1 }}</span>
     </div>
 
     <div class="ln" style="left:350.7pt; top:{{ $bRow(6) + 8.4 }}pt; width:183.3pt;"></div>
+    @if ($sick2 !== '')
+        {{-- The illness runs on to the spare rule, sitting on it like the first line. --}}
+        <div class="t v c" style="left:350.7pt; top:{{ $bRow(6) }}pt; width:183.3pt; line-height:8.4pt; font-size:{{ $sick2Size }}pt;">{{ $sick2 }}</div>
+    @endif
 
     {{-- In case of Special Leave Benefits for Women --}}
     <div class="t i f75" style="left:350.7pt; top:{{ $bRow(7) + 2.5 }}pt;">In case of Special Leave Benefits for Women:</div>
 
     <div class="row" style="left:350.7pt; top:{{ $bRow(8) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="lbl f75">(Specify Illness)</span>
-        <span class="fill v" style="font-size:{{ $bFit($app->detail_women_illness, '(Specify Illness)', false) }}pt">{{ $app->detail_women_illness }}</span>
+        <span class="fill v">{{ $women1 }}</span>
     </div>
     <div class="ln" style="left:350.7pt; top:{{ $bRow(9) + 8.4 }}pt; width:183.3pt;"></div>
+    @if ($women2 !== '')
+        <div class="t v c" style="left:350.7pt; top:{{ $bRow(9) }}pt; width:183.3pt; line-height:8.4pt; font-size:{{ $women2Size }}pt;">{{ $women2 }}</div>
+    @endif
 
     {{-- In case of Study Leave --}}
     <div class="t i f75" style="left:350.7pt; top:{{ $bRow(10) + 2.5 }}pt;">In case of Study Leave:</div>
