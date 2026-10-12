@@ -269,7 +269,8 @@ class IpcrTest extends TestCase
         // Reviewed/Approved and Assessed/Final Rating share the designations,
         // so each one prints twice.
         $print = $this->actingAs($ratee)->get(route('ipcr.print', $form))->assertOk();
-        $this->assertSame(2, substr_count($print->getContent(), 'Civ HR'));
+        // ("Civ HRs" is the default core function, not a designation.)
+        $this->assertSame(2, preg_match_all('/Civ HR(?!s)/', $print->getContent()));
         $this->assertSame(2, substr_count($print->getContent(), 'Chief, Admin Branch'));
 
         // The editor gets them back flat, for the Form E designation cells.
@@ -438,6 +439,21 @@ class IpcrTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame('submitted', $own->fresh()->status);
+    }
+
+    public function test_a_blank_priority_and_core_function_read_the_wing_defaults(): void
+    {
+        $ratee = $this->employee();
+        $blank = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2025, 'semester' => 1, 'status' => 'draft']);
+        $typed = IpcrForm::create(['user_id' => $ratee->id, 'year' => 2025, 'semester' => 2, 'status' => 'draft',
+            'strategic_priority' => 'Something else', 'core_function' => 'Another']);
+
+        $this->actingAs($ratee)->get(route('ipcr.print', $blank))
+            ->assertSee('Strategic Priority No.: '.IpcrForm::DEFAULT_STRATEGIC_PRIORITY)
+            ->assertSee('Core Function: '.IpcrForm::DEFAULT_CORE_FUNCTION);
+
+        $this->assertSame('Something else', $typed->fresh()->strategic_priority);
+        $this->assertSame('Another', $typed->fresh()->core_function);
     }
 
     public function test_ratee_cannot_delete(): void

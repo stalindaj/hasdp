@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -51,6 +52,24 @@ class IpcrForm extends Model
                 $form->rating_period = \App\Support\RatingPeriod::label($form->year, $form->semester);
             }
         });
+    }
+
+    /**
+     * The wing's standing strategic priority and core function. A form left
+     * blank reads these instead, so older IPCRs and the printout are never
+     * empty; anything typed in still wins.
+     */
+    public const DEFAULT_STRATEGIC_PRIORITY = 'Territorial defense, security and stability services';
+    public const DEFAULT_CORE_FUNCTION = 'Administration of PAF Civ HRs';
+
+    protected function strategicPriority(): Attribute
+    {
+        return Attribute::get(fn (?string $v) => filled($v) ? $v : self::DEFAULT_STRATEGIC_PRIORITY);
+    }
+
+    protected function coreFunction(): Attribute
+    {
+        return Attribute::get(fn (?string $v) => filled($v) ? $v : self::DEFAULT_CORE_FUNCTION);
     }
 
     public const DRAFT = 'draft';
