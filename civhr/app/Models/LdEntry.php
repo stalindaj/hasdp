@@ -12,6 +12,7 @@ class LdEntry extends Model
         'date'       => 'date',
         'date_to'    => 'date',
         'hours'      => 'decimal:1',
+        'outside_paf' => 'boolean',
         'decided_at' => 'datetime',
     ];
 

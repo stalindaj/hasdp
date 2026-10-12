@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\BalanceController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\LdController;
+use App\Http\Controllers\LdReportController;
 use App\Http\Controllers\IpcrController;
 use App\Http\Controllers\IwotController;
 use Illuminate\Foundation\Application;
@@ -127,9 +128,16 @@ Route::middleware('auth')->group(function () {
     // The employee's own L&D page — their trainings and the form to file one.
     Route::get('/my-ld', [LdController::class, 'mine'])
         ->middleware('employee')->name('ld.mine');
-    // Table 2 — local career courses & seminars, from the approved filings.
-    Route::get('/ld/courses', [LdController::class, 'courses'])
-        ->middleware('admin')->name('ld.courses');
+    // The L&D accomplishment report — Tables 1–5 and the monitoring sheet,
+    // hand-editable and downloadable as Excel.
+    Route::middleware('admin')->group(function () {
+        Route::get('/ld/reports', [LdReportController::class, 'index'])->name('ld.reports');
+        // An admin records a training/course for several people, approved.
+        Route::post('/ld/record', [LdController::class, 'storeFor'])->name('ld.record');
+        Route::get('/ld/reports/export', [LdReportController::class, 'export'])->name('ld.reports.export');
+        Route::post('/ld/reports/cell', [LdReportController::class, 'cell'])->name('ld.reports.cell');
+        Route::delete('/ld/reports/cell', [LdReportController::class, 'reset'])->name('ld.reports.reset');
+    });
     Route::post('/ld', [LdController::class, 'store'])->name('ld.store');
     // The employee corrects or drops one of their own; either way it goes
     // back to the approver.

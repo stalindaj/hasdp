@@ -25,7 +25,7 @@ use Inertia\Inertia;
  * Local career courses and seminars are filed and approved the same way
  * (kind = career_course) but kept apart: they carry a batch and who conducted
  * them instead of hours, never count toward the target, and are reported on
- * their own as Table 2 (courses()).
+ * their own on the L&D report (Tables 2 and 3 of App\Support\LdReport).
  *
  * Proof images hold personal data, so they are stored on the private disk and
  * served only to the owner and admins through the file route below — never as
@@ -54,11 +54,28 @@ class LdController extends Controller
             ->whereHas('user', fn ($u) => $u->where('is_active', true))
             ->whereNotNull('emp_no')
             ->where('emp_no', '!=', 'mission')
-            ->with(['ldEntries' => fn ($q) => $q->whereYear('date', $year)])
+            ->with([
+                'ldEntries' => fn ($q) => $q->whereYear('date', $year)->orderByDesc('date'),
+                'careerCourses' => fn ($q) => $q->whereYear('date', $year)->orderByDesc('date'),
+            ])
             ->orderBy('last_name')
             ->get();
 
-        $rows = $employees->map(function ($e) {
+        $supervisorSg = (int) config('agency.ld_supervisor_sg_min');
+
+        // What each filing looks like when a row is opened on the roster.
+        $item = fn (LdEntry $l) => [
+            'id'     => $l->id,
+            'title'  => $l->title,
+            'detail' => $l->isCourse()
+                ? trim(implode(' · ', array_filter([$l->batch ? 'Batch '.$l->batch : null, $l->conducted_by, $l->outside_paf ? 'Outside PAF' : null])))
+                : $l->competencyLabel(),
+            'dates'  => $l->inclusive_dates_text,
+            'hours'  => $l->isCourse() ? null : (float) $l->hours,
+            'status' => $l->status,
+        ];
+
+        $rows = $employees->map(function ($e) use ($supervisorSg, $item) {
             $hours = (float) $e->ldEntries->where('status', LdEntry::APPROVED)->sum('hours');
             $target = LdTarget::hoursFor($e);
 
@@ -67,11 +84,15 @@ class LdController extends Controller
                 'emp_no'    => $e->emp_no,
                 'name'      => trim($e->last_name.', '.$e->first_name),
                 'sg'        => $e->salary_grade,
+                'level'     => (int) $e->salary_grade >= $supervisorSg ? '2nd' : '1st',
                 'target'    => $target,
                 'hours'     => round($hours, 1),
                 'remaining' => round(max(0, $target - $hours), 1),
                 'met'       => $hours >= $target,
-                'pending'   => $e->ldEntries->where('status', LdEntry::PENDING)->count(),
+                'pending'   => $e->ldEntries->where('status', LdEntry::PENDING)->count()
+                    + $e->careerCourses->where('status', LdEntry::PENDING)->count(),
+                'trainings' => $e->ldEntries->map($item)->values(),
+                'courses'   => $e->careerCourses->map($item)->values(),
             ];
         })->values();
 
@@ -103,16 +124,47 @@ class LdController extends Controller
             ->sortDesc()
             ->values();
 
+        // The analytics strip: approved training hours by month and by track,
+        // and the interventions that reached the most people.
+        $approved = $employees->flatMap->ldEntries->where('status', LdEntry::APPROVED);
+
+        $analytics = [
+            'months' => collect(range(1, 12))->map(fn ($m) => [
+                'label' => Carbon::create($year, $m, 1)->format('M'),
+                'hours' => round((float) $approved->filter(fn ($l) => $l->date->month === $m)->sum('hours'), 1),
+            ])->values(),
+            'competencies' => collect(LdEntry::COMPETENCIES)->map(fn ($label, $key) => [
+                'label' => $label,
+                'hours' => round((float) $approved->where('competency', $key)->sum('hours'), 1),
+            ])->values(),
+            'top' => $approved
+                ->groupBy(fn ($l) => mb_strtolower(trim($l->title)))
+                ->map(fn ($g) => [
+                    'title'  => $g->first()->title,
+                    'people' => $g->pluck('employee_id')->unique()->count(),
+                    'hours'  => (float) $g->max('hours'),
+                ])
+                ->sortByDesc('people')
+                ->take(5)
+                ->values(),
+        ];
+
         return Inertia::render('Ld/Index', [
             'year'  => $year,
             'years' => $years,
             'rows'  => $rows,
             'pending' => $pending,
+            'analytics' => $analytics,
+            'competencies' => collect(LdEntry::COMPETENCIES)
+                ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
+                ->values(),
             'summary' => [
                 'total'   => $rows->count(),
                 'met'     => $rows->where('met', true)->count(),
                 'behind'  => $rows->where('met', false)->count(),
                 'pending' => $pending->count(),
+                'hours'   => round($rows->sum('hours'), 1),
+                'courses' => $employees->sum(fn ($e) => $e->careerCourses->where('status', LdEntry::APPROVED)->count()),
             ],
         ]);
     }
@@ -192,6 +244,7 @@ class LdController extends Controller
                 'title'        => $l->title,
                 'batch'        => $l->batch,
                 'conducted_by' => $l->conducted_by,
+                'outside_paf'  => (bool) $l->outside_paf,
                 'dates'        => $l->inclusive_dates_text,
                 'date'         => optional($l->date)->toDateString(),
                 'date_to'      => optional($l->date_to)->toDateString(),
@@ -201,6 +254,40 @@ class LdController extends Controller
                 'photo'        => $l->photo_path ? route('ld.file', [$l, 'photo']) : null,
             ])->values(),
         ]);
+    }
+
+    /**
+     * An admin records a training or career course for any number of people
+     * at once — a unit seminar everyone attended, say — so the records match
+     * what the report needs. The admin is the approver, so each row is
+     * approved on the spot.
+     */
+    public function storeFor(Request $request)
+    {
+        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
+
+        $course = $request->input('kind') === LdEntry::COURSE;
+        $data = $this->validatedEntry($request, $course);
+        $people = $request->validate([
+            'employees'   => ['required', 'array', 'min:1'],
+            'employees.*' => ['integer', 'exists:employees,id'],
+        ])['employees'];
+
+        foreach (array_unique($people) as $employeeId) {
+            LdEntry::create([
+                'employee_id' => $employeeId,
+                'kind'        => $course ? LdEntry::COURSE : LdEntry::TRAINING,
+                ...$this->fields($data, $course),
+                'status'      => LdEntry::APPROVED,
+                'submitted_by' => $request->user()->id,
+                'decided_by'  => $request->user()->id,
+                'decided_at'  => now(),
+            ]);
+        }
+
+        $n = count(array_unique($people));
+
+        return back()->with('success', ($course ? 'Course' : 'Training')." recorded for {$n} ".($n === 1 ? 'person' : 'people').'.');
     }
 
     /** Employee submits a training (or a career course) for approval. */
@@ -267,11 +354,15 @@ class LdController extends Controller
         return back()->with('success', ($course ? 'Course' : 'Training').' updated — it goes back to the approver.');
     }
 
-    /** The employee removes one of their own entries (a duplicate, say). */
+    /**
+     * The employee removes one of their own entries (a duplicate, say); an
+     * admin may remove anyone's — e.g. a record entered for the wrong person.
+     */
     public function destroy(Request $request, LdEntry $entry)
     {
         $employee = $request->user()->employee;
-        abort_unless($employee && (int) $entry->employee_id === (int) $employee->id, 403);
+        $isOwner = $employee && (int) $entry->employee_id === (int) $employee->id;
+        abort_unless($isOwner || LeaveWorkflow::isAdmin($request->user()), 403);
 
         foreach ([$entry->certificate_path, $entry->photo_path] as $path) {
             if ($path) {
@@ -320,6 +411,7 @@ class LdController extends Controller
                 'title'        => ['required', 'string', 'max:255'],
                 'batch'        => ['nullable', 'string', 'max:50'],
                 'conducted_by' => ['nullable', 'string', 'max:191'],
+                'outside_paf'  => ['nullable', 'boolean'],
                 'date'         => ['required', 'date', 'before_or_equal:today'],
                 'date_to'      => ['nullable', 'date', 'after_or_equal:date', 'before_or_equal:today'],
             ] + $proof);
@@ -349,54 +441,13 @@ class LdController extends Controller
             ? $common + [
                 'batch'        => $data['batch'] ?? null,
                 'conducted_by' => $data['conducted_by'] ?? null,
+                'outside_paf'  => (bool) ($data['outside_paf'] ?? false),
                 'hours'        => 0,
             ]
             : $common + [
                 'competency' => $data['competency'] ?? null,
                 'hours'      => $data['hours'] ?? 1,
             ];
-    }
-
-    /**
-     * Table 2 — Civilian Human Resources Sent to Local Career Courses and
-     * Seminars. One row per course batch from the approved filings: the
-     * number of graduates is how many civilians filed it and were approved,
-     * and the dates run from the earliest start to the latest end.
-     */
-    public function courses(Request $request)
-    {
-        abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
-
-        $year = (int) $request->integer('year', now()->year);
-
-        $rows = LdEntry::approved()
-            ->where('kind', LdEntry::COURSE)
-            ->whereYear('date', $year)
-            ->orderBy('date')
-            ->get()
-            ->groupBy(fn (LdEntry $l) => mb_strtolower(trim($l->title)).'|'.mb_strtolower(trim((string) $l->batch)))
-            ->map(function ($group) {
-                $first = $group->first();
-                $span = new LdEntry([
-                    'date'    => $group->min('date'),
-                    'date_to' => $group->map(fn ($l) => $l->date_to ?? $l->date)->max(),
-                ]);
-
-                return [
-                    'title'        => $first->title,
-                    'batch'        => $first->batch,
-                    'dates'        => $span->inclusive_dates_text,
-                    'graduates'    => $group->pluck('employee_id')->unique()->count(),
-                    'conducted_by' => $group->pluck('conducted_by')->filter()->first(),
-                ];
-            })
-            ->values();
-
-        return view('ld.courses', [
-            'year'  => $year,
-            'rows'  => $rows,
-            'total' => $rows->sum('graduates'),
-        ]);
     }
 
     /** Serve a proof image to the owner or an admin. */

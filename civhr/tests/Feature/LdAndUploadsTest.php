@@ -206,6 +206,14 @@ class LdAndUploadsTest extends TestCase
         $this->assertSame(0, LdEntry::count());
     }
 
+    public function test_an_admin_removes_a_record_entered_for_the_wrong_person(): void
+    {
+        $entry = $this->approvedTraining($this->employeeUser());
+
+        $this->actingAs($this->adminUser())->delete(route('ld.destroy', $entry))->assertRedirect();
+        $this->assertModelMissing($entry);
+    }
+
     // ── Local career courses & seminars ──────────────────────────────
 
     private function fileCourse(User $user, array $over = []): LdEntry
@@ -278,15 +286,178 @@ class LdAndUploadsTest extends TestCase
         // Still pending: not on the report.
         $this->fileCourse($justin, ['title' => 'Not Yet Approved Seminar']);
 
-        $this->actingAs($admin)->get(route('ld.courses', ['year' => 2026]))
-            ->assertOk()
-            ->assertSee('Table 2. Civilian Human Resources Sent to Local Career Courses and Seminars')
-            ->assertSeeInOrder(['Helicopter Mechanic Apprentice Course', '2026-01', '24 February - 28 July 2026', '2', '19th CTTS, 15th SW'])
-            ->assertSeeInOrder(['Civilian Human Resource Supervisory Course', '01-31 July 2026', '1', 'PAFCHRS'])
-            ->assertSeeInOrder(['TOTAL', '3'])
-            ->assertDontSee('Not Yet Approved Seminar');
+        // Outside the PAF: Table 3, not Table 2.
+        $outside = $this->fileCourse($jean, [
+            'title' => 'Aviation Safety Course', 'conducted_by' => 'FAA', 'outside_paf' => '1',
+        ]);
+        $this->actingAs($admin)->patch(route('ld.decide', $outside), ['decision' => 'approved']);
 
-        $this->actingAs($justin)->get(route('ld.courses'))->assertForbidden();
+        $t2 = $this->reportTable($admin, 't2');
+        $this->assertSame('Table 2. Civilian Human Resources Sent to Local Career Courses and Seminars', $t2['title']);
+        $this->assertCount(2, $t2['rows']);
+        $this->assertSame([
+            'title' => 'Helicopter Mechanic Apprentice Course', 'batch' => '2026-01',
+            'dates' => '24 February - 28 July 2026', 'graduates' => 2, 'conducted_by' => '19th CTTS, 15th SW',
+        ], $t2['rows'][0]['cells']);
+        $this->assertSame(1, $t2['rows'][1]['cells']['graduates']);
+        $this->assertEquals(3, $t2['total']['graduates']);
+        $this->assertNotContains('Not Yet Approved Seminar', array_column(array_column($t2['rows'], 'cells'), 'title'));
+
+        $t3 = $this->reportTable($admin, 't3');
+        $this->assertSame(['Aviation Safety Course'], array_column(array_column($t3['rows'], 'cells'), 'title'));
+
+        $this->actingAs($justin)->get(route('ld.reports'))->assertForbidden();
+    }
+
+    // ── The L&D accomplishment report ─────────────────────────────────
+
+    private function reportTable(User $admin, string $report, array $query = ['year' => 2026]): array
+    {
+        $tables = $this->actingAs($admin)->get(route('ld.reports', $query))->assertOk()
+            ->viewData('page')['props']['tables'];
+
+        return collect($tables)->firstWhere('report', $report);
+    }
+
+    private function approvedTraining(User $user, array $over = []): LdEntry
+    {
+        $this->actingAs($user)->post(route('ld.store'), $over + [
+            'competency' => 'technical', 'title' => 'Records Management Seminar',
+            'date' => '2026-07-10', 'hours' => 8,
+        ])->assertSessionHasNoErrors();
+        $entry = LdEntry::latest('id')->firstOrFail();
+        $this->actingAs($this->adminUser())->patch(route('ld.decide', $entry), ['decision' => 'approved']);
+
+        return $entry;
+    }
+
+    public function test_the_report_tables_follow_the_approved_trainings(): void
+    {
+        $justin = $this->employeeUser();
+        $admin = $this->adminUser();
+        $vawc = ['competency' => 'foundational', 'title' => 'VAWC Seminar', 'date' => '2026-03-04', 'hours' => 4];
+
+        $this->approvedTraining($justin, $vawc);
+        $this->approvedTraining($admin, $vawc);
+        $this->approvedTraining($justin, ['date' => '2026-07-10', 'hours' => 10]);
+        // Pending: counts nowhere.
+        $this->actingAs($justin)->post(route('ld.store'), ['title' => 'Pending', 'date' => '2026-07-11', 'hours' => 50]);
+
+        $t1 = $this->reportTable($admin, 't1');
+        $this->assertSame(['Foundational', 'Technical'], array_column(array_column($t1['rows'], 'cells'), 'competency'));
+        $this->assertSame(['VAWC Seminar', '04 March 2026', 4.0, 2], [
+            $t1['rows'][0]['cells']['title'], $t1['rows'][0]['cells']['dates'],
+            $t1['rows'][0]['cells']['hours'], $t1['rows'][0]['cells']['participants'],
+        ]);
+        $this->assertEquals(14, $t1['total']['hours']);
+        $this->assertEquals(3, $t1['total']['participants']);
+
+        // Both are 1st level (8h target each). Justin's 14h give 8 toward his
+        // target and 6 extra; Marie's 4h all count.
+        $first = collect($this->reportTable($admin, 't4')['rows'])->firstWhere('key', 'first');
+        $this->assertSame(2, $first['cells']['filled']);
+        $this->assertEquals(16, $first['cells']['target']);
+        $this->assertEquals(12, $first['cells']['actual']);
+        $this->assertEquals(6, $first['cells']['excess']);
+        $this->assertSame('75%', $first['cells']['pct']);
+
+        $mon = collect($this->reportTable($admin, 'monitoring')['rows'])->firstWhere('cells.name', 'Bercades, Justin');
+        $this->assertEquals(4, $mon['cells']['mar']);
+        $this->assertEquals(10, $mon['cells']['jul']);
+        $this->assertEquals(14, $mon['cells']['total']);
+        $this->assertSame('YES', $mon['cells']['complied']);
+        $this->assertEquals(6, $mon['cells']['additional']);
+
+        // "As of Q1" leaves July out.
+        $q1 = collect($this->reportTable($admin, 'monitoring', ['year' => 2026, 'quarter' => 1])['rows'])
+            ->firstWhere('cells.name', 'Bercades, Justin');
+        $this->assertEquals(4, $q1['cells']['total']);
+    }
+
+    public function test_a_hand_edit_overrides_one_cell_and_the_totals_follow(): void
+    {
+        $admin = $this->adminUser();
+        $this->approvedTraining($this->employeeUser());
+
+        $row = $this->reportTable($admin, 't1')['rows'][0];
+        $cell = ['year' => 2026, 'report' => 't1', 'row_key' => $row['key'], 'col' => 'hours'];
+
+        $this->actingAs($admin)->post(route('ld.reports.cell'), $cell + ['value' => '830'])->assertRedirect();
+        $t1 = $this->reportTable($admin, 't1');
+        $this->assertSame('830', $t1['rows'][0]['cells']['hours']);
+        $this->assertEquals(8, $t1['rows'][0]['edited']['hours']);   // the live value, kept for reset
+        $this->assertEquals(830, $t1['total']['hours']);
+
+        // Only that period carries the edit.
+        $this->assertEquals(8, $this->reportTable($admin, 't1', ['year' => 2026, 'quarter' => 3])['rows'][0]['cells']['hours']);
+
+        $this->actingAs($admin)->delete(route('ld.reports.reset'), $cell)->assertRedirect();
+        $this->assertEquals(8, $this->reportTable($admin, 't1')['rows'][0]['cells']['hours']);
+
+        // Derived columns are not editable.
+        $this->actingAs($admin)->post(route('ld.reports.cell'), [
+            'year' => 2026, 'report' => 't4', 'row_key' => 'first', 'col' => 'pct', 'value' => '999%',
+        ])->assertStatus(422);
+    }
+
+    public function test_table_5_percentages_use_the_typed_targets(): void
+    {
+        $admin = $this->adminUser();
+        $this->approvedTraining($this->employeeUser());
+
+        $this->actingAs($admin)->post(route('ld.reports.cell'), [
+            'year' => 2026, 'report' => 't5', 'row_key' => 'technical', 'col' => 'adj_course', 'value' => '2',
+        ])->assertRedirect();
+
+        $tech = collect($this->reportTable($admin, 't5')['rows'])->firstWhere('key', 'technical');
+        $this->assertSame(1, $tech['cells']['actual_course']);
+        $this->assertSame('50%', $tech['cells']['pct_course']);
+        $this->assertSame('-', $tech['cells']['pct_pax']);
+    }
+
+    public function test_an_admin_records_one_training_for_several_people_approved(): void
+    {
+        $justin = $this->employeeUser();
+        $jean = $this->userWithRoles(['employee'], ['emp_no' => '5038', 'first_name' => 'Jean', 'last_name' => 'Tubat']);
+        $admin = $this->adminUser();
+
+        $this->actingAs($admin)->post(route('ld.record'), [
+            'kind' => 'training', 'competency' => 'foundational', 'title' => 'VAWC Seminar',
+            'date' => '2026-03-04', 'hours' => 4,
+            'employees' => [$justin->employee_id, $jean->employee_id],
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $rows = LdEntry::where('title', 'VAWC Seminar')->get();
+        $this->assertCount(2, $rows);
+        $this->assertTrue($rows->every(fn ($l) => $l->status === LdEntry::APPROVED && $l->decided_by === $admin->id));
+
+        // It counts straight away, and the roster analytics see it.
+        $this->assertSame(2, $this->reportTable($admin, 't1')['rows'][0]['cells']['participants']);
+        $this->actingAs($admin)->get(route('ld.index', ['year' => 2026]))
+            ->assertInertia(fn ($page) => $page
+                ->where('analytics.months.2.hours', 8)
+                ->where('analytics.top.0.people', 2));
+
+        // Employees cannot record for others.
+        $this->actingAs($justin)->post(route('ld.record'), [
+            'title' => 'X', 'date' => '2026-03-04', 'employees' => [$jean->employee_id],
+        ])->assertForbidden();
+    }
+
+    public function test_the_report_downloads_as_an_excel_workbook(): void
+    {
+        $admin = $this->adminUser();
+        $this->approvedTraining($this->employeeUser());
+
+        $response = $this->actingAs($admin)->get(route('ld.reports.export', ['year' => 2026]))->assertOk();
+        $file = $response->baseResponse->getFile()->getPathname();
+
+        $book = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
+        $this->assertSame(['Table 1', 'Table 2', 'Table 3', 'Table 4', 'Table 5', 'L&D Monitoring'], $book->getSheetNames());
+        $sheet = $book->getSheetByName('Table 1');
+        $this->assertSame('Table 1. Conducted Unit Training/Seminars and L&D Intervention', $sheet->getCell('A1')->getValue());
+        $this->assertSame('Records Management Seminar', $sheet->getCell('B5')->getValue());
+        $this->assertEquals(8, $sheet->getCell('D5')->getValue());
     }
 
     public function test_pending_hours_do_not_count_until_approved(): void

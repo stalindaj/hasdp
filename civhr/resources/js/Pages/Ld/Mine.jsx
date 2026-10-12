@@ -28,6 +28,7 @@ const blank = {
     kind: 'training',
     batch: '',
     conducted_by: '',
+    outside_paf: false,
     competency: 'technical',
     title: '',
     date: '',
@@ -90,6 +91,7 @@ export default function Mine({ year, years, competencies, summary, entries, cour
                       kind,
                       batch: entry.batch ?? '',
                       conducted_by: entry.conducted_by ?? '',
+                      outside_paf: !!entry.outside_paf,
                       competency: entry.competency_key ?? 'technical',
                       title: entry.title,
                       date: entry.date ?? '',
@@ -323,7 +325,14 @@ export default function Mine({ year, years, competencies, summary, entries, cour
                                                 </td>
                                                 <td className="px-4 py-3 text-slate-600">{c.batch || '—'}</td>
                                                 <td className="px-4 py-3 text-slate-600">{c.dates}</td>
-                                                <td className="px-4 py-3 text-slate-600">{c.conducted_by || '—'}</td>
+                                                <td className="px-4 py-3 text-slate-600">
+                                                    {c.conducted_by || '—'}
+                                                    {c.outside_paf && (
+                                                        <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
+                                                            Outside PAF
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <Proof entry={c} />
                                                 </td>
@@ -420,6 +429,15 @@ export default function Mine({ year, years, competencies, summary, entries, cour
                                         <p className="mt-1 text-xs text-rose-600">{form.errors.conducted_by}</p>
                                     )}
                                 </div>
+                                <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.data.outside_paf}
+                                        onChange={(e) => form.setData('outside_paf', e.target.checked)}
+                                        className="rounded border-gray-300 text-[#0b2a52] focus:ring-[#0b2a52]"
+                                    />
+                                    Taken outside the PAF
+                                </label>
                             </div>
                         )}
 
