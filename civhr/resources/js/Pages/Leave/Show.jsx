@@ -477,7 +477,7 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
     const { data, setData, patch, processing, errors, recentlySuccessful } =
         useForm({
             slot,
-            type: initial?.type ?? 'civilian',
+            type: initial?.type ?? (slot === 'recommender' ? 'military' : 'civilian'),
             name: initial?.name ?? '',
             rank: initial?.rank ?? '',
             position: initial?.position ?? '',

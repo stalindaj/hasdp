@@ -305,7 +305,9 @@ class LeaveController extends Controller
             // holders until something is typed for them.
             'signatories' => [
                 'certifier'   => $this->signatoryFields($application->hr_officer_sig, $this->defaultCertifier()),
-                'recommender' => $this->signatoryFields($application->recommender_sig, null),
+                // 7.B is a military officer in this wing, so a blank block
+                // opens on Military; once filled it shows what was saved.
+                'recommender' => $this->signatoryFields($application->recommender_sig, null, 'military'),
                 'approver'    => $this->signatoryFields($application->approver_sig, $this->defaultApprover()),
             ],
             // 7.A is computed from the ledger, not typed — the applicant sees
@@ -756,14 +758,16 @@ class LeaveController extends Controller
     }
 
     /** One signature block as the edit form wants it, with a printed preview. */
-    private function signatoryFields(?array $sig, ?User $fallback): array
+    private function signatoryFields(?array $sig, ?User $fallback, string $blankType = 'civilian'): array
     {
         $sig ??= $fallback?->signatoryBlock();
 
         $rank = $sig['rank'] ?? '';
 
         return [
-            'type'     => $rank !== '' ? 'military' : 'civilian',
+            // A saved block is military exactly when it carries a rank; an
+            // empty one opens on the slot's usual kind of signatory.
+            'type'     => $sig ? ($rank !== '' ? 'military' : 'civilian') : $blankType,
             'name'     => $sig['name'] ?? '',
             'rank'     => $rank,
             'position' => $sig['position'] ?? '',

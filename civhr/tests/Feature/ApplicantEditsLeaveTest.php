@@ -322,6 +322,25 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertEquals(2.0, (float) $leave->fresh()->working_days);
     }
 
+    public function test_a_blank_7b_opens_on_military_and_a_saved_one_keeps_its_kind(): void
+    {
+        $applicant = $this->applicant();
+        $leave = $this->file($applicant);
+        $admin = $this->admin();
+
+        // Nothing named yet: the recommending officer is military by default.
+        $this->actingAs($admin)->get(route('leave.show', $leave))
+            ->assertInertia(fn ($p) => $p->where('signatories.recommender.type', 'military'));
+
+        // A civilian, once saved, stays civilian.
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'civilian', 'name' => 'Marie Cris A Uri',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($admin)->get(route('leave.show', $leave))
+            ->assertInertia(fn ($p) => $p->where('signatories.recommender.type', 'civilian'));
+    }
+
     public function test_an_officer_keeps_their_position_line(): void
     {
         $leave = $this->file($this->applicant());
