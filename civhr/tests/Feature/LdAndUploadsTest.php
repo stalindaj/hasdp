@@ -431,12 +431,10 @@ class LdAndUploadsTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertTrue($rows->every(fn ($l) => $l->status === LdEntry::APPROVED && $l->decided_by === $admin->id));
 
-        // It counts straight away, and the roster analytics see it.
+        // It counts straight away, on the report and on each person's row.
         $this->assertSame(2, $this->reportTable($admin, 't1')['rows'][0]['cells']['participants']);
         $this->actingAs($admin)->get(route('ld.index', ['year' => 2026]))
-            ->assertInertia(fn ($page) => $page
-                ->where('analytics.months.2.hours', 8)
-                ->where('analytics.top.0.people', 2));
+            ->assertInertia(fn ($page) => $page->where('summary.hours', 8));
 
         // Employees cannot record for others.
         $this->actingAs($justin)->post(route('ld.record'), [

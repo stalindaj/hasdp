@@ -124,37 +124,11 @@ class LdController extends Controller
             ->sortDesc()
             ->values();
 
-        // The analytics strip: approved training hours by month and by track,
-        // and the interventions that reached the most people.
-        $approved = $employees->flatMap->ldEntries->where('status', LdEntry::APPROVED);
-
-        $analytics = [
-            'months' => collect(range(1, 12))->map(fn ($m) => [
-                'label' => Carbon::create($year, $m, 1)->format('M'),
-                'hours' => round((float) $approved->filter(fn ($l) => $l->date->month === $m)->sum('hours'), 1),
-            ])->values(),
-            'competencies' => collect(LdEntry::COMPETENCIES)->map(fn ($label, $key) => [
-                'label' => $label,
-                'hours' => round((float) $approved->where('competency', $key)->sum('hours'), 1),
-            ])->values(),
-            'top' => $approved
-                ->groupBy(fn ($l) => mb_strtolower(trim($l->title)))
-                ->map(fn ($g) => [
-                    'title'  => $g->first()->title,
-                    'people' => $g->pluck('employee_id')->unique()->count(),
-                    'hours'  => (float) $g->max('hours'),
-                ])
-                ->sortByDesc('people')
-                ->take(5)
-                ->values(),
-        ];
-
         return Inertia::render('Ld/Index', [
             'year'  => $year,
             'years' => $years,
             'rows'  => $rows,
             'pending' => $pending,
-            'analytics' => $analytics,
             'competencies' => collect(LdEntry::COMPETENCIES)
                 ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
                 ->values(),

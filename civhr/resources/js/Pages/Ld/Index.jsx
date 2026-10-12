@@ -3,75 +3,6 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Fragment, useMemo, useState } from 'react';
 
-const NAVY = '#0b2a52';
-
-/**
- * Approved training hours per month — one series, so one hue and no legend.
- * The value sits on hover; the busiest month carries a direct label.
- */
-function MonthChart({ months }) {
-    const max = Math.max(...months.map((m) => m.hours), 1);
-    const peak = months.reduce((a, b) => (b.hours > a.hours ? b : a), months[0]);
-    return (
-        <div>
-            <div className="flex h-40 items-end gap-1.5 border-b border-slate-200 pt-5">
-                {months.map((m) => (
-                    <div key={m.label} className="group relative flex h-full flex-1 flex-col items-center justify-end">
-                        {m === peak && m.hours > 0 && (
-                            <span className="mb-0.5 text-[11px] font-semibold tabular-nums text-slate-700">{m.hours}h</span>
-                        )}
-                        <div
-                            className="w-full max-w-[2.5rem] shrink-0 rounded-t transition-opacity group-hover:opacity-80"
-                            style={{ height: `${(m.hours / max) * 100}%`, minHeight: m.hours ? 3 : 0, background: NAVY }}
-                        />
-                        <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-xs text-white shadow group-hover:block">
-                            {m.label}: {m.hours}h
-                        </span>
-                    </div>
-                ))}
-            </div>
-            <div className="mt-1 flex gap-1.5">
-                {months.map((m) => (
-                    <span key={m.label} className="flex-1 text-center text-[11px] text-slate-400">{m.label}</span>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-/** Hours per competency track, longest first, labelled at the bar end. */
-function TrackBars({ tracks }) {
-    const rows = [...tracks].sort((a, b) => b.hours - a.hours);
-    const max = Math.max(...rows.map((t) => t.hours), 1);
-    return (
-        <ul className="space-y-2.5">
-            {rows.map((t) => (
-                <li key={t.label} className="grid grid-cols-[9.5rem_1fr] items-center gap-3">
-                    <span className="truncate text-sm text-slate-600">{t.label}</span>
-                    <div className="flex items-center gap-2">
-                        <div className="h-3 flex-1 rounded-r bg-slate-100">
-                            <div
-                                className="h-full rounded-r"
-                                style={{ width: `${(t.hours / max) * 100}%`, background: NAVY }}
-                            />
-                        </div>
-                        <span className="w-12 text-right text-sm tabular-nums text-slate-700">{t.hours}h</span>
-                    </div>
-                </li>
-            ))}
-        </ul>
-    );
-}
-
-function Panel({ title, children, className = '' }) {
-    return (
-        <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
-            <p className="mb-4 text-sm font-semibold text-slate-700">{title}</p>
-            {children}
-        </div>
-    );
-}
-
 const blankRecord = {
     kind: 'training',
     competency: 'foundational',
@@ -356,7 +287,7 @@ function Filings({ title, items, empty }) {
     );
 }
 
-export default function Index({ year, years, rows, pending, summary, analytics, competencies }) {
+export default function Index({ year, years, rows, pending, summary, competencies }) {
     const flash = usePage().props.flash;
     const [recording, setRecording] = useState(false);
     const [filter, setFilter] = useState('all');
@@ -454,31 +385,6 @@ export default function Index({ year, years, rows, pending, summary, analytics, 
                         <Stat value={`${summary.hours}h`} label="Approved hours" />
                         <Stat value={summary.pending} label="Awaiting approval" tone="info" />
                     </div>
-
-                    {/* Analytics — kept to three plain views */}
-                    <div className="grid gap-4 lg:grid-cols-3">
-                        <Panel title={`Approved training hours by month · ${year}`} className="lg:col-span-2">
-                            <MonthChart months={analytics.months} />
-                        </Panel>
-                        <Panel title="Hours by competency">
-                            <TrackBars tracks={analytics.competencies} />
-                        </Panel>
-                    </div>
-                    {analytics.top.length > 0 && (
-                        <Panel title="Most-attended trainings">
-                            <ol className="grid gap-x-8 gap-y-2 md:grid-cols-2 xl:grid-cols-3">
-                                {analytics.top.map((t, i) => (
-                                    <li key={t.title} className="flex items-baseline gap-3 text-sm">
-                                        <span className="w-4 text-right font-semibold tabular-nums text-slate-400">{i + 1}</span>
-                                        <span className="min-w-0 flex-1 truncate text-slate-800" title={t.title}>{t.title}</span>
-                                        <span className="shrink-0 tabular-nums text-slate-500">
-                                            {t.people} {t.people === 1 ? 'person' : 'people'} · {t.hours}h
-                                        </span>
-                                    </li>
-                                ))}
-                            </ol>
-                        </Panel>
-                    )}
 
                     {/* Approval queue */}
                     {pending.length > 0 && (
