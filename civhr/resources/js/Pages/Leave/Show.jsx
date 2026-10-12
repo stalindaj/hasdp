@@ -533,33 +533,37 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
                     <InputError message={errors.name} className="mt-1" />
                 </div>
 
-                {military ? (
+                {military && (
                     <div className="sm:col-span-1">
                         <InputLabel htmlFor={`${slot}_rank`} value="Rank" />
                         <TextInput
                             id={`${slot}_rank`}
                             className="mt-1 block w-full"
-                            placeholder="MAJ"
+                            placeholder="LTC"
                             value={data.rank}
                             onChange={(e) => setData('rank', e.target.value)}
                         />
                         <InputError message={errors.rank} className="mt-1" />
                     </div>
-                ) : (
-                    <div className="sm:col-span-3">
-                        <InputLabel htmlFor={`${slot}_position`} value="Position" />
-                        <TextInput
-                            id={`${slot}_position`}
-                            className="mt-1 block w-full"
-                            placeholder="e.g. Admin Officer IV (HRMO II)"
-                            value={data.position}
-                            onChange={(e) => setData('position', e.target.value)}
-                        />
-                        <InputError message={errors.position} className="mt-1" />
-                    </div>
                 )}
 
-                <div className={military ? 'sm:col-span-2' : 'sm:col-span-6'}>
+                {/* An officer holds a post as much as a civilian does, so the
+                    position line is offered either way. */}
+                <div className={military ? 'sm:col-span-2' : 'sm:col-span-3'}>
+                    <InputLabel htmlFor={`${slot}_position`} value="Position" />
+                    <TextInput
+                        id={`${slot}_position`}
+                        className="mt-1 block w-full"
+                        placeholder={
+                            military ? 'e.g. Acting Assistant Director for Personnel' : 'e.g. Admin Officer IV (HRMO II)'
+                        }
+                        value={data.position}
+                        onChange={(e) => setData('position', e.target.value)}
+                    />
+                    <InputError message={errors.position} className="mt-1" />
+                </div>
+
+                <div className="sm:col-span-6">
                     <InputLabel
                         htmlFor={`${slot}_office`}
                         value="Office / designation"
@@ -586,7 +590,7 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
                 )}
                 <span className="text-xs text-gray-400">
                     {military
-                        ? 'Prints: name centred, rank left, branch right, office below.'
+                        ? 'Prints: name centred, rank left, branch right, then the position and office lines.'
                         : 'Prints: name centred, then the position and office lines.'}
                 </span>
             </div>

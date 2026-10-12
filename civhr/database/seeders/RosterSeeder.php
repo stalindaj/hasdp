@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
  * everyone should change theirs on first login.
  *
  * Signatories on CS Form No. 6 are role-driven:
- *   hr_officer → 7.A (Marie Cris Uri) · approver → 7.C/7.D (Maricel C Tabaco)
+ *   hr_officer → 7.A (Marie Cris Uri) · approver → 7.C/7.D (LTC Maricel C Tabaco PAF)
  */
 class RosterSeeder extends Seeder
 {
@@ -54,11 +54,10 @@ class RosterSeeder extends Seeder
             // emp_no is a sentinel excluded from the roster); login optional.
             // The placeholder email is kept stable so re-seeding renames the
             // existing signatory in place rather than orphaning the old one.
-            // Recorded as a civilian (name only, no rank/PAF) — set 'rank' +
-            // 'is_civilian' => false here if she is in fact military.
+            // Military: the block prints LTC left and PAF right of her name.
             ['mission', null, 'Tabaco', 'Maricel', 'C', null, 'adrian.mission@civhr.test', null, null, null, null, null, ['approver'], [
-                'rank' => null,
-                'is_civilian' => true,
+                'rank' => 'LTC',
+                'is_civilian' => false,
                 'designation' => 'Director for Personnel',
             ]],
         ];

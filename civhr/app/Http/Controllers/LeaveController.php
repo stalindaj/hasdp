@@ -505,9 +505,10 @@ class LeaveController extends Controller
             'rank'   => $rank,
             'name'   => $name,
             'branch' => $rank !== '' ? (string) config('agency.branch_suffix') : '',
-            // Civilians get the extra title line; a ranked officer's block
-            // stays the compact rank/name/branch/office shape.
-            'position'    => $military ? '' : trim((string) ($data['position'] ?? '')),
+            // Either kind may carry a position line — an officer holding a
+            // post ("Acting Assistant Director for Personnel") prints it the
+            // same way a civilian's title does, above the office line.
+            'position'    => trim((string) ($data['position'] ?? '')),
             'designation' => trim((string) ($data['office'] ?? '')),
         ];
 

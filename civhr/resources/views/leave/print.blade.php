@@ -318,6 +318,18 @@
         // 6.B walks the same 12.6pt rhythm as 6.A.
         $bW = $R - 350.7 - 4.7;              // usable width inside the 6.B cell
         $bRow = fn ($i) => 244.0 + $i * $ROW;
+
+        /**
+         * What is left of a 6.B row once its checkbox and label have had
+         * their share — and the size the value has to come down to so a long
+         * illness ("Neurodevelopmental Assessment") prints in full rather
+         * than running off the end of its rule.
+         */
+        $bFit = function (?string $value, string $label, bool $checkbox = true) use ($bW, $fit) {
+            $width = $bW - ($checkbox ? 10.1 : 0) - mb_strlen($label) * 0.5 * 7.5 - 3;
+
+            return $fit($value, max($width, 20), 7.0);
+        };
     @endphp
 
     {{-- In case of Vacation/Special Privilege Leave --}}
@@ -326,13 +338,13 @@
     <div class="row" style="left:350.7pt; top:{{ $bRow(1) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_vacation', 'within_philippines') ? '✓' : '' }}</span>
         <span class="lbl f75">Within the Philippines</span>
-        <span class="fill v">{{ $det('detail_vacation', 'within_philippines') ? $app->detail_vacation_location : '' }}</span>
+        <span class="fill v" style="font-size:{{ $bFit($det('detail_vacation', 'within_philippines') ? $app->detail_vacation_location : '', 'Within the Philippines') }}pt">{{ $det('detail_vacation', 'within_philippines') ? $app->detail_vacation_location : '' }}</span>
     </div>
 
     <div class="row" style="left:350.7pt; top:{{ $bRow(2) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_vacation', 'abroad') ? '✓' : '' }}</span>
         <span class="lbl f75">Abroad (Specify)</span>
-        <span class="fill v">{{ $det('detail_vacation', 'abroad') ? $app->detail_vacation_location : '' }}</span>
+        <span class="fill v" style="font-size:{{ $bFit($det('detail_vacation', 'abroad') ? $app->detail_vacation_location : '', 'Abroad (Specify)') }}pt">{{ $det('detail_vacation', 'abroad') ? $app->detail_vacation_location : '' }}</span>
     </div>
 
     {{-- In case of Sick Leave --}}
@@ -341,13 +353,13 @@
     <div class="row" style="left:350.7pt; top:{{ $bRow(4) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_sick', 'in_hospital') ? '✓' : '' }}</span>
         <span class="lbl f75">In Hospital (Specify Illness)</span>
-        <span class="fill v">{{ $det('detail_sick', 'in_hospital') ? $app->detail_sick_illness : '' }}</span>
+        <span class="fill v" style="font-size:{{ $bFit($det('detail_sick', 'in_hospital') ? $app->detail_sick_illness : '', 'In Hospital (Specify Illness)') }}pt">{{ $det('detail_sick', 'in_hospital') ? $app->detail_sick_illness : '' }}</span>
     </div>
 
     <div class="row" style="left:350.7pt; top:{{ $bRow(5) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="cb">{{ $det('detail_sick', 'out_patient') ? '✓' : '' }}</span>
         <span class="lbl f75">Out Patient (Specify Illness)</span>
-        <span class="fill v">{{ $det('detail_sick', 'out_patient') ? $app->detail_sick_illness : '' }}</span>
+        <span class="fill v" style="font-size:{{ $bFit($det('detail_sick', 'out_patient') ? $app->detail_sick_illness : '', 'Out Patient (Specify Illness)') }}pt">{{ $det('detail_sick', 'out_patient') ? $app->detail_sick_illness : '' }}</span>
     </div>
 
     <div class="ln" style="left:350.7pt; top:{{ $bRow(6) + 8.4 }}pt; width:183.3pt;"></div>
@@ -357,7 +369,7 @@
 
     <div class="row" style="left:350.7pt; top:{{ $bRow(8) }}pt; width:{{ $bW }}pt; height:{{ $ROW }}pt;">
         <span class="lbl f75">(Specify Illness)</span>
-        <span class="fill v">{{ $app->detail_women_illness }}</span>
+        <span class="fill v" style="font-size:{{ $bFit($app->detail_women_illness, '(Specify Illness)', false) }}pt">{{ $app->detail_women_illness }}</span>
     </div>
     <div class="ln" style="left:350.7pt; top:{{ $bRow(9) + 8.4 }}pt; width:183.3pt;"></div>
 

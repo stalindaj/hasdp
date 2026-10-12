@@ -322,6 +322,30 @@ class ApplicantEditsLeaveTest extends TestCase
         $this->assertEquals(2.0, (float) $leave->fresh()->working_days);
     }
 
+    public function test_an_officer_keeps_their_position_line(): void
+    {
+        $leave = $this->file($this->applicant());
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->patch(route('leave.signatory', $leave), [
+            'slot' => 'recommender', 'type' => 'military',
+            'name' => 'Shiela O Pasamba', 'rank' => 'CPT',
+            'position' => 'Acting Assistant Director for Personnel', 'office' => 'MPMBR',
+        ])->assertSessionHasNoErrors();
+
+        $sig = $leave->fresh()->recommender_sig;
+        $this->assertSame('CPT', $sig['rank']);
+        $this->assertSame('Acting Assistant Director for Personnel', $sig['position']);
+        $this->assertSame('MPMBR', $sig['designation']);
+
+        // Name, rank/branch, then both title lines, all on the printed form.
+        $this->actingAs($admin)->get(route('leave.print', $leave))
+            ->assertOk()
+            ->assertSee('SHIELA O PASAMBA')
+            ->assertSee('Acting Assistant Director for Personnel')
+            ->assertSee('MPMBR');
+    }
+
     public function test_the_applicant_sees_the_signatories_and_their_balances(): void
     {
         $applicant = $this->applicant();
