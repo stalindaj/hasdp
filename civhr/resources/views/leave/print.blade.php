@@ -619,7 +619,9 @@
         <span class="fill v">{{ $reasonLines[0] ?? '' }}</span>
     </div>
 
-    @for ($i = 0; $i < 3; $i++)
+    {{-- Two reason lines, not three: the third sat right on top of the
+         recommender's name and left no room to sign above it. --}}
+    @for ($i = 0; $i < 2; $i++)
         <div class="ln" style="left:350.7pt; top:{{ 572.5 + $i * 9.1 }}pt; width:183.3pt;"></div>
         <div class="t v f7" style="left:352pt; top:{{ 565.5 + $i * 9.1 }}pt; width:181pt; overflow:hidden;">{{ $reasonLines[$i + 1] ?? '' }}</div>
     @endfor
@@ -628,11 +630,8 @@
         'sig'     => $sigOf($app->recommender_sig, null, false, 'recommender'),   {{-- typed in by the admin, never linked to an account --}}
         'left'    => $MID + 5,
         'width'   => 190,
-        // No printed name/title — just a blank space to sign, with the line
-        // kept low in the cell so there is room above it for the signature.
-        'top'     => 606,
+        'top'     => 594,
         'caption' => '(Authorized Officer)',
-        'hideName' => true,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 

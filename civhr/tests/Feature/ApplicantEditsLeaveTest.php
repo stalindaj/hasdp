@@ -341,7 +341,7 @@ class ApplicantEditsLeaveTest extends TestCase
             ->assertInertia(fn ($p) => $p->where('signatories.recommender.type', 'civilian'));
     }
 
-    public function test_7b_records_the_recommender_but_prints_a_blank_signing_space(): void
+    public function test_an_officer_keeps_their_position_line(): void
     {
         $leave = $this->file($this->applicant());
         $admin = $this->admin();
@@ -352,18 +352,20 @@ class ApplicantEditsLeaveTest extends TestCase
             'position' => 'Acting Assistant Director for Personnel', 'office' => 'MPMBR',
         ])->assertSessionHasNoErrors();
 
-        // The details are still recorded (and shown in the signatory panel)…
         $sig = $leave->fresh()->recommender_sig;
         $this->assertSame('CPT', $sig['rank']);
         $this->assertSame('Acting Assistant Director for Personnel', $sig['position']);
         $this->assertSame('MPMBR', $sig['designation']);
 
-        // …but 7.B prints a blank space so the officer can sign by hand — the
-        // full block would otherwise fill the cell and leave no room to sign.
-        $this->actingAs($admin)->get(route('leave.print', $leave))
+        // Name, rank/branch, then both title lines, all on the printed form —
+        // with only two 7.B reason lines above, so there is room to sign.
+        $html = $this->actingAs($admin)->get(route('leave.print', $leave))
             ->assertOk()
-            ->assertDontSee('SHIELA O PASAMBA')
-            ->assertDontSee('Acting Assistant Director for Personnel');
+            ->assertSee('SHIELA O PASAMBA')
+            ->assertSee('Acting Assistant Director for Personnel')
+            ->assertSee('MPMBR')
+            ->getContent();
+        $this->assertStringNotContainsString('top:590.7pt; width:183.3pt', $html);
     }
 
     public function test_the_applicant_sees_the_signatories_and_their_balances(): void
