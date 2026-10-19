@@ -28,10 +28,12 @@
     $sigLeft  = $sigLeftArg ?? $left;
     $sigWidth = $sigWidthArg ?? $width;
 
-    $rank   = $sig['rank'] ?? '';
-    // Some blocks (e.g. 6.D applicant) print no name — just a signature space.
-    $name   = ($hideName ?? false) ? '' : ($sig['name'] ?? '');
-    $branch = $sig['branch'] ?? '';
+    // Some blocks (e.g. 6.D applicant, 7.B recommender) print no identity at
+    // all — just a clean space to sign over the line and the caption below.
+    $hideName = $hideName ?? false;
+    $rank   = $hideName ? '' : ($sig['rank'] ?? '');
+    $name   = $hideName ? '' : ($sig['name'] ?? '');
+    $branch = $hideName ? '' : ($sig['branch'] ?? '');
 
     // Tight cells can pass a smaller line pitch to make room above for a
     // larger signature while still fitting the caption inside the cell.
@@ -50,8 +52,9 @@
         $y += $step;
     }
 
-    // Centred title lines: whatever the admin set.
-    $titleLines = array_values(array_filter([
+    // Centred title lines: whatever the admin set (none when the identity is
+    // hidden, leaving the space blank for signing).
+    $titleLines = $hideName ? [] : array_values(array_filter([
         $sig['position'] ?? '',
         $sig['designation'] ?? '',
     ], fn ($l) => $l !== '' && $l !== null));

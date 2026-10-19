@@ -628,8 +628,11 @@
         'sig'     => $sigOf($app->recommender_sig, null, false, 'recommender'),   {{-- typed in by the admin, never linked to an account --}}
         'left'    => $MID + 5,
         'width'   => 190,
-        'top'     => 594,
+        // No printed name/title — just a blank space to sign, with the line
+        // kept low in the cell so there is room above it for the signature.
+        'top'     => 606,
         'caption' => '(Authorized Officer)',
+        'hideName' => true,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
