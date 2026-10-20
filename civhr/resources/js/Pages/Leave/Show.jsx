@@ -481,6 +481,7 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
             name: initial?.name ?? '',
             rank: initial?.rank ?? '',
             position: initial?.position ?? '',
+            office: initial?.office ?? '',
         });
 
     const military = data.type === 'military';
@@ -546,9 +547,9 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
                     </div>
                 )}
 
-                {/* An officer holds a post as much as a civilian does, so the
-                    position line is offered either way. It is the only title
-                    line — a separate office line just stacked under it. */}
+                {/* An officer holds a post as much as a civilian does, so both
+                    title lines — position, then office / designation — are
+                    offered either way. */}
                 <div className={military ? 'sm:col-span-2' : 'sm:col-span-3'}>
                     <InputLabel htmlFor={`${slot}_position`} value="Position" />
                     <TextInput
@@ -562,6 +563,23 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
                     />
                     <InputError message={errors.position} className="mt-1" />
                 </div>
+
+                <div className="sm:col-span-6">
+                    <InputLabel
+                        htmlFor={`${slot}_office`}
+                        value="Office / designation"
+                    />
+                    <TextInput
+                        id={`${slot}_office`}
+                        className="mt-1 block w-full"
+                        placeholder={
+                            military ? 'e.g. MPMBR' : 'e.g. Wing Civilian Supervisor'
+                        }
+                        value={data.office}
+                        onChange={(e) => setData('office', e.target.value)}
+                    />
+                    <InputError message={errors.office} className="mt-1" />
+                </div>
             </div>
 
             <div className="mt-3 flex items-center gap-3">
@@ -573,8 +591,8 @@ function SignatoryForm({ application, slot, label, initial, onSaved }) {
                 )}
                 <span className="text-xs text-gray-400">
                     {military
-                        ? 'Prints: name centred, rank left, branch right, then the position.'
-                        : 'Prints: name centred, then the position.'}
+                        ? 'Prints: name centred, rank left, branch right, then the position and office lines.'
+                        : 'Prints: name centred, then the position and office lines.'}
                 </span>
             </div>
         </form>
