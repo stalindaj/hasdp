@@ -632,10 +632,14 @@
         'width'   => 190,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
-        // The ink stays below the last reason line (581.6pt) and may touch
-        // the top of the name, as a pen signature does.
+        // Only ~12pt between the last reason line (581.6pt) and the name, so —
+        // as in 7.A — the ink runs from just under that line down over the
+        // name, in a box narrow enough that it scales to the full height.
         'sigTopMinArg' => 582.5,
-        'sigGapAbove'  => -2,
+        'sigHeight'    => 24,
+        'sigGapAbove'  => -10,
+        'sigLeftArg'   => $MID + 5 + (190 - 140) / 2,
+        'sigWidthArg'  => 140,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
