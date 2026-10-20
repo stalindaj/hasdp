@@ -242,4 +242,25 @@ class BlockSignatureTest extends TestCase
             ['signature' => UploadedFile::fake()->image('sig.png')]
         )->assertForbidden();
     }
+
+    public function test_the_7b_signature_stays_below_the_last_reason_line(): void
+    {
+        $leave = $this->file($this->applicant());
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post(
+            route('leave.block-signature.store', [$leave, 'recommender']),
+            ['signature' => UploadedFile::fake()->image('sig.png', 300, 120)]
+        );
+
+        $html = $this->actingAs($admin)->get(route('leave.print', $leave))
+            ->assertOk()
+            ->getContent();
+
+        // The 7.B image: its top must sit under the second reason line (581.6pt).
+        $path = preg_quote(parse_url(route('leave.block-signature', [$leave, 'recommender']), PHP_URL_PATH), '#');
+        $this->assertMatchesRegularExpression('#src="'.$path.'[^"]*"[^>]*top:([\d.]+)pt#s', $html);
+        preg_match('#src="'.$path.'[^"]*"[^>]*top:([\d.]+)pt#s', $html, $m);
+        $this->assertGreaterThanOrEqual(582.0, (float) $m[1]);
+    }
 }

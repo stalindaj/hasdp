@@ -632,6 +632,10 @@
         'width'   => 190,
         'top'     => 594,
         'caption' => '(Authorized Officer)',
+        // The ink stays below the last reason line (581.6pt) and may touch
+        // the top of the name, as a pen signature does.
+        'sigTopMinArg' => 582.5,
+        'sigGapAbove'  => -2,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
