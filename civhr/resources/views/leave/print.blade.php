@@ -636,10 +636,10 @@
         // as in 7.A — the ink runs from just under that line down over the
         // name, in a box narrow enough that it scales to the full height.
         'sigTopMinArg' => 582.5,
-        'sigHeight'    => 24,
-        'sigGapAbove'  => -13,
-        'sigLeftArg'   => $MID + 5 + (190 - 160) / 2,
-        'sigWidthArg'  => 160,
+        'sigHeight'    => 32,
+        'sigGapAbove'  => -19,
+        'sigLeftArg'   => $MID + 5 + (190 - 180) / 2,
+        'sigWidthArg'  => 180,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
