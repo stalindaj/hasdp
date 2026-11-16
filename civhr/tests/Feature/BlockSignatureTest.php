@@ -88,8 +88,16 @@ class BlockSignatureTest extends TestCase
             ->get(route('leave.block-signature', [$leave, 'applicant']))
             ->assertOk();
 
-        // …but the 7.x blocks are the admin's — the applicant is turned away.
-        foreach (['certifier', 'recommender', 'approver'] as $slot) {
+        // …and 7.B, since the applicant takes the form to the recommending
+        // officer…
+        $this->actingAs($applicant)
+            ->post(route('leave.block-signature.store', [$leave, 'recommender']), [
+                'signature' => UploadedFile::fake()->image('rec.png'),
+            ])->assertRedirect();
+        $this->assertNotNull($leave->fresh()->signature_uploads['recommender']);
+
+        // …but 7.A and 7.C/7.D are the admin's — the applicant is turned away.
+        foreach (['certifier', 'approver'] as $slot) {
             $this->actingAs($applicant)
                 ->post(route('leave.block-signature.store', [$leave, $slot]), [
                     'signature' => UploadedFile::fake()->image('nope.png'),

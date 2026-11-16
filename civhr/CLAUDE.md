@@ -85,8 +85,8 @@ php artisan migrate:fresh --seed
   own** — they switch to employee mode (top-bar toggle) first, which drops all
   admin access while on. Filing is `employee`-middleware-guarded; certifying
   (7.A), naming signatories (7.B/C/D) and deciding are `canDecide` (admin-only);
-  the applicant owns boxes 1–6 and signs only their own 6.D block
-  (`canSignBlock`). Nobody certifies or decides their own leave.
+  the applicant owns boxes 1–6 and signs their own 6.D block plus
+  the 7.B recommending officer's signature (`canSignBlock`). Nobody certifies or decides their own leave.
 - Follow Laravel/Pint style; match the surrounding code's comment density.
 - **Do not add the Claude `Co-Authored-By` trailer to commits** (project
   preference).

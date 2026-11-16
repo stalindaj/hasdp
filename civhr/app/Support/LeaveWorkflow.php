@@ -96,8 +96,9 @@ class LeaveWorkflow
 
     /**
      * Who may drop a signature image onto a block of the printed form. The
-     * applicant signs 6.D and nothing else; an admin signs (or pastes in) any
-     * of the four blocks.
+     * applicant signs 6.D, and places the 7.B recommending officer's
+     * signature too — they are the one who goes to that officer for it. 7.A
+     * and 7.C/7.D stay the admin's; an admin may sign any of the four.
      */
     public static function canSignBlock(LeaveApplication $app, User $user, string $slot): bool
     {
@@ -106,7 +107,8 @@ class LeaveWorkflow
         }
 
         return self::isAdmin($user)
-            || ($slot === 'applicant' && (int) $app->user_id === (int) $user->id);
+            || (in_array($slot, ['applicant', 'recommender'], true)
+                && (int) $app->user_id === (int) $user->id);
     }
 
     /** The applicant may withdraw while it is still pending. */

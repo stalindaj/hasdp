@@ -637,9 +637,9 @@
         // name, in a box narrow enough that it scales to the full height.
         'sigTopMinArg' => 582.5,
         'sigHeight'    => 24,
-        'sigGapAbove'  => -10,
-        'sigLeftArg'   => $MID + 5 + (190 - 140) / 2,
-        'sigWidthArg'  => 140,
+        'sigGapAbove'  => -13,
+        'sigLeftArg'   => $MID + 5 + (190 - 160) / 2,
+        'sigWidthArg'  => 160,
         'signedOn' => $app->recommended_at ? $d($app->recommended_at) : null,
     ])
 
