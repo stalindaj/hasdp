@@ -172,6 +172,49 @@ class CreditLedgerTest extends TestCase
         );
     }
 
+    public function test_an_admin_can_set_a_balance_directly_and_the_old_figure_is_kept(): void
+    {
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
+        $admin = $this->admin();
+
+        // 1.25 accrued; the admin's own computation says it should read 9.
+        $this->actingAs($admin)->post(route('dashboard.credit', $e), [
+            'mode' => 'set', 'kind' => 'vl', 'target' => 9, 'note' => 'Per manual computation',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertEquals(9.0, CreditLedger::balances($e)['vl']);
+
+        // Recorded as a +7.75 ledger entry, naming the old and new figures
+        // and who made the change.
+        $entry = $e->creditEntries()->whereNull('period')->latest('id')->first();
+        $this->assertEquals(7.75, (float) $entry->amount);
+        $this->assertStringContainsString('Set VL to 9 (was 1.25)', $entry->note);
+        $this->assertStringContainsString('Per manual computation', $entry->note);
+        $this->assertStringContainsString('by user #'.$admin->id, $entry->note);
+
+        // Setting it lower works too.
+        $this->actingAs($admin)->post(route('dashboard.credit', $e), [
+            'mode' => 'set', 'kind' => 'vl', 'target' => 8.5, 'note' => 'Recount',
+        ])->assertSessionHasNoErrors();
+        $this->assertEquals(8.5, CreditLedger::balances($e)['vl']);
+    }
+
+    public function test_setting_a_balance_requires_a_reason_and_a_change(): void
+    {
+        $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post(route('dashboard.credit', $e), [
+            'mode' => 'set', 'kind' => 'vl', 'target' => 9,
+        ])->assertSessionHasErrors('note');
+
+        $this->actingAs($admin)->post(route('dashboard.credit', $e), [
+            'mode' => 'set', 'kind' => 'vl', 'target' => 1.25, 'note' => 'No-op',
+        ])->assertSessionHasErrors('target');
+
+        $this->assertSame(0, $e->creditEntries()->whereNull('period')->count());
+    }
+
     public function test_an_approved_vacation_leave_deducts_from_vl(): void
     {
         $e = $this->employee(['credits_accrual_start' => now()->subMonthNoOverflow()->startOfMonth()]);

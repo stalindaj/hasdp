@@ -88,7 +88,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
         });
     };
 
-    const adjust = useForm({ kind: 'vl', amount: '', note: '' });
+    const adjust = useForm({ mode: 'adjust', kind: 'vl', amount: '', target: '', note: '' });
     const ldForm = useForm({
         title: '',
         hours: '',
@@ -96,14 +96,17 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
     });
 
     const openAdjust = (kind) => {
-        adjust.setData({ kind, amount: '', note: '' });
+        adjust.setData({ mode: 'adjust', kind, amount: '', target: '', note: '' });
+        adjust.clearErrors();
         setAdjusting(kind);
     };
 
     // One click pre-fills the CSC year-end forfeiture of unused forced leave.
     const openForfeiture = () => {
         adjust.setData({
+            mode: 'adjust',
             kind: 'vl',
+            target: '',
             amount: String(-forced.remaining),
             note: `Forfeiture of unused mandatory/forced leave ${year} (CSC Sec. 25, Rule XVI)`,
         });
@@ -556,42 +559,110 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                         <h3 className="text-lg font-semibold text-slate-800">
                             Adjust {KINDS.find(([k]) => k === adjusting)?.[1]} — {employee.name}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Positive adds credits, negative removes them (e.g.
-                            <span className="font-mono"> 10.5</span> or
-                            <span className="font-mono"> -2</span>). Every change is
-                            kept in the history.
-                        </p>
-                        <div className="mt-5 space-y-4">
-                            <div>
-                                <InputLabel htmlFor="adj_amount" value="Amount (+/-)" />
-                                <TextInput
-                                    id="adj_amount"
-                                    type="number"
-                                    step="0.01"
-                                    className="mt-1 block w-full"
-                                    value={adjust.data.amount}
-                                    onChange={(e) => adjust.setData('amount', e.target.value)}
-                                />
-                                <InputError message={adjust.errors.amount} className="mt-1" />
-                            </div>
-                            <div>
-                                <InputLabel htmlFor="adj_note" value="Reason (kept in history)" />
-                                <TextInput
-                                    id="adj_note"
-                                    className="mt-1 block w-full"
-                                    placeholder="e.g. Opening balance per 201 file"
-                                    value={adjust.data.note}
-                                    onChange={(e) => adjust.setData('note', e.target.value)}
-                                />
-                            </div>
-                        </div>
+                        {(() => {
+                            const current = Number(balances[adjusting] ?? 0);
+                            const setting = adjust.data.mode === 'set';
+                            const target = parseFloat(adjust.data.target);
+                            const diff = Number.isFinite(target)
+                                ? Math.round((target - current) * 100) / 100
+                                : null;
+
+                            return (
+                                <>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        Current balance:{' '}
+                                        <span className="font-semibold text-slate-800">{current}</span>.
+                                        Every change is kept in the history with your name.
+                                    </p>
+
+                                    {/* Two ways to correct a balance: add or remove an
+                                        amount, or type the figure it should read. */}
+                                    <div className="mt-4 inline-flex rounded-md border border-slate-200 p-0.5 text-sm">
+                                        {[
+                                            ['adjust', 'Add / remove (+/-)'],
+                                            ['set', 'Set balance to'],
+                                        ].map(([m, label]) => (
+                                            <button
+                                                key={m}
+                                                type="button"
+                                                onClick={() => {
+                                                    adjust.setData('mode', m);
+                                                    adjust.clearErrors();
+                                                }}
+                                                className={
+                                                    'rounded px-3 py-1.5 font-medium ' +
+                                                    (adjust.data.mode === m
+                                                        ? 'bg-indigo-600 text-white'
+                                                        : 'text-slate-600 hover:bg-slate-100')
+                                                }
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-5 space-y-4">
+                                        {setting ? (
+                                            <div>
+                                                <InputLabel htmlFor="adj_target" value="New balance" />
+                                                <TextInput
+                                                    id="adj_target"
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="mt-1 block w-full"
+                                                    placeholder={String(current)}
+                                                    value={adjust.data.target}
+                                                    onChange={(e) => adjust.setData('target', e.target.value)}
+                                                />
+                                                {diff !== null && diff !== 0 && (
+                                                    <p className="mt-1 text-xs text-slate-500">
+                                                        {current} → {target}: recorded as{' '}
+                                                        <span className={'font-semibold ' + (diff > 0 ? 'text-emerald-700' : 'text-red-700')}>
+                                                            {diff > 0 ? '+' : ''}{diff}
+                                                        </span>
+                                                    </p>
+                                                )}
+                                                <InputError message={adjust.errors.target} className="mt-1" />
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <InputLabel htmlFor="adj_amount" value="Amount (+/-)" />
+                                                <TextInput
+                                                    id="adj_amount"
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="mt-1 block w-full"
+                                                    placeholder="e.g. 10.5 or -2"
+                                                    value={adjust.data.amount}
+                                                    onChange={(e) => adjust.setData('amount', e.target.value)}
+                                                />
+                                                <InputError message={adjust.errors.amount} className="mt-1" />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <InputLabel
+                                                htmlFor="adj_note"
+                                                value={setting ? 'Reason (required — kept in history)' : 'Reason (kept in history)'}
+                                            />
+                                            <TextInput
+                                                id="adj_note"
+                                                className="mt-1 block w-full"
+                                                placeholder={setting ? 'e.g. Corrected per manual computation' : 'e.g. Opening balance per 201 file'}
+                                                value={adjust.data.note}
+                                                onChange={(e) => adjust.setData('note', e.target.value)}
+                                            />
+                                            <InputError message={adjust.errors.note} className="mt-1" />
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
                         <div className="mt-6 flex justify-end gap-3">
                             <SecondaryButton type="button" onClick={() => setAdjusting(null)}>
                                 Cancel
                             </SecondaryButton>
                             <PrimaryButton disabled={adjust.processing}>
-                                Save adjustment
+                                {adjust.data.mode === 'set' ? 'Set balance' : 'Save adjustment'}
                             </PrimaryButton>
                         </div>
                     </form>

@@ -1,10 +1,13 @@
 @php
     $num = fn ($v) => $v === null ? '' : rtrim(rtrim(number_format((float) $v, 3, '.', ''), '0'), '.');
-    $sigName = function ($user) {
+    // $defaultRank fills in for a signatory whose record carries none (the
+    // preparer prints as "Civ HR … PAF" like the certifying officer).
+    $sigName = function ($user, ?string $defaultRank = null) {
         if (! $user) return '';
         $e = $user->employee;
         $name = $e ? trim(implode(' ', array_filter([$e->first_name, $e->middle_name, $e->last_name, $e->suffix]))) : $user->name;
-        return trim(($e && $e->rank ? $e->rank.' ' : '').$name.($e && $e->rank ? ' '.config('agency.branch_suffix') : ''));
+        $rank = ($e?->rank) ?: $defaultRank;
+        return trim(($rank ? $rank.' ' : '').$name.($rank ? ' '.config('agency.branch_suffix') : ''));
     };
 @endphp
 <!DOCTYPE html>
@@ -112,12 +115,12 @@
                 <td class="role">NOTED BY:</td>
             </tr>
             <tr>
-                <td class="name">{{ $sigName($certifier) ?: '&nbsp;' }}</td>
+                <td class="name">{{ $sigName($preparer, 'Civ HR') ?: '&nbsp;' }}</td>
                 <td class="name">{{ $sigName($certifier) ?: '&nbsp;' }}</td>
                 <td class="name">{{ $sigName($approver) ?: '&nbsp;' }}</td>
             </tr>
             <tr>
-                <td class="title">{{ optional($certifier?->employee)->designation }}</td>
+                <td class="title">{{ optional($preparer?->employee)->designation }}</td>
                 <td class="title">{{ optional($certifier?->employee)->designation }}</td>
                 <td class="title">{{ optional($approver?->employee)->designation }}</td>
             </tr>

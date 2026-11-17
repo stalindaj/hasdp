@@ -74,6 +74,28 @@ class LeaveLedgerTest extends TestCase
         );
     }
 
+    public function test_the_card_is_prepared_by_jean_marie_montemayor(): void
+    {
+        config(['agency.branch_suffix' => 'PAF']);
+        $admin = $this->admin();
+        $employee = Employee::create(['emp_no' => '5807', 'first_name' => 'Justin', 'last_name' => 'Bercades']);
+
+        // Not on file yet: Prepared By falls back to the HR officer.
+        $this->actingAs($admin)->get(route('dashboard.ledger', $employee))
+            ->assertOk()
+            ->assertDontSee('Montemayor');
+
+        User::factory()->create(['employee_id' => Employee::create([
+            'emp_no' => '5038', 'first_name' => 'Jean Marie', 'middle_name' => 'Tubat',
+            'last_name' => 'Montemayor',
+        ])->id]);
+
+        // With no rank on her record she still prints as Civ HR … PAF.
+        $this->actingAs($admin)->get(route('dashboard.ledger', $employee))
+            ->assertOk()
+            ->assertSee('Civ HR Jean Marie Tubat Montemayor PAF');
+    }
+
     public function test_the_leave_card_is_admin_only(): void
     {
         $employee = Employee::create(['emp_no' => '5807', 'first_name' => 'Justin', 'last_name' => 'Bercades']);

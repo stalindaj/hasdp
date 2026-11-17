@@ -21,6 +21,9 @@ use Illuminate\Support\Carbon;
  */
 class LeaveLedgerController extends Controller
 {
+    /** "Prepared by" on the card: Jean Marie Montemayor (Emp Nr 5038). */
+    private const PREPARER_EMP_NO = '5038';
+
     public function print(Request $request, Employee $employee)
     {
         abort_unless(LeaveWorkflow::isAdmin($request->user()), 403);
@@ -36,6 +39,11 @@ class LeaveLedgerController extends Controller
         $approver = \App\Models\User::whereHas('roles', fn ($q) => $q->where('name', 'approver'))
             ->with('employee')->where('is_active', true)->orderBy('name')->first();
 
+        // The card is prepared by the civilian HR clerk who keeps it, not the
+        // certifying officer; fall back to the certifier if she is not found.
+        $preparer = \App\Models\User::whereHas('employee', fn ($q) => $q->where('emp_no', self::PREPARER_EMP_NO))
+            ->with('employee')->where('is_active', true)->first() ?? $certifier;
+
         return view('leave.ledger', [
             'employee'  => $employee,
             'office'    => $employee->office_department,
@@ -45,6 +53,7 @@ class LeaveLedgerController extends Controller
             'rows'      => $rows,
             'vlBalance' => end($rows) ? $rows[array_key_last($rows)]['vl_bal'] : 0,
             'slBalance' => end($rows) ? $rows[array_key_last($rows)]['sl_bal'] : 0,
+            'preparer'  => $preparer,
             'certifier' => $certifier,
             'approver'  => $approver,
             'agencyUnit'=> config('agency.unit'),

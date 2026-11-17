@@ -10,6 +10,7 @@ use App\Support\LdTarget;
 use App\Support\LeaveWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -243,24 +244,58 @@ class DashboardController extends Controller
         ]);
     }
 
-    /** Admin edits a balance by posting an adjustment to the ledger. */
+    /**
+     * An admin correction to one balance. Either an amount to add or remove
+     * (+/-), or — mode "set" — the figure the balance should read, from which
+     * the difference is worked out against the live balance. Both land in the
+     * append-only ledger as one entry, so a "set" keeps the old figure on the
+     * record ("Set VL to 9 (was 8.12)") and shows up in the audit trail with
+     * the admin who made it.
+     */
     public function adjustCredit(Request $request, Employee $employee)
     {
+        $set = $request->input('mode') === 'set';
+
         $data = $request->validate([
+            'mode'   => ['nullable', Rule::in(['adjust', 'set'])],
             'kind'   => ['required', Rule::in(['vl', 'sl', 'wellness', 'spl'])],
-            'amount' => ['required', 'numeric', 'not_in:0', 'min:-999', 'max:999'],
-            'note'   => ['nullable', 'string', 'max:255'],
+            'amount' => [Rule::requiredIf(! $set), 'nullable', 'numeric', 'not_in:0', 'min:-999', 'max:999'],
+            'target' => [Rule::requiredIf($set), 'nullable', 'numeric', 'min:-999', 'max:999'],
+            // A straight overwrite must say why, for accountability.
+            'note'   => [Rule::requiredIf($set), 'nullable', 'string', 'max:255'],
+        ], [
+            'note.required' => 'Give a reason — a corrected balance is kept on the record.',
         ]);
 
-        CreditLedger::adjust(
-            $employee,
-            $data['kind'],
-            (float) $data['amount'],
-            $data['note'] ?? null,
-            $request->user()->id
-        );
+        $kind = $data['kind'];
+        $amount = (float) ($data['amount'] ?? 0);
+        $note = $data['note'] ?? null;
 
-        return back()->with('success', 'Balance adjusted.');
+        if ($set) {
+            $was = CreditLedger::balances($employee)[$kind];
+            $target = round((float) $data['target'], 2);
+            $amount = round($target - $was, 2);
+
+            if ($amount == 0) {
+                throw ValidationException::withMessages([
+                    'target' => 'The balance is already '.$this->fmt($was).'.',
+                ]);
+            }
+
+            $note = 'Set '.strtoupper($kind).' to '.$this->fmt($target).' (was '.$this->fmt($was).') — '.$note;
+        }
+
+        CreditLedger::adjust($employee, $kind, $amount, $note, $request->user()->id);
+
+        return back()->with('success', $set
+            ? strtoupper($kind).' balance set to '.$this->fmt($target).'.'
+            : 'Balance adjusted.');
+    }
+
+    /** 9.00 → "9", 8.10 → "8.1". */
+    private function fmt(float $n): string
+    {
+        return rtrim(rtrim(number_format($n, 2, '.', ''), '0'), '.');
     }
 
     /**
