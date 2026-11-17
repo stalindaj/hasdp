@@ -1,5 +1,5 @@
-import { Link } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * The 15SW personnel-portal look, ported from the standalone portal's
@@ -90,7 +90,22 @@ const CSS = `
     background:linear-gradient(135deg,#16324f,#0a1a2f); color:#fff;
     font-size:2.4rem; font-weight:700; letter-spacing:1px;
     box-shadow:0 0 0 4px var(--gold), 0 8px 30px rgba(0,0,0,.6);
+    overflow:hidden;
 }
+.p-avatar img { width:100%; height:100%; object-fit:cover; }
+.p-avatar-btn {
+    position:absolute; z-index:2; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background:var(--gold); color:#0a1a2f; border:2px solid #0a1a2f;
+    box-shadow:0 2px 8px rgba(0,0,0,.5); transition:transform .15s;
+}
+.p-avatar-btn:hover { transform:scale(1.1); }
+.p-avatar-btn:disabled { opacity:.6; cursor:wait; }
+.p-avatar-btn.edit { right:-2px; bottom:-2px; }
+.p-avatar-btn.del { left:-2px; bottom:-2px; width:26px; height:26px; background:#1e293b; color:#cbd5e1; border-color:#475569; font-size:.8rem; }
+.p-avatar-wrap.sm .p-avatar-btn.edit { width:28px; height:28px; right:-4px; bottom:-4px; }
+.p-avatar-wrap.sm .p-avatar-btn.del { width:22px; height:22px; left:-4px; bottom:-4px; }
+.p-avatar-err { color:#fca5a5; font-size:.75rem; margin:-.9rem 0 1rem; }
 
 .p-title {
     font-size:clamp(1.5rem,4vw,2.6rem); font-weight:700; line-height:1.15;
@@ -253,6 +268,90 @@ export const fmtDate = (d) =>
     d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
 /**
+ * The welcome circle: your picture if you've uploaded one, else your
+ * initials. The gold camera button changes it; the small × removes it.
+ */
+function PortalAvatar({ name, compact }) {
+    const { auth, errors } = usePage().props;
+    const photoUrl = auth?.photoUrl;
+    const input = useRef(null);
+    const [busy, setBusy] = useState(false);
+    const [broken, setBroken] = useState(false);
+
+    useEffect(() => setBroken(false), [photoUrl]);
+
+    const upload = (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        router.post(route('photo.store'), { photo: file }, {
+            forceFormData: true,
+            preserveScroll: true,
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
+        });
+    };
+
+    const remove = () => {
+        if (!confirm('Remove your profile picture?')) return;
+        router.delete(route('photo.destroy'), {
+            preserveScroll: true,
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
+        });
+    };
+
+    return (
+        <>
+            <div className={`p-avatar-wrap${compact ? ' sm' : ''}`}>
+                <div className="p-radar" />
+                <div className="p-avatar">
+                    {photoUrl && !broken
+                        ? <img src={photoUrl} alt={name} onError={() => setBroken(true)} />
+                        : initialsOf(name)}
+                </div>
+
+                <button
+                    type="button"
+                    className="p-avatar-btn edit"
+                    title={photoUrl ? 'Change your picture' : 'Add your picture'}
+                    aria-label={photoUrl ? 'Change your picture' : 'Add your picture'}
+                    disabled={busy}
+                    onClick={() => input.current?.click()}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                    </svg>
+                </button>
+                {photoUrl && (
+                    <button
+                        type="button"
+                        className="p-avatar-btn del"
+                        title="Remove your picture"
+                        aria-label="Remove your picture"
+                        disabled={busy}
+                        onClick={remove}
+                    >
+                        ✕
+                    </button>
+                )}
+
+                <input
+                    ref={input}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    style={{ display: 'none' }}
+                    onChange={upload}
+                />
+            </div>
+            {errors?.photo && <p className="p-avatar-err">{errors.photo}</p>}
+        </>
+    );
+}
+
+/**
  * The welcome card. `compact` shrinks it for the admin view, where the roster
  * — not the greeting — is the thing you came to look at.
  */
@@ -264,10 +363,7 @@ export function PortalHero({ name, designation, subtitle, compact = false, child
 
                 <div className="p-badge">🛡 15th Strike Wing</div>
 
-                <div className={`p-avatar-wrap${compact ? ' sm' : ''}`}>
-                    <div className="p-radar" />
-                    <div className="p-avatar">{initialsOf(name)}</div>
-                </div>
+                <PortalAvatar name={name} compact={compact} />
 
                 <h1 className={`p-title${compact ? ' sm' : ''}`}>
                     Welcome, <span>{name}</span>

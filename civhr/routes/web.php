@@ -80,6 +80,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Your profile picture (the dashboard's welcome circle).
+    Route::post('/photo', [\App\Http\Controllers\ProfilePhotoController::class, 'store'])->name('photo.store');
+    Route::delete('/photo', [\App\Http\Controllers\ProfilePhotoController::class, 'destroy'])->name('photo.destroy');
+    Route::get('/photo/{user}', [\App\Http\Controllers\ProfilePhotoController::class, 'show'])->name('photo.show');
+
     // E-signatures — your own, or anyone's if you are an admin.
     Route::post('/signature/{user}', [SignatureController::class, 'store'])->name('signature.store');
     Route::delete('/signature/{user}', [SignatureController::class, 'destroy'])->name('signature.destroy');

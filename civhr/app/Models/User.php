@@ -18,6 +18,7 @@ class User extends Authenticatable
         'employee_id',
         'is_active',
         'signature_path',
+        'photo_path',
     ];
 
     protected $hidden = [

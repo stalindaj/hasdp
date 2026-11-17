@@ -48,6 +48,10 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
+                // The welcome-circle picture; the ?v= busts the cache on change.
+                'photoUrl' => $user?->photo_path
+                    ? route('photo.show', ['user' => $user, 'v' => substr(md5($user->photo_path), 0, 8)], false)
+                    : null,
                 'roles' => $roles,
                 'isAdmin' => $hasAdminRole && ! $asEmployee,
                 // The audit trail is superadmin-only, so the nav link is too.
