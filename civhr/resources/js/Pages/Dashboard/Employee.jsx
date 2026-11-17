@@ -88,7 +88,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
         });
     };
 
-    const adjust = useForm({ mode: 'adjust', kind: 'vl', amount: '', target: '', note: '' });
+    const adjust = useForm({ mode: 'set', kind: 'vl', amount: '', target: '', note: '' });
     const ldForm = useForm({
         title: '',
         hours: '',
@@ -96,7 +96,7 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
     });
 
     const openAdjust = (kind) => {
-        adjust.setData({ mode: 'adjust', kind, amount: '', target: '', note: '' });
+        adjust.setData({ mode: 'set', kind, amount: '', target: '', note: '' });
         adjust.clearErrors();
         setAdjusting(kind);
     };
@@ -579,8 +579,8 @@ export default function EmployeeCard({ year, ldTarget, employee, ipcr, balances,
                                         amount, or type the figure it should read. */}
                                     <div className="mt-4 inline-flex rounded-md border border-slate-200 p-0.5 text-sm">
                                         {[
-                                            ['adjust', 'Add / remove (+/-)'],
                                             ['set', 'Set balance to'],
+                                            ['adjust', 'Add / remove (+/-)'],
                                         ].map(([m, label]) => (
                                             <button
                                                 key={m}
