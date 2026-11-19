@@ -203,13 +203,17 @@
     @media print {
         html, body { background: #fff; }
 
-        /* A4 is narrower and taller than the Letter sheet the coordinates
-           come from (595.28x841.89 against 612x792), so each axis gets its
-           own factor and the form fills the page edge to edge. The 6pt of
-           extra height this stretches over is not visible on the printout. */
+        /* The form itself spans x 102.4–538.7 and y 60–722 of the Letter
+           sheet the coordinates come from, which left wide empty margins on
+           A4. Enlarge it evenly (no stretching) so it fills the A4 page like
+           the official form: 0.5in top and bottom, centred left to right.
+             scale 1.163 · x: 297.64 − 1.163 × 320.55 · y: 36 − 1.163 × 60 */
+        html, body { width: 595.28pt; height: 841.89pt; overflow: hidden; }
         .sheet {
             margin: 0;
-            transform: scale(0.97268, 1.06299);
+            width: 595.28pt;
+            height: 841.89pt;
+            transform: translate(-75.16pt, -33.78pt) scale(1.163);
             transform-origin: top left;
         }
         .toolbar { display: none !important; }
